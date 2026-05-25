@@ -633,13 +633,20 @@
     </div>
 
     <!-- Filtros -->
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
       <button class="hist-filter-btn exp-filter-btn active" data-filter="all"         onclick="setExpenseFilter('all')">Todas</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="pending"     onclick="setExpenseFilter('pending')">⏳ Pendentes</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="paid"        onclick="setExpenseFilter('paid')">✅ Pagas</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="recurring"   onclick="setExpenseFilter('recurring')">🔁 Recorrentes</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="Janta"       onclick="setExpenseFilter('Janta')">🍖 Janta</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="Campo"       onclick="setExpenseFilter('Campo')">⚽ Campo</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.68rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Período:</span>
+      <input type="date" id="exp-date-from" onchange="renderExpenses()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
+      <span style="font-size:.75rem;color:#475569">até</span>
+      <input type="date" id="exp-date-to" onchange="renderExpenses()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
+      <button onclick="clearExpDates()" style="font-size:.72rem;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);color:#475569;cursor:pointer;font-family:inherit">✕ Limpar</button>
     </div>
     <div id="expense-list"></div>
   </div>
@@ -2241,26 +2248,122 @@ function deleteExpense(id) {
   scheduleSync();
 }
 
+function clearExpDates() {
+  const f = document.getElementById('exp-date-from');
+  const t = document.getElementById('exp-date-to');
+  if (f) f.value = '';
+  if (t) t.value = '';
+  renderExpenses();
+}
+
+function closeExpModal() {
+  const o = document.getElementById('edit-modal-overlay');
+  if (o) o.style.display = 'none';
+}
+
+function openEditExpense(id) {
+  const e = App.expenses.find(x => x.id === id);
+  if (!e) return;
+  const cats = ['Janta','Campo','Equipamento','Aluguel','Outros'];
+  const catOpts = cats.map(c => `<option value="${c}"${e.category===c?' selected':''}>${c}</option>`).join('');
+  document.getElementById('edit-modal-content').innerHTML = `
+    <h3 style="margin:0 0 16px;color:#e2e8f0;font-size:1rem">✏️ Editar Despesa</h3>
+    <input type="hidden" id="em-exp-id" value="${e.id}">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Descrição</label>
+        <input id="em-exp-desc" value="${e.description.replace(/"/g,'&quot;')}" class="input-field" style="width:100%"></div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Valor (R$)</label>
+          <input id="em-exp-amount" type="number" step="0.01" min="0.01" value="${e.amount.toFixed(2)}" class="input-field" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Data</label>
+          <input id="em-exp-date" type="date" value="${e.date}" class="input-field" style="width:100%"></div>
+      </div>
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Categoria</label>
+        <select id="em-exp-cat" class="input-field" style="width:100%">${catOpts}</select></div>
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Observações</label>
+        <input id="em-exp-notes" value="${(e.notes||'').replace(/"/g,'&quot;')}" class="input-field" style="width:100%"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="saveEditExpense()" class="btn-primary" style="flex:1">💾 Salvar</button>
+        <button onclick="closeExpModal()" class="btn-secondary">✕ Cancelar</button>
+      </div>
+    </div>`;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+}
+
+function saveEditExpense() {
+  const id = parseInt(document.getElementById('em-exp-id').value, 10);
+  const e = App.expenses.find(x => x.id === id);
+  if (!e) return;
+  const desc   = document.getElementById('em-exp-desc').value.trim();
+  const amount = parseFloat(document.getElementById('em-exp-amount').value);
+  const date   = document.getElementById('em-exp-date').value;
+  const cat    = document.getElementById('em-exp-cat').value;
+  const notes  = document.getElementById('em-exp-notes').value.trim();
+  if (!desc || isNaN(amount) || amount <= 0) { alert('Preencha a descrição e um valor válido.'); return; }
+  e.description = desc; e.amount = amount; e.date = date; e.category = cat; e.notes = notes;
+  closeExpModal(); renderExpenses(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
+function openEditPayment(playerId, paymentIdx) {
+  const p = App.players.find(x => x.id === playerId);
+  if (!p || !p.payments[paymentIdx]) return;
+  const pay  = p.payments[paymentIdx];
+  const types = ['Mensalidade','Jogo Avulso','Tira Gosto','Outro'];
+  const typeOpts = types.map(t => `<option value="${t}"${pay.type===t?' selected':''}>${t}</option>`).join('');
+  document.getElementById('edit-modal-content').innerHTML = `
+    <h3 style="margin:0 0 16px;color:#e2e8f0;font-size:1rem">✏️ Editar Pagamento — ${p.name}</h3>
+    <input type="hidden" id="em-pay-pid" value="${playerId}">
+    <input type="hidden" id="em-pay-idx" value="${paymentIdx}">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Tipo</label>
+        <select id="em-pay-type" class="input-field" style="width:100%">${typeOpts}</select></div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Valor (R$)</label>
+          <input id="em-pay-amount" type="number" step="0.01" min="0.01" value="${pay.amount.toFixed(2)}" class="input-field" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Data</label>
+          <input id="em-pay-date" type="date" value="${pay.date}" class="input-field" style="width:100%"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="saveEditPayment()" class="btn-primary" style="flex:1">💾 Salvar</button>
+        <button onclick="closeExpModal()" class="btn-secondary">✕ Cancelar</button>
+      </div>
+    </div>`;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+}
+
+function saveEditPayment() {
+  const playerId   = parseInt(document.getElementById('em-pay-pid').value, 10);
+  const paymentIdx = parseInt(document.getElementById('em-pay-idx').value, 10);
+  const p = App.players.find(x => x.id === playerId);
+  if (!p || !p.payments[paymentIdx]) return;
+  const newAmount = parseFloat(document.getElementById('em-pay-amount').value);
+  if (isNaN(newAmount) || newAmount <= 0) { alert('Valor inválido.'); return; }
+  const oldAmount = p.payments[paymentIdx].amount;
+  p.payments[paymentIdx].type   = document.getElementById('em-pay-type').value;
+  p.payments[paymentIdx].amount = newAmount;
+  p.payments[paymentIdx].date   = document.getElementById('em-pay-date').value;
+  p.balance += newAmount - oldAmount;
+  closeExpModal(); renderFinancialPanel(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
 function renderExpenses() {
   const catClass = { Janta:'cat-janta', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros', Aluguel:'cat-aluguel' };
   const catIcon  = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Outros:'📌', Aluguel:'🏠' };
   const currentMonth = new Date().toISOString().slice(0, 7);
 
-  // Recorrentes ativos como entradas virtuais (pendentes se ainda não deram baixa este mês)
+  // Recorrentes ativos SEM baixa neste mês (os com baixa já aparecem como despesa real em App.expenses)
   const recurringItems = (App.recurringExpenses || [])
-    .filter(r => r.active)
+    .filter(r => r.active && r.lastPaidMonth !== currentMonth)
     .map(r => ({
       _isRecurring: true, _recurringId: r.id,
-      _paidThisMonth: r.lastPaidMonth === currentMonth,
       id: `rec-${r.id}`, date: '', description: r.description,
-      category: r.category, amount: r.amount,
-      paid: r.lastPaidMonth === currentMonth, paidDate: null, notes: '',
+      category: r.category, amount: r.amount, paid: false, paidDate: null, notes: '',
     }));
 
-  // Stats incluem recorrentes pendentes neste mês
-  const recPend = recurringItems.filter(r => !r._paidThisMonth).reduce((s,r) => s + r.amount, 0);
-  const totalAll  = App.expenses.reduce((s,e) => s + e.amount, 0) + recurringItems.reduce((s,r) => s + r.amount, 0);
-  const totalPaid = App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0) + recurringItems.filter(r => r._paidThisMonth).reduce((s,r) => s + r.amount, 0);
+  // Stats: despesas reais + recorrentes pendentes do mês
+  const recPend   = recurringItems.reduce((s,r) => s + r.amount, 0);
+  const totalAll  = App.expenses.reduce((s,e) => s + e.amount, 0) + recPend;
+  const totalPaid = App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0);
   const totalPend = recPend + App.expenses.filter(e => !e.paid).reduce((s,e) => s + e.amount, 0);
   const totalIn   = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
   const saldoLivre = totalIn - App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0) - totalPend;
@@ -2272,16 +2375,23 @@ function renderExpenses() {
   set('exp-saldo', `R$ ${saldoLivre.toFixed(2)}`);
   updateFinHeaderBalance();
 
-  // Lista combinada: recorrentes no topo, depois despesas avulsas por data
+  // Filtro de data nas despesas avulsas
+  const expFrom = document.getElementById('exp-date-from')?.value || '';
+  const expTo   = document.getElementById('exp-date-to')?.value   || '';
+
+  // Lista combinada: recorrentes pendentes no topo, depois despesas avulsas por data
   let regularList = [...App.expenses].sort((a,b) => b.date.localeCompare(a.date));
-  let recList     = [...recurringItems];
+  let recList     = [...recurringItems]; // já são apenas pendentes do mês
+
+  if (expFrom) regularList = regularList.filter(e => e.date >= expFrom);
+  if (expTo)   regularList = regularList.filter(e => e.date <= expTo);
 
   if (expenseFilter === 'pending') {
     regularList = regularList.filter(e => !e.paid);
-    recList     = recList.filter(r => !r._paidThisMonth);
+    // recList já são todos pendentes
   } else if (expenseFilter === 'paid') {
     regularList = regularList.filter(e => e.paid);
-    recList     = recList.filter(r => r._paidThisMonth);
+    recList = []; // pendentes não aparecem no filtro "pagas"
   } else if (expenseFilter === 'recurring') {
     regularList = [];
   } else if (['Janta','Campo','Equipamento','Aluguel','Outros'].includes(expenseFilter)) {
@@ -2329,12 +2439,12 @@ function renderExpenses() {
       : `<span style="font-size:.68rem;color:#fbbf24">⏳ Pendente</span>`;
     const noteStr  = e.notes ? `<div style="font-size:.68rem;color:#475569;margin-top:2px">${e.notes}</div>` : '';
     const recBadge = e.recurringRef ? `<span style="font-size:.63rem;color:#60a5fa;background:rgba(96,165,250,0.1);padding:2px 6px;border-radius:5px">🔁 Recorrente</span>` : '';
-    const actionBtn = e.paid
-      ? `<button onclick="deleteExpense(${e.id})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>`
-      : `<div style="display:flex;gap:6px">
-           <button onclick="markExpensePaid(${e.id})" style="padding:5px 12px;border-radius:8px;background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.25);color:#4ade80;cursor:pointer;font-size:.75rem;font-family:inherit;font-weight:600">✅ Pagar</button>
-           <button onclick="deleteExpense(${e.id})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>
-         </div>`;
+    const editBtn = App.auth.role === 'admin' ? `<button onclick="openEditExpense(${e.id})" title="Editar" style="padding:5px 10px;border-radius:8px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);color:#60a5fa;cursor:pointer;font-size:.75rem;font-family:inherit">✏️</button>` : '';
+    const actionBtn = `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      ${!e.paid ? `<button onclick="markExpensePaid(${e.id})" style="padding:5px 12px;border-radius:8px;background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.25);color:#4ade80;cursor:pointer;font-size:.75rem;font-family:inherit;font-weight:600">✅ Pagar</button>` : ''}
+      ${editBtn}
+      <button onclick="deleteExpense(${e.id})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>
+    </div>`;
     return `<div class="exp-card${e.paid ? ' paid' : ''}" style="margin-bottom:8px">
       <div style="font-size:1.4rem;line-height:1">${catIcon[e.category]||'📌'}</div>
       <div style="flex:1;min-width:0">
@@ -2529,7 +2639,7 @@ function renderFinancialPanel() {
     const tot  = fp + dp;
     const ok   = tot === 0;
     const paid = p.payments.reduce((s,x) => s + x.amount, 0);
-    let logs = [...p.payments].reverse();
+    let logs = p.payments.map((x, i) => ({...x, _idx: i})).reverse();
     if (hasDateFilter) {
       logs = logs.filter(x => (!dateFrom || x.date >= dateFrom) && (!dateTo || x.date <= dateTo));
     } else {
@@ -2569,9 +2679,12 @@ function renderFinancialPanel() {
       </div>
       ${logs.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)">
         ${hasDateFilter ? `<div style="font-size:.64rem;color:#475569;margin-bottom:5px">Pagamentos de ${dateFrom||'—'} até ${dateTo||'hoje'}</div>` : ''}
-        ${logs.map(x => `<div style="display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:2px">
+        ${logs.map(x => `<div style="display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:2px;align-items:center">
           <span style="color:#334155">${x.date} · <span style="color:#475569">${x.type}</span></span>
-          <span style="color:#4ade80;font-weight:600">+ R$ ${x.amount.toFixed(2)}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="color:#4ade80;font-weight:600">+ R$ ${x.amount.toFixed(2)}</span>
+            ${App.auth.role==='admin' ? `<button onclick="openEditPayment(${p.id},${x._idx})" title="Editar" style="padding:1px 6px;border-radius:5px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);color:#60a5fa;cursor:pointer;font-size:.65rem;font-family:inherit;line-height:1.6">✏️</button>` : ''}
+          </div>
         </div>`).join('')}
         ${!hasDateFilter && p.payments.length > 5 ? `<div style="font-size:.66rem;color:#334155;text-align:right;margin-top:1px">+ ${p.payments.length - 5} lançamentos anteriores</div>` : ''}
       </div>` : (hasDateFilter ? `<div style="margin-top:8px;font-size:.7rem;color:#334155;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05)">Nenhum pagamento no período</div>` : '')}
@@ -4164,5 +4277,12 @@ document.addEventListener('DOMContentLoaded', () => {
     <span class="micon">🚪</span><span>Sair</span>
   </button>
 </nav>
+
+<!-- ══ MODAL DE EDIÇÃO ══ -->
+<div id="edit-modal-overlay" onclick="if(event.target===this)closeExpModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:24px;width:min(94vw,480px);max-height:90vh;overflow-y:auto">
+    <div id="edit-modal-content"></div>
+  </div>
+</div>
 </body>
 </html>
