@@ -6,6 +6,12 @@ header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Auth-Token');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
+set_exception_handler(function($e) {
+    if (!headers_sent()) http_response_code(500);
+    echo json_encode(['error' => 'Erro interno: ' . $e->getMessage()]);
+    exit;
+});
+
 require __DIR__ . '/config.php';
 
 // Autenticação

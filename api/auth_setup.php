@@ -26,6 +26,20 @@ require __DIR__ . '/config.php';
 <body>
 <h1>⚽ Fut Segunda — Auth Setup</h1>
 <?php
+// Helper: cria usuário se ainda não existir
+function createUserIfMissing($pdo, $username, $password, $role) {
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    if ($stmt->fetch()) {
+        echo '<p style="color:#94a3b8">ℹ️ Usuário <code>' . htmlspecialchars($username) . '</code> já existe — senha não alterada.</p>';
+        return;
+    }
+    $hash = password_hash($password, PASSWORD_BCRYPT);
+    $pdo->prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
+        ->execute([$username, $hash, $role]);
+    echo '<p class="ok">✅ Usuário <code>' . htmlspecialchars($username) . '</code> criado (' . $role . ').</p>';
+}
+
 try {
     $pdo = new PDO(
         'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
@@ -60,22 +74,15 @@ try {
     ");
     echo '<p class="ok">✅ Tabela <code>sessions</code> criada/verificada.</p>';
 
-    // Cria admin padrão se não existir
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ?');
-    $stmt->execute(['admin']);
-    if (!$stmt->fetch()) {
-        $hash = password_hash('fut@admin', PASSWORD_BCRYPT);
-        $pdo->prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
-            ->execute(['admin', $hash, 'admin']);
-        echo '<p class="ok">✅ Usuário <code>admin</code> criado.</p>';
-        echo '<p class="warn">⚠️ Credenciais iniciais — troque a senha após o primeiro login!</p>';
-        echo '<p>Usuário: <code>admin</code> &nbsp;|&nbsp; Senha: <code>fut@admin</code></p>';
-    } else {
-        echo '<p style="color:#94a3b8">ℹ️ Usuário <code>admin</code> já existe — senha não foi alterada.</p>';
-    }
+    echo '<hr>';
+
+    // ── Usuários ────────────────────────────────────────────
+    createUserIfMissing($pdo, 'gui',   '198200',    'admin');
+    createUserIfMissing($pdo, 'admin', 'fut@admin', 'admin');
 
     echo '<hr>';
-    echo '<p class="ok">✅ Setup concluído! <strong>Delete este arquivo do servidor agora.</strong></p>';
+    echo '<p class="ok">✅ Setup concluído!</p>';
+    echo '<p class="warn">⚠️ <strong>Delete este arquivo do servidor após rodar.</strong></p>';
 
 } catch (PDOException $e) {
     echo '<p class="err">❌ Erro: ' . htmlspecialchars($e->getMessage()) . '</p>';
