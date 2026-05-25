@@ -1,0 +1,26 @@
+{
+  "name": "futebol-manager",
+  "version": "1.0.0",
+  "description": "Sistema de gerenciamento para futebol amador.",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "ts-node src/main.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "futebol",
+    "esporte",
+    "gerenciamento"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "typescript": "^5.0.0"
+  },
+"devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.4.5"
+}
+}
