@@ -50,6 +50,27 @@ function getSession($pdo, $token) {
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
+// ── HISTÓRICO PÚBLICO (sem token) ───────────────────────
+if ($action === 'public') {
+    $stmt = $pdo->query('SELECT data FROM app_data WHERE id = 1');
+    $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) { echo json_encode(['players'=>[],'attendances'=>[],'results'=>[],'teamHistory'=>[]]); exit; }
+    $d = json_decode($row['data'], true) ?? [];
+    $players = array_map(fn($p) => [
+        'id'       => $p['id'],
+        'name'     => $p['name'],
+        'position' => $p['position'] ?? '',
+        'overall'  => $p['overall']  ?? 60,
+    ], $d['players'] ?? []);
+    echo json_encode([
+        'players'     => $players,
+        'attendances' => $d['attendances'] ?? [],
+        'results'     => $d['results']     ?? [],
+        'teamHistory' => $d['teamHistory'] ?? [],
+    ]);
+    exit;
+}
+
 // ── LOGIN (não exige token) ──────────────────────────────
 if ($action === 'login') {
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];

@@ -278,8 +278,10 @@
     .empty-state{color:#334155;font-size:.83rem;text-align:center;padding:22px}
 
     /* ─ LOGIN SCREEN ─ */
-    #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;align-items:center;justify-content:center;padding:20px}
-    .login-card{background:var(--card);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 40px 80px rgba(0,0,0,0.65);animation:fadeUp .3s ease}
+    #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:40px 20px 60px}
+    .login-card{background:var(--card);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 40px 80px rgba(0,0,0,0.65);animation:fadeUp .3s ease;flex-shrink:0}
+    #public-history{width:100%;max-width:900px;margin-top:36px}
+    .pub-section-title{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;margin:18px 0 8px;padding:0 2px}
     .login-logo{width:52px;height:52px;background:linear-gradient(135deg,#22c55e,#15803d);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px;box-shadow:0 0 24px rgba(34,197,94,0.45)}
     .login-brand{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;background:linear-gradient(90deg,#fff 30%,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:4px}
     .login-sub{font-size:.75rem;color:#475569;text-align:center;margin-bottom:28px}
@@ -347,6 +349,15 @@
         Entrar
       </button>
     </div>
+  </div>
+
+  <!-- Histórico público — visível sem login -->
+  <div id="public-history">
+    <div style="text-align:center;font-size:.72rem;color:#334155;margin-bottom:16px;letter-spacing:.03em">
+      ─── Histórico Público ───
+    </div>
+    <div id="pub-results"></div>
+    <div id="pub-teams"></div>
   </div>
 </div>
 
@@ -2673,9 +2684,10 @@ function renderRodadaPresenca() {
   const all      = [...regulars, ...subs, ...exempt];
   if (!all.length) { el.innerHTML = '<div class="empty-state" style="padding:12px">Nenhum jogador cadastrado</div>'; return; }
 
-  let html = '';
+  let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">⚽</span><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">🍽️</span></div>';
   all.forEach((p, idx) => {
-    const checked = rodState.confirmedIds.includes(p.id);
+    const checked    = rodState.confirmedIds.includes(p.id);
+    const dinChecked = rodState.dinnerIds.includes(p.id);
     const isFirstSub = !p.isRegular && !p.isIsento && idx > 0 && all[idx-1].isRegular;
     const isFirstExempt = p.isIsento && idx > 0 && !all[idx-1].isIsento;
     if (isFirstSub || isFirstExempt) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
@@ -2683,14 +2695,19 @@ function renderRodadaPresenca() {
     const typeBadge = p.isIsento
       ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(148,163,184,0.12);color:#94a3b8">Isento</span>'
       : (p.isRegular ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#4ade80">Mensal</span>' : `<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(245,158,11,0.1);color:#f59e0b">${ac}× pres.</span>`);
-    html += `<label style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;cursor:pointer;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.18)':'transparent'}">
-      <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
-      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span style="font-size:.82rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
-        <span style="font-size:.62rem;color:${POS_COLOR[p.position]||'#94a3b8'}">${p.position}</span>
-        ${typeBadge}
-      </div>
-    </label>`;
+    html += `<div style="display:flex;align-items:center;gap:4px;padding:4px 4px;border-radius:9px;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.12)':'transparent'}">
+      <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;padding:2px 4px">
+        <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
+        <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <span style="font-size:.82rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
+          <span style="font-size:.62rem;color:${POS_COLOR[p.position]||'#94a3b8'}">${p.position}</span>
+          ${typeBadge}
+        </div>
+      </label>
+      <label style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;cursor:pointer;border-radius:7px;background:${dinChecked?'rgba(245,158,11,0.1)':'transparent'};border:1px solid ${dinChecked?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)'}">
+        <input type="checkbox" ${dinChecked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer">
+      </label>
+    </div>`;
   });
   el.innerHTML = html;
   updateRodBadges();
@@ -2699,10 +2716,10 @@ function renderRodadaPresenca() {
 function rodTogglePlayer(id, checked) {
   if (checked) {
     if (!rodState.confirmedIds.includes(id)) rodState.confirmedIds.push(id);
-    if (!rodState.dinnerIds.includes(id))    rodState.dinnerIds.push(id);
+    if (!rodState.dinnerIds.includes(id))    rodState.dinnerIds.push(id); // auto-marca janta
   } else {
     rodState.confirmedIds = rodState.confirmedIds.filter(x => x !== id);
-    rodState.dinnerIds    = rodState.dinnerIds.filter(x => x !== id);
+    // janta permanece independente — não auto-desmarca
   }
   renderRodadaPresenca();
   renderRodadaDinner();
@@ -2722,15 +2739,19 @@ function rodClearAll() {
 
 function renderRodadaDinner() {
   const el = document.getElementById('rod-dinner-list'); if (!el) return;
-  const confirmed = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean);
-  el.innerHTML = confirmed.length ? confirmed.map(p => {
-    const checked = rodState.dinnerIds.includes(p.id);
-    return `<label style="display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:9px;cursor:pointer;background:${checked?'rgba(251,191,36,0.07)':'transparent'}">
-      <input type="checkbox" ${checked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#fbbf24;cursor:pointer;flex-shrink:0">
-      <span style="font-size:.81rem;color:${checked?'#f1f5f9':'#64748b'}">${p.name}</span>
-      ${p.isIsento ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(148,163,184,0.1);color:#94a3b8;margin-left:auto">isento</span>' : (!p.isRegular ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(245,158,11,0.1);color:#f59e0b;margin-left:auto">avulso</span>' : '')}
-    </label>`;
-  }).join('') : '<div style="color:#334155;font-size:.76rem;padding:6px">Confirme a presença primeiro</div>';
+  const dinnerPlayers = rodState.dinnerIds.map(id => findPlayerById(id)).filter(Boolean);
+  el.innerHTML = dinnerPlayers.length
+    ? dinnerPlayers.map(p => {
+        const tag = p.isIsento
+          ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(148,163,184,0.1);color:#94a3b8;margin-left:auto">isento</span>'
+          : (!p.isRegular ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(245,158,11,0.1);color:#f59e0b;margin-left:auto">avulso</span>' : '');
+        const soJanta = !rodState.confirmedIds.includes(p.id)
+          ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(96,165,250,0.1);color:#60a5fa;margin-left:auto">só janta</span>' : '';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:9px;background:rgba(251,191,36,0.05);margin-bottom:2px">
+          <span style="font-size:.81rem;color:#f1f5f9;flex:1">${p.name}</span>${soJanta}${tag}
+        </div>`;
+      }).join('')
+    : '<div style="color:#334155;font-size:.76rem;padding:6px">Marque 🍽️ na lista ao lado</div>';
   updateRodBadges();
   updateRodDinnerSplit();
 }
@@ -3563,6 +3584,62 @@ async function doLogout() {
   document.getElementById('mnav-logout').style.display = 'none';
 }
 
+async function loadPublicHistory() {
+  try {
+    const res  = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
+    if (!res.ok) return;
+    const d    = await res.json();
+    const pMap = Object.fromEntries((d.players||[]).map(p => [p.id, p]));
+
+    // Resultados
+    const results = (d.results || []).slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
+    const rEl = document.getElementById('pub-results');
+    if (rEl) {
+      if (results.length) {
+        rEl.innerHTML = '<div class="pub-section-title">⚽ Últimas Partidas</div>'
+          + results.map(r => {
+            const dt = r.date ? r.date.split('-').reverse().join('/') : '—';
+            const homeScore = r.homeScore ?? '—';
+            const awayScore = r.awayScore ?? '—';
+            const motm = r.motm ? pMap[r.motm]?.name : null;
+            return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+                <span style="font-size:.72rem;color:#475569">${dt}</span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:.7rem;font-weight:700;color:#eab308">⬛🟡</span>
+                  <span style="font-size:1.15rem;font-weight:800;color:#f1f5f9">${homeScore} × ${awayScore}</span>
+                  <span style="font-size:.7rem;font-weight:700;color:#60a5fa">🔵</span>
+                </div>
+                ${motm ? `<span style="font-size:.68rem;color:#fbbf24">⭐ ${motm}</span>` : '<span></span>'}
+              </div>
+            </div>`;
+          }).join('');
+      } else { rEl.innerHTML = ''; }
+    }
+
+    // Times recentes
+    const teams = (d.teamHistory || []).slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+    const tEl = document.getElementById('pub-teams');
+    if (tEl) {
+      if (teams.length) {
+        tEl.innerHTML = '<div class="pub-section-title">👥 Times Recentes</div>'
+          + teams.map(t => {
+            const dt   = t.date ? t.date.split('-').reverse().join('/') : '—';
+            const home = (t.home||[]).map(id => pMap[id]?.name || '?').join(', ');
+            const away = (t.away||[]).map(id => pMap[id]?.name || '?').join(', ');
+            return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
+              <div style="font-size:.62rem;color:#475569;margin-bottom:8px">${dt}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div><div style="font-size:.6rem;font-weight:700;color:#eab308;margin-bottom:4px">⬛🟡 PRETO E AMARELO</div><div style="font-size:.75rem;color:#94a3b8;line-height:1.6">${home || '—'}</div></div>
+                <div><div style="font-size:.6rem;font-weight:700;color:#60a5fa;margin-bottom:4px">🔵 AZUL</div><div style="font-size:.75rem;color:#94a3b8;line-height:1.6">${away || '—'}</div></div>
+              </div>
+            </div>`;
+          }).join('');
+      } else { tEl.innerHTML = ''; }
+    }
+  } catch { /* silencia erros de rede no histórico público */ }
+}
+
 async function checkStoredSession() {
   const token    = localStorage.getItem('fut_token');
   const role     = localStorage.getItem('fut_role');
@@ -3570,6 +3647,7 @@ async function checkStoredSession() {
 
   if (!token) {
     document.getElementById('login-screen').style.display = 'flex';
+    loadPublicHistory();
     return;
   }
 
