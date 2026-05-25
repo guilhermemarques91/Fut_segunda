@@ -3506,7 +3506,11 @@ function onLoginSuccess() {
 }
 
 function applyRoleRestrictions() {
-  const isViewer = App.auth.role === 'viewer';
+  const isAdmin  = App.auth.role === 'admin';
+  const isViewer = !isAdmin;
+  // Garante visibilidade do card de usuários imediatamente ao autenticar
+  const cardUsers = document.getElementById('card-users');
+  if (cardUsers) cardUsers.style.display = isAdmin ? 'block' : 'none';
   if (isViewer) {
     // Desktop nav — esconde tudo exceto histórico
     ['dashboard','rodada','players','finance'].forEach(s => {
@@ -3597,7 +3601,10 @@ async function loadUsersList() {
           ${u.username === App.auth.username ? '<span style="font-size:.68rem;color:#334155">(você)</span>' : ''}
         </div>
         ${u.username !== App.auth.username ? `
-          <button onclick="deleteUser(${u.id},'${u.username}')" class="act-btn act-btn-del" style="font-size:.72rem">Remover</button>
+          <div style="display:flex;gap:6px">
+            <button onclick="toggleUserRole(${u.id},'${u.username}','${u.role}')" class="act-btn" style="font-size:.72rem;background:rgba(96,165,250,0.1);border-color:rgba(96,165,250,0.2);color:#60a5fa">${u.role==='admin'?'→ viewer':'→ admin'}</button>
+            <button onclick="deleteUser(${u.id},'${u.username}')" class="act-btn act-btn-del" style="font-size:.72rem">Remover</button>
+          </div>
         ` : ''}
       </div>`).join('');
   } catch (e) {
@@ -3626,6 +3633,21 @@ async function createUser() {
     document.getElementById('new-user-password').value = '';
     loadUsersList();
   } catch (e) { showUserMsg(e.message, false); }
+}
+
+async function toggleUserRole(id, name, currentRole) {
+  const newRole = currentRole === 'admin' ? 'viewer' : 'admin';
+  if (!confirm(`Mudar "${name}" de ${currentRole} para ${newRole}?`)) return;
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=update_user_role', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
+      body:    JSON.stringify({ id, role: newRole }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro');
+    loadUsersList();
+  } catch (e) { alert(e.message); }
 }
 
 async function deleteUser(id, name) {

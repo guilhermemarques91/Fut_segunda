@@ -23,5 +23,12 @@ jobs:
             **/.git*
             **/.git*/**
             **/node_modules/**
+            **/.claude/**
+            **/src/**
+            **/services/**
             api/config.php
-            .claude/**
+            main.py
+            index.ts
+            package.json
+            package-lock.json
+            README.md

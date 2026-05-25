@@ -26,18 +26,21 @@ require __DIR__ . '/config.php';
 <body>
 <h1>⚽ Fut Segunda — Auth Setup</h1>
 <?php
-// Helper: cria usuário se ainda não existir
-function createUserIfMissing($pdo, $username, $password, $role) {
+// Garante que o usuário existe com a senha e role corretas (cria ou faz reset completo)
+function ensureUser($pdo, $username, $password, $role) {
+    $hash = password_hash($password, PASSWORD_BCRYPT);
     $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ?');
     $stmt->execute([$username]);
-    if ($stmt->fetch()) {
-        echo '<p style="color:#94a3b8">ℹ️ Usuário <code>' . htmlspecialchars($username) . '</code> já existe — senha não alterada.</p>';
-        return;
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($existing) {
+        $pdo->prepare('UPDATE users SET password = ?, role = ? WHERE id = ?')
+            ->execute([$hash, $role, $existing['id']]);
+        echo '<p class="ok">✅ Usuário <code>' . htmlspecialchars($username) . '</code> atualizado → role <strong>' . $role . '</strong>, senha redefinida.</p>';
+    } else {
+        $pdo->prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
+            ->execute([$username, $hash, $role]);
+        echo '<p class="ok">✅ Usuário <code>' . htmlspecialchars($username) . '</code> criado (' . $role . ').</p>';
     }
-    $hash = password_hash($password, PASSWORD_BCRYPT);
-    $pdo->prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
-        ->execute([$username, $hash, $role]);
-    echo '<p class="ok">✅ Usuário <code>' . htmlspecialchars($username) . '</code> criado (' . $role . ').</p>';
 }
 
 try {
@@ -59,12 +62,20 @@ try {
     ");
     echo '<p class="ok">✅ Tabela <code>users</code> criada/verificada.</p>';
 
+    // Garante coluna role em users (caso tabela existia antes desta versão)
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN role ENUM('admin','viewer') NOT NULL DEFAULT 'viewer'");
+        echo '<p class="ok">✅ Coluna <code>role</code> adicionada à tabela <code>users</code>.</p>';
+    } catch (PDOException $e) {
+        echo '<p style="color:#94a3b8">ℹ️ Coluna <code>role</code> já existe em <code>users</code>.</p>';
+    }
+
     // Tabela de sessões
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS sessions (
             token      CHAR(64)  NOT NULL,
             user_id    INT       NOT NULL,
-            role       ENUM('admin','viewer') NOT NULL,
+            role       ENUM('admin','viewer') NOT NULL DEFAULT 'viewer',
             expires_at DATETIME  NOT NULL,
             PRIMARY KEY (token),
             INDEX idx_user (user_id),
@@ -74,11 +85,23 @@ try {
     ");
     echo '<p class="ok">✅ Tabela <code>sessions</code> criada/verificada.</p>';
 
+    // Garante coluna role em sessions
+    try {
+        $pdo->exec("ALTER TABLE sessions ADD COLUMN role ENUM('admin','viewer') NOT NULL DEFAULT 'viewer'");
+        echo '<p class="ok">✅ Coluna <code>role</code> adicionada à tabela <code>sessions</code>.</p>';
+    } catch (PDOException $e) {
+        echo '<p style="color:#94a3b8">ℹ️ Coluna <code>role</code> já existe em <code>sessions</code>.</p>';
+    }
+
     echo '<hr>';
 
-    // ── Usuários ────────────────────────────────────────────
-    createUserIfMissing($pdo, 'gui',   '198200',    'admin');
-    createUserIfMissing($pdo, 'admin', 'fut@admin', 'admin');
+    // ── Usuários (reset completo: força role admin + senha correta) ──
+    ensureUser($pdo, 'gui',   '198200', 'admin');
+    ensureUser($pdo, 'admin', 'admin',  'admin');
+
+    // Invalidar todas as sessões antigas (forçar re-login com nova role)
+    $pdo->exec("DELETE FROM sessions");
+    echo '<p class="ok">✅ Sessões antigas invalidadas — faça login novamente.</p>';
 
     echo '<hr>';
     echo '<p class="ok">✅ Setup concluído!</p>';

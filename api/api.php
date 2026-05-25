@@ -142,7 +142,7 @@ if ($action === 'change_password') {
 }
 
 // ── Actions somente para admin ───────────────────────────
-if (in_array($action, ['list_users', 'create_user', 'delete_user'], true)) {
+if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
         http_response_code(403);
         echo json_encode(['error' => 'Acesso negado']);
@@ -185,6 +185,27 @@ if (in_array($action, ['list_users', 'create_user', 'delete_user'], true)) {
             ->execute([$username, $hash, $role]);
 
         echo json_encode(['ok' => true, 'id' => (int) $pdo->lastInsertId()]);
+        exit;
+    }
+
+    if ($action === 'update_user_role') {
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $id   = (int) ($body['id'] ?? 0);
+        $role = $body['role'] ?? '';
+
+        if (!$id || !in_array($role, ['admin', 'viewer'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID ou role inválido']);
+            exit;
+        }
+        if ($id === (int) $session['user_id']) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Você não pode alterar sua própria role']);
+            exit;
+        }
+
+        $pdo->prepare('UPDATE users SET role = ? WHERE id = ?')->execute([$role, $id]);
+        echo json_encode(['ok' => true]);
         exit;
     }
 
