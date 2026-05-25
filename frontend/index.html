@@ -3443,9 +3443,8 @@ function initDemoData() {
 //  e API_KEY com a mesma chave definida em api/config.php
 // ═══════════════════════════════════════════════════════
 const SERVER_CONFIG = {
-  apiUrl:  'https://fut.barleiseca.com.br/api/api.php',
-  authUrl: 'https://fut.barleiseca.com.br/api/auth.php',
-  apiKey:  'fut2-minha-chave-secreta',   // ← mesma chave do config.php
+  apiUrl: 'https://fut.barleiseca.com.br/api/api.php',
+  apiKey: 'fut2-minha-chave-secreta',   // ← mesma chave do config.php
 };
 
 let _syncTimer = null;
@@ -3474,7 +3473,7 @@ async function doLogin() {
   errEl.style.display = 'none';
 
   try {
-    const res = await fetch(SERVER_CONFIG.authUrl + '?action=login', {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=login', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey },
       body:    JSON.stringify({ username, password }),
@@ -3534,7 +3533,7 @@ function applyRoleRestrictions() {
 async function doLogout() {
   if (!confirm('Sair da conta?')) return;
   try {
-    await fetch(SERVER_CONFIG.authUrl + '?action=logout', {
+    await fetch(SERVER_CONFIG.apiUrl + '?action=logout', {
       method:  'POST',
       headers: _authHeaders(),
     });
@@ -3562,7 +3561,7 @@ async function checkStoredSession() {
 
   // Valida token no servidor
   try {
-    const res = await fetch(SERVER_CONFIG.authUrl + '?action=validate', {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=validate', {
       headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': token },
     });
     if (!res.ok) throw new Error('invalid');
@@ -3583,7 +3582,7 @@ async function loadUsersList() {
   const el = document.getElementById('users-list');
   if (!el) return;
   try {
-    const res = await fetch(SERVER_CONFIG.authUrl + '?action=list_users', { headers: _authHeaders() });
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=list_users', { headers: _authHeaders() });
     const users = await res.json();
     el.innerHTML = users.map(u => `
       <div class="player-item" style="padding:8px 12px">
@@ -3610,7 +3609,7 @@ async function createUser() {
   if (!username || !password) { showUserMsg('Preencha usuário e senha.', false); return; }
 
   try {
-    const res  = await fetch(SERVER_CONFIG.authUrl + '?action=create_user', {
+    const res  = await fetch(SERVER_CONFIG.apiUrl + '?action=create_user', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
       body:    JSON.stringify({ username, password, role }),
@@ -3627,7 +3626,7 @@ async function createUser() {
 async function deleteUser(id, name) {
   if (!confirm(`Remover o usuário "${name}"?`)) return;
   try {
-    const res = await fetch(SERVER_CONFIG.authUrl + '?action=delete_user', {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=delete_user', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
       body:    JSON.stringify({ id }),
