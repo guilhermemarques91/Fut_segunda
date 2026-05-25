@@ -3502,6 +3502,7 @@ function onLoginSuccess() {
   document.getElementById('mnav-logout').style.display  = '';
   applyRoleRestrictions();
   loadFromServer();
+  showSection(App.auth.role === 'viewer' ? 'historico' : 'dashboard');
 }
 
 function applyRoleRestrictions() {
@@ -3566,7 +3567,11 @@ async function checkStoredSession() {
     });
     if (!res.ok) throw new Error('invalid');
     const data = await res.json();
-    App.auth = { token, role: data.role, username: data.username };
+    // Fallback para localStorage se o servidor não retornar role (compatibilidade)
+    const resolvedRole     = data.role     || role;
+    const resolvedUsername = data.username || username;
+    if (!resolvedRole) throw new Error('invalid');
+    App.auth = { token, role: resolvedRole, username: resolvedUsername };
     onLoginSuccess();
   } catch {
     localStorage.removeItem('fut_token');
