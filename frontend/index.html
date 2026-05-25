@@ -3057,7 +3057,7 @@ function renderRodadaPresenca() {
   const all      = [...regulars, ...subs, ...exempt];
   if (!all.length) { el.innerHTML = '<div class="empty-state" style="padding:12px">Nenhum jogador cadastrado</div>'; return; }
 
-  let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">⚽</span><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">🍽️</span></div>';
+  let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">⚽</span><span style="font-size:.6rem;color:#475569;width:38px;text-align:center">🍽️</span></div>';
   all.forEach((p, idx) => {
     const checked    = rodState.confirmedIds.includes(p.id);
     const dinChecked = rodState.dinnerIds.includes(p.id);
@@ -3068,17 +3068,17 @@ function renderRodadaPresenca() {
     const typeBadge = p.isIsento
       ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(148,163,184,0.12);color:#94a3b8">Isento</span>'
       : (p.isRegular ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#4ade80">Mensal</span>' : `<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(245,158,11,0.1);color:#f59e0b">${ac}× pres.</span>`);
-    html += `<div style="display:flex;align-items:center;gap:4px;padding:4px 4px;border-radius:9px;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.12)':'transparent'}">
-      <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;padding:2px 4px">
-        <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
+    html += `<div style="display:flex;align-items:center;gap:4px;padding:5px 4px;border-radius:9px;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.12)':'transparent'}">
+      <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;padding:2px 4px">
+        <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:22px;height:22px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-size:.82rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
+          <span style="font-size:.92rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
           <span style="font-size:.62rem;color:${POS_COLOR[p.position]||'#94a3b8'}">${p.position}</span>
           ${typeBadge}
         </div>
       </label>
-      <label style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;cursor:pointer;border-radius:7px;background:${dinChecked?'rgba(245,158,11,0.1)':'transparent'};border:1px solid ${dinChecked?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)'}">
-        <input type="checkbox" ${dinChecked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer">
+      <label style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;cursor:pointer;border-radius:9px;background:${dinChecked?'rgba(245,158,11,0.1)':'transparent'};border:1px solid ${dinChecked?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)'}">
+        <input type="checkbox" ${dinChecked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:20px;height:20px;accent-color:#f59e0b;cursor:pointer">
       </label>
     </div>`;
   });
