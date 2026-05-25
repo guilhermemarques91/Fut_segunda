@@ -1095,6 +1095,7 @@ const App = {
   expenses: [],
   recurringExpenses: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
+  dataLoaded: false,
 };
 
 // ═══════════════════════════════════════════════════════
@@ -3992,6 +3993,7 @@ function setSyncStatus(status, msg) {
 
 function scheduleSync() {
   if (App.auth.role !== 'admin') return; // viewer não salva
+  if (!App.dataLoaded) return; // nunca salvar antes de carregar os dados do servidor
   clearTimeout(_syncTimer);
   setSyncStatus('saving');
   _syncTimer = setTimeout(syncToServer, 1500);
@@ -4053,9 +4055,10 @@ async function loadFromServer() {
     const data = await res.json();
     if (data && Object.keys(data).length > 0) {
       restoreAppSnapshot(data);
-      refreshAll(); renderResults(); updateRatingLive();
-      applyBranding();
     }
+    App.dataLoaded = true; // libera sync apenas após dados carregados
+    refreshAll(); renderResults(); updateRatingLive();
+    applyBranding();
     setSyncStatus('saved');
     setTimeout(() => setSyncStatus('idle'), 2000);
   } catch (e) {
@@ -4066,7 +4069,7 @@ async function loadFromServer() {
 
 // Salva antes de fechar/recarregar a página (somente admin)
 window.addEventListener('beforeunload', () => {
-  if (App.auth.role !== 'admin' || !App.auth.token) return;
+  if (App.auth.role !== 'admin' || !App.auth.token || !App.dataLoaded) return;
   const snapshot = getAppSnapshot();
   const url = SERVER_CONFIG.apiUrl + '?token=' + encodeURIComponent(App.auth.token);
   navigator.sendBeacon
