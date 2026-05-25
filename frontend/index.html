@@ -865,6 +865,7 @@
   <span>Atletas: <strong id="footer-player-count">0</strong></span>
   <span>Partidas: <strong id="footer-match-count">0</strong></span>
   <span>Caixa: <strong id="footer-balance" style="color:#22c55e">R$ 0,00</strong></span>
+  <span id="footer-sync"><span style="color:#334155;font-size:.72rem">☁️ Sincronizado</span></span>
 </footer>
 
 <!-- ═══ EDIT MODAL ═══ -->
@@ -1242,7 +1243,7 @@ function saveTeamRound() {
     existingResult.homePlayerIds = homeIds;
     existingResult.awayPlayerIds = awayIds;
   }
-  renderResults(); updateFooter(); renderDashboard();
+  renderResults(); updateFooter(); renderDashboard(); scheduleSync();
 
   const msg = document.getElementById('save-round-msg');
   if (msg) { msg.textContent = '✅ Rodada salva! Partida criada como pendente.'; msg.style.display = 'block'; }
@@ -1452,7 +1453,7 @@ function addResultForDate(date, opponent) {
   if (!App.results.find(r => r.date === date)) {
     const th = App.teamHistory.find(t => t.date === date);
     App.results.push({ id: App.nextId(), date, homeTeam: 'T. Preto e Amarelo', awayTeam: 'T. Azul', homeScore: null, awayScore: null, pending: true, goals: [], motm: null, homePlayerIds: th ? th.home : [], awayPlayerIds: th ? th.away : [] });
-    renderResults(); updateFooter(); renderDashboard();
+    renderResults(); updateFooter(); renderDashboard(); scheduleSync();
   }
   showSection('results'); showResultTab('registrar');
 }
@@ -2241,7 +2242,7 @@ function addResultRow() {
   const date = document.getElementById('new-result-date').value || new Date().toISOString().split('T')[0];
   if (App.results.find(r => r.date === date)) return alert('Já existe uma partida para esta data.');
   App.results.push({id:App.nextId(),date,homeTeam:'T. Preto e Amarelo',awayTeam:'T. Azul',homeScore:null,awayScore:null,pending:true,goals:[],motm:null,homePlayerIds:[],awayPlayerIds:[]});
-  renderResults(); updateFooter(); renderDashboard();
+  renderResults(); updateFooter(); renderDashboard(); scheduleSync();
 }
 function renderResults() {
   const el = document.getElementById('results-list');
@@ -2864,7 +2865,7 @@ function markDinnerPaid(eventId, playerId) {
       p.balance += ev.share;
     }
   }
-  renderDinnerHistory(); renderFinancialStatus(); renderDashboard(); updateFooter();
+  renderDinnerHistory(); renderFinancialStatus(); renderDashboard(); scheduleSync(); updateFooter(); scheduleSync();
 }
 
 function syncDinnerExpense(ev) {
@@ -2895,7 +2896,7 @@ function setDinnerTotal(evId) {
     }
   });
   syncDinnerExpense(ev);
-  renderDinnerHistory(); renderFinancialStatus(); renderDashboard();
+  renderDinnerHistory(); renderFinancialStatus(); renderDashboard(); scheduleSync();
 }
 
 function toggleDinnerAccordion(id) {
@@ -3152,13 +3153,7 @@ function saveConfig() {
 }
 
 // Live preview on typing
-document.addEventListener('DOMContentLoaded', () => {
-  ['config-team-name','config-tab-title'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', updateConfigPreview);
-  });
-  applyBranding();
-});
+// DOMContentLoaded — movido para o bloco SERVER SYNC abaixo
 
 // ═══════════════════════════════════════════════════════
 //  FOOTER + REFRESH
@@ -3170,6 +3165,7 @@ function updateFooter() {
 function refreshAll() {
   renderPlayerList(); renderAttendanceList(); renderAvailablePlayers();
   renderPaymentSelect(); renderDinnerParticipants(); renderFinancialStatus(); renderDashboard(); updateFooter();
+  scheduleSync();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3258,6 +3254,120 @@ function initDemoData() {
 }
 
 // initDemoData(); // desabilitado para produção — descomente para testar com dados de exemplo
+
+// ═══════════════════════════════════════════════════════
+//  SERVER SYNC
+//  Preencha API_URL com o endereço do seu site no Hostgator
+//  e API_KEY com a mesma chave definida em api/config.php
+// ═══════════════════════════════════════════════════════
+const SERVER_CONFIG = {
+  apiUrl: 'https://seusite.com/api/api.php', // ← altere para sua URL
+  apiKey: 'fut2-minha-chave-secreta',         // ← mesma chave do config.php
+};
+
+let _syncTimer = null;
+let _syncStatus = 'idle'; // idle | saving | saved | error
+
+function setSyncStatus(status, msg) {
+  _syncStatus = status;
+  const el = document.getElementById('footer-sync');
+  if (!el) return;
+  const map = {
+    idle:   { icon: '☁️',  color: '#334155', text: 'Sincronizado' },
+    saving: { icon: '🔄',  color: '#f59e0b', text: 'Salvando…'   },
+    saved:  { icon: '✅',  color: '#4ade80', text: 'Salvo'        },
+    error:  { icon: '❌',  color: '#f87171', text: msg || 'Erro'  },
+  };
+  const s = map[status] || map.idle;
+  el.innerHTML = `<span style="color:${s.color};font-size:.72rem;display:flex;align-items:center;gap:4px">${s.icon} ${s.text}</span>`;
+}
+
+function scheduleSync() {
+  clearTimeout(_syncTimer);
+  setSyncStatus('saving');
+  _syncTimer = setTimeout(syncToServer, 1500);
+}
+
+function getAppSnapshot() {
+  return JSON.stringify({
+    _id:          App._id,
+    players:      App.players,
+    fees:         App.fees,
+    attendances:  App.attendances,
+    results:      App.results,
+    teamHistory:  App.teamHistory,
+    dinnerHistory:App.dinnerHistory,
+    expenses:     App.expenses,
+    config:       App.config,
+  });
+}
+
+function restoreAppSnapshot(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data._id)          App._id          = data._id;
+  if (data.players)      App.players      = data.players;
+  if (data.fees)         App.fees         = data.fees;
+  if (data.attendances)  App.attendances  = data.attendances;
+  if (data.results)      App.results      = data.results;
+  if (data.teamHistory)  App.teamHistory  = data.teamHistory;
+  if (data.dinnerHistory)App.dinnerHistory= data.dinnerHistory;
+  if (data.expenses)     App.expenses     = data.expenses;
+  if (data.config)       App.config       = data.config;
+}
+
+async function syncToServer() {
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey },
+      body:    getAppSnapshot(),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    setSyncStatus('saved');
+    setTimeout(() => setSyncStatus('idle'), 3000);
+  } catch (e) {
+    setSyncStatus('error', 'Falha ao salvar');
+    console.error('[sync]', e);
+  }
+}
+
+async function loadFromServer() {
+  setSyncStatus('saving');
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl, {
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data && Object.keys(data).length > 0) {
+      restoreAppSnapshot(data);
+      refreshAll(); renderResults(); updateRatingLive();
+      applyBranding();
+    }
+    setSyncStatus('saved');
+    setTimeout(() => setSyncStatus('idle'), 2000);
+  } catch (e) {
+    setSyncStatus('error', 'Sem conexão');
+    console.error('[load]', e);
+  }
+}
+
+// Salva antes de fechar/recarregar a página
+window.addEventListener('beforeunload', () => {
+  const snapshot = getAppSnapshot();
+  navigator.sendBeacon
+    ? navigator.sendBeacon(SERVER_CONFIG.apiUrl + '?beacon=1', new Blob([snapshot], { type: 'application/json' }))
+    : syncToServer();
+});
+
+// Inicia: carrega dados do servidor ao abrir
+document.addEventListener('DOMContentLoaded', () => {
+  ['config-team-name','config-tab-title'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateConfigPreview);
+  });
+  loadFromServer();
+});
 </script>
 </body>
 </html>
