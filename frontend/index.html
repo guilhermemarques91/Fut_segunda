@@ -252,6 +252,21 @@
     .nav-settings-btn:hover{color:#94a3b8;background:rgba(255,255,255,0.06)}
     .nav-settings-btn.active{color:#22c55e}
 
+    /* ─ MOBILE BOTTOM NAV ─ */
+    .mobile-bottom-nav{display:none}
+    @media(max-width:768px){
+      .nav-links{display:none}
+      .nav-settings-btn{display:none}
+      .mobile-bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:50;background:rgba(6,13,28,0.97);border-top:1px solid rgba(34,197,94,0.12);backdrop-filter:blur(24px);padding:4px 0 env(safe-area-inset-bottom,4px);height:58px}
+      .mnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:none;border:none;cursor:pointer;color:#475569;font-size:.52rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;padding:3px 2px;transition:color .15s;font-family:inherit;-webkit-tap-highlight-color:transparent}
+      .mnav-btn .micon{font-size:1.25rem;line-height:1}
+      .mnav-btn.active{color:#22c55e}
+      .mnav-btn.active .micon{filter:drop-shadow(0 0 6px rgba(34,197,94,0.6))}
+      .main{padding-bottom:68px}
+      .footer{margin-bottom:58px}
+      .brand-name{display:none}
+    }
+
     /* ─ UTILS ─ */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
     @media(max-width:900px){.grid-2{grid-template-columns:1fr}}
@@ -953,6 +968,10 @@ function showSection(sec) {
   // settings gear button active state
   const cfgBtn = document.getElementById('nav-config');
   if (cfgBtn) cfgBtn.classList.toggle('active', sec === 'config');
+  // mobile bottom nav active state
+  document.querySelectorAll('.mnav-btn').forEach(b => b.classList.remove('active'));
+  const mb = document.getElementById(`mnav-${sec}`);
+  if (mb) mb.classList.add('active');
   App.currentSection = sec;
   if (sec === 'dashboard') renderDashboard();
   if (sec === 'historico') showHistTab('presencas');
@@ -3119,6 +3138,7 @@ function handleLogoFile(file) {
     App.config.logo = e.target.result;
     showLogoPreview(e.target.result, file.name);
     updateConfigPreview();
+    scheduleSync();
   };
   reader.readAsDataURL(file);
 }
@@ -3142,12 +3162,14 @@ function removeLogo() {
   if (drop) drop.style.opacity = '1';
   updateConfigPreview();
   applyBranding();
+  scheduleSync();
 }
 
 function saveConfig() {
   App.config.teamName = (document.getElementById('config-team-name')?.value || '').trim() || 'Fut Segunda';
   App.config.tabTitle = (document.getElementById('config-tab-title')?.value || '').trim() || 'Fut Segunda — Manager';
   applyBranding();
+  scheduleSync();
   const btn = event?.target;
   if (btn) { const orig = btn.textContent; btn.textContent = '✓ Aplicado!'; btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)'; setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500); }
 }
@@ -3369,5 +3391,27 @@ document.addEventListener('DOMContentLoaded', () => {
   loadFromServer();
 });
 </script>
+
+<!-- ═══ MOBILE BOTTOM NAV ═══ -->
+<nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+  <button class="mnav-btn active" id="mnav-dashboard" onclick="showSection('dashboard')">
+    <span class="micon">🏠</span><span>Início</span>
+  </button>
+  <button class="mnav-btn" id="mnav-rodada" onclick="showSection('rodada')">
+    <span class="micon">🗓️</span><span>Rodada</span>
+  </button>
+  <button class="mnav-btn" id="mnav-historico" onclick="showSection('historico')">
+    <span class="micon">📋</span><span>Histórico</span>
+  </button>
+  <button class="mnav-btn" id="mnav-players" onclick="showSection('players')">
+    <span class="micon">👥</span><span>Jogadores</span>
+  </button>
+  <button class="mnav-btn" id="mnav-finance" onclick="showSection('finance')">
+    <span class="micon">💰</span><span>Financeiro</span>
+  </button>
+  <button class="mnav-btn" id="mnav-config" onclick="showSection('config')">
+    <span class="micon">⚙️</span><span>Config</span>
+  </button>
+</nav>
 </body>
 </html>
