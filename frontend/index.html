@@ -222,6 +222,7 @@
     .cat-campo{background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.28);color:#4ade80}
     .cat-equipamento{background:rgba(96,165,250,0.13);border:1px solid rgba(96,165,250,0.28);color:#60a5fa}
     .cat-outros{background:rgba(168,85,247,0.13);border:1px solid rgba(168,85,247,0.28);color:#c084fc}
+    .cat-aluguel{background:rgba(251,191,36,0.13);border:1px solid rgba(251,191,36,0.3);color:#fbbf24}
     .exp-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:background .15s}
     .exp-card:hover{background:rgba(255,255,255,0.07)}
     .exp-card.paid{opacity:.6}
@@ -553,9 +554,10 @@
 <!-- ════════════════ FINANCEIRO ════════════════ -->
 <div id="section-finance" class="section hidden">
   <div class="att-tabs">
-    <button class="att-tab active" id="fintab-receber" onclick="showFinanceTab('receber')">💰 Contas a Receber</button>
-    <button class="att-tab" id="fintab-pagar"   onclick="showFinanceTab('pagar')">📋 Contas a Pagar</button>
-    <button class="att-tab" id="fintab-config"  onclick="showFinanceTab('config')">⚙️ Configurações</button>
+    <button class="att-tab active" id="fintab-receber"    onclick="showFinanceTab('receber')">💰 Contas a Receber</button>
+    <button class="att-tab" id="fintab-pagar"             onclick="showFinanceTab('pagar')">📋 Contas a Pagar</button>
+    <button class="att-tab" id="fintab-fechamento"        onclick="showFinanceTab('fechamento')">📊 Fechamento</button>
+    <button class="att-tab" id="fintab-config"            onclick="showFinanceTab('config')">⚙️ Configurações</button>
   </div>
 
   <!-- ── Contas a Receber ── -->
@@ -625,6 +627,44 @@
       <button class="hist-filter-btn exp-filter-btn"        data-filter="Campo"       onclick="setExpenseFilter('Campo')">⚽ Campo</button>
     </div>
     <div id="expense-list"></div>
+
+    <!-- Despesas Recorrentes -->
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.07)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-size:.78rem;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase">🔁 Despesas Recorrentes</div>
+        <button onclick="toggleRecurringForm()" id="rec-toggle-btn" class="btn-primary" style="padding:5px 14px;font-size:.78rem">➕ Nova</button>
+      </div>
+      <div class="exp-form-wrap" id="rec-form-wrap" style="display:none">
+        <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em">NOVA DESPESA RECORRENTE</div>
+        <div class="form-grid-2" style="margin-bottom:10px">
+          <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="rec-desc" placeholder="Ex: Aluguel do campo" class="input-field"></div>
+          <div class="field-group"><label class="form-label">Valor Mensal (R$)</label><input type="number" id="rec-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
+          <div class="field-group"><label class="form-label">Categoria</label>
+            <select id="rec-cat" class="input-field">
+              <option value="Aluguel">🏠 Aluguel</option>
+              <option value="Campo">⚽ Campo / Manutenção</option>
+              <option value="Equipamento">👕 Equipamento</option>
+              <option value="Outros">📌 Outros</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="addRecurringExpense()" class="btn-primary" style="flex:1">💾 Salvar</button>
+          <button onclick="toggleRecurringForm()" style="padding:7px 18px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;font-family:inherit;font-size:.82rem">Cancelar</button>
+        </div>
+      </div>
+      <div id="recurring-expense-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Fechamento Mensal ── -->
+  <div id="fin-fechamento" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:24px">
+      <button onclick="fechamentoChangeMonth(-1)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#94a3b8;font-size:1.2rem;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">‹</button>
+      <span id="fechamento-month-label" style="font-size:1rem;font-weight:700;color:#e2e8f0;min-width:160px;text-align:center"></span>
+      <button onclick="fechamentoChangeMonth(1)" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:#94a3b8;font-size:1.2rem;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center">›</button>
+    </div>
+    <div id="fechamento-content"></div>
   </div>
 
   <!-- ── Configurações ── -->
@@ -1053,6 +1093,7 @@ const App = {
   teamHistory: [],
   dinnerHistory: [],
   expenses: [],
+  recurringExpenses: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
 };
 
@@ -2079,12 +2120,13 @@ function renderTeams() {
 //  FINANCE SUB-TABS
 // ═══════════════════════════════════════════════════════
 function showFinanceTab(tab) {
-  ['receber','pagar','config'].forEach(t => {
+  ['receber','pagar','fechamento','config'].forEach(t => {
     document.getElementById(`fin-${t}`).style.display = t === tab ? 'block' : 'none';
     document.getElementById(`fintab-${t}`).classList.toggle('active', t === tab);
   });
-  if (tab === 'receber') renderFinancialPanel();
-  if (tab === 'pagar')   renderExpenses();
+  if (tab === 'receber')    renderFinancialPanel();
+  if (tab === 'pagar')      renderExpenses();
+  if (tab === 'fechamento') renderFechamentoMensal();
   if (tab === 'config') {
     renderFinancialStatus(); renderPaymentSelect();
     const inp = document.getElementById('initial-balance-input');
@@ -2231,6 +2273,178 @@ function renderExpenses() {
       </div>
     </div>`;
   }).join('');
+  renderRecurringExpenses();
+}
+
+// ═══════════════════════════════════════════════════════
+//  DESPESAS RECORRENTES
+// ═══════════════════════════════════════════════════════
+let recurringFormVisible = false;
+
+function toggleRecurringForm() {
+  recurringFormVisible = !recurringFormVisible;
+  const wrap = document.getElementById('rec-form-wrap');
+  if (wrap) wrap.style.display = recurringFormVisible ? 'block' : 'none';
+  if (recurringFormVisible) document.getElementById('rec-desc')?.focus();
+}
+
+function addRecurringExpense() {
+  const desc   = document.getElementById('rec-desc').value.trim();
+  const amount = parseFloat(document.getElementById('rec-amount').value);
+  const cat    = document.getElementById('rec-cat').value;
+  if (!desc || !amount || amount <= 0) { alert('Preencha descrição e valor.'); return; }
+  App.recurringExpenses.push({ id: App.nextId(), description: desc, category: cat, amount, active: true });
+  document.getElementById('rec-desc').value = '';
+  document.getElementById('rec-amount').value = '';
+  document.getElementById('rec-form-wrap').style.display = 'none';
+  recurringFormVisible = false;
+  renderRecurringExpenses();
+  scheduleSync();
+}
+
+function deleteRecurringExpense(id) {
+  if (!confirm('Excluir esta despesa recorrente?')) return;
+  App.recurringExpenses = App.recurringExpenses.filter(r => r.id !== id);
+  renderRecurringExpenses();
+  scheduleSync();
+}
+
+function toggleRecurringExpense(id) {
+  const r = App.recurringExpenses.find(r => r.id === id);
+  if (!r) return;
+  r.active = !r.active;
+  renderRecurringExpenses();
+  scheduleSync();
+}
+
+function renderRecurringExpenses() {
+  const el = document.getElementById('recurring-expense-list');
+  if (!el) return;
+  const catIcon  = { Aluguel:'🏠', Campo:'⚽', Equipamento:'👕', Outros:'📌' };
+  const catClass = { Aluguel:'cat-aluguel', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros' };
+  if (!App.recurringExpenses.length) {
+    el.innerHTML = `<div style="font-size:.78rem;color:#475569;text-align:center;padding:16px 0">Nenhuma despesa recorrente cadastrada.</div>`;
+    return;
+  }
+  el.innerHTML = App.recurringExpenses.map(r => `
+    <div class="exp-card" style="margin-bottom:8px;opacity:${r.active ? 1 : 0.55}">
+      <div style="font-size:1.4rem;line-height:1">${catIcon[r.category]||'📌'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-weight:700;font-size:.88rem;color:#e2e8f0">${r.description}</span>
+          <span class="cat-badge ${catClass[r.category]||'cat-outros'}">${r.category}</span>
+          ${r.active
+            ? `<span style="font-size:.65rem;color:#4ade80;font-weight:700;background:rgba(34,197,94,0.12);padding:2px 7px;border-radius:6px">ATIVA</span>`
+            : `<span style="font-size:.65rem;color:#64748b;font-weight:700;background:rgba(100,116,139,0.12);padding:2px 7px;border-radius:6px">INATIVA</span>`}
+        </div>
+        <div style="font-size:.7rem;color:#475569;margin-top:3px">🔁 Todo mês</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <span style="font-weight:800;font-size:.95rem;color:#f1f5f9">R$ ${r.amount.toFixed(2)}/mês</span>
+        <div style="display:flex;gap:6px">
+          <button onclick="toggleRecurringExpense(${r.id})" style="padding:4px 10px;border-radius:8px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.25);color:#60a5fa;cursor:pointer;font-size:.72rem;font-family:inherit">${r.active ? '⏸ Pausar' : '▶ Ativar'}</button>
+          <button onclick="deleteRecurringExpense(${r.id})" style="padding:4px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.72rem;font-family:inherit">🗑️</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  FECHAMENTO MENSAL
+// ═══════════════════════════════════════════════════════
+let fechamentoYear  = new Date().getFullYear();
+let fechamentoMonth = new Date().getMonth();
+
+function fechamentoChangeMonth(delta) {
+  fechamentoMonth += delta;
+  if (fechamentoMonth < 0)  { fechamentoMonth = 11; fechamentoYear--; }
+  if (fechamentoMonth > 11) { fechamentoMonth = 0;  fechamentoYear++; }
+  renderFechamentoMensal();
+}
+
+function renderFechamentoMensal() {
+  const lbl = document.getElementById('fechamento-month-label');
+  if (lbl) lbl.textContent = `${MONTH_NAMES[fechamentoMonth]} / ${fechamentoYear}`;
+  const prefix = `${fechamentoYear}-${String(fechamentoMonth + 1).padStart(2, '0')}`;
+
+  // Receitas — pagamentos dos jogadores no mês
+  const allPayments = App.players.flatMap(p => (p.payments || []).filter(pay => (pay.date || '').startsWith(prefix)));
+  const sumByType   = type => allPayments.filter(p => p.type === type).reduce((s, p) => s + (p.amount || 0), 0);
+  const recMensal   = sumByType('Mensalidade');
+  const recAvulso   = sumByType('Jogo Avulso');
+  const recTiraGosto= sumByType('Tira Gosto');
+  const recContrib  = allPayments.filter(p => !['Mensalidade','Jogo Avulso','Tira Gosto'].includes(p.type)).reduce((s, p) => s + (p.amount || 0), 0);
+  const totalReceitas = recMensal + recAvulso + recTiraGosto + recContrib;
+
+  // Despesas avulsas do mês
+  const monthExpenses = (App.expenses || []).filter(e => (e.date || '').startsWith(prefix));
+  const expByCategory = {};
+  monthExpenses.forEach(e => { expByCategory[e.category] = (expByCategory[e.category] || 0) + e.amount; });
+  const totalAvulsas = monthExpenses.reduce((s, e) => s + e.amount, 0);
+
+  // Despesas recorrentes ativas
+  const activeRecurring  = (App.recurringExpenses || []).filter(r => r.active);
+  const totalRecorrentes = activeRecurring.reduce((s, r) => s + r.amount, 0);
+  const totalDespesas    = totalAvulsas + totalRecorrentes;
+  const saldo            = totalReceitas - totalDespesas;
+
+  const catIcon  = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Outros:'📌', Aluguel:'🏠' };
+  const catClass = { Janta:'cat-janta', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros', Aluguel:'cat-aluguel' };
+
+  const makeRow = (label, value, color, sign) =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <span style="font-size:.83rem;color:#94a3b8">${label}</span>
+      <span style="font-size:.88rem;color:${color};font-weight:700">${sign}R$ ${value.toFixed(2)}</span>
+    </div>`;
+
+  const expCatRows = Object.entries(expByCategory).map(([cat, val]) =>
+    makeRow(`${catIcon[cat]||'📌'} ${cat}`, val, '#f87171', '− ')).join('');
+
+  const recRows = activeRecurring.map(r =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05)">
+      <span style="font-size:.83rem;color:#94a3b8">${catIcon[r.category]||'📌'} ${r.description}
+        <span style="font-size:.63rem;color:#60a5fa;background:rgba(96,165,250,0.1);padding:2px 6px;border-radius:5px;margin-left:5px">recorrente</span>
+      </span>
+      <span style="font-size:.88rem;color:#f87171;font-weight:700">− R$ ${r.amount.toFixed(2)}</span>
+    </div>`).join('');
+
+  const el = document.getElementById('fechamento-content');
+  if (!el) return;
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;background:rgba(34,197,94,0.04);border-color:rgba(34,197,94,0.18)">
+      <div class="card-title"><div class="card-title-bar" style="background:#4ade80"></div>📥 Receitas</div>
+      ${makeRow('📆 Mensalistas', recMensal, '#4ade80', '+ ')}
+      ${makeRow('💵 Avulsos', recAvulso, '#4ade80', '+ ')}
+      ${makeRow('🍽️ Tira Gosto', recTiraGosto, '#4ade80', '+ ')}
+      ${recContrib > 0 ? makeRow('🤝 Contribuições', recContrib, '#4ade80', '+ ') : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px">
+        <span style="font-size:.9rem;font-weight:700;color:#e2e8f0">Total Receitas</span>
+        <span style="font-size:1.05rem;font-weight:800;color:#4ade80">R$ ${totalReceitas.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;background:rgba(248,113,113,0.04);border-color:rgba(248,113,113,0.18)">
+      <div class="card-title"><div class="card-title-bar" style="background:#f87171"></div>📤 Despesas</div>
+      ${monthExpenses.length
+        ? expCatRows
+        : `<div style="font-size:.78rem;color:#475569;padding:6px 0 10px">Nenhuma despesa avulsa lançada no mês.</div>`}
+      ${activeRecurring.length ? `
+        <div style="font-size:.7rem;font-weight:700;color:#60a5fa;letter-spacing:.06em;text-transform:uppercase;padding:10px 0 4px">🔁 Recorrentes</div>
+        ${recRows}` : ''}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px">
+        <span style="font-size:.9rem;font-weight:700;color:#e2e8f0">Total Despesas</span>
+        <span style="font-size:1.05rem;font-weight:800;color:#f87171">R$ ${totalDespesas.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <div class="card" style="background:${saldo >= 0 ? 'rgba(34,197,94,0.07)' : 'rgba(248,113,113,0.07)'};border-color:${saldo >= 0 ? 'rgba(34,197,94,0.28)' : 'rgba(248,113,113,0.28)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:1rem;font-weight:700;color:#e2e8f0">💰 Saldo do Mês</span>
+        <span style="font-size:1.3rem;font-weight:800;color:${saldo >= 0 ? '#4ade80' : '#f87171'}">${saldo >= 0 ? '+' : ''}R$ ${saldo.toFixed(2)}</span>
+      </div>
+      <div style="font-size:.73rem;margin-top:6px;color:${saldo >= 0 ? '#4ade80' : '#f87171'}">${saldo >= 0 ? '✅ Mês fechado no positivo' : '⚠️ Mês fechado no negativo'}</div>
+    </div>`;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3792,8 +4006,9 @@ function getAppSnapshot() {
     results:      App.results,
     teamHistory:  App.teamHistory,
     dinnerHistory:App.dinnerHistory,
-    expenses:     App.expenses,
-    config:       App.config,
+    expenses:          App.expenses,
+    recurringExpenses: App.recurringExpenses,
+    config:            App.config,
   });
 }
 
@@ -3806,8 +4021,9 @@ function restoreAppSnapshot(data) {
   if (data.results)      App.results      = data.results;
   if (data.teamHistory)  App.teamHistory  = data.teamHistory;
   if (data.dinnerHistory)App.dinnerHistory= data.dinnerHistory;
-  if (data.expenses)     App.expenses     = data.expenses;
-  if (data.config)       App.config       = data.config;
+  if (data.expenses)          App.expenses          = data.expenses;
+  if (data.recurringExpenses) App.recurringExpenses = data.recurringExpenses;
+  if (data.config)            App.config            = data.config;
 }
 
 async function syncToServer() {
