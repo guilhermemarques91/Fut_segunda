@@ -680,12 +680,11 @@
   </div>
 
   <div id="rod-gerenciar">
-    <!-- Data + Adversário -->
+    <!-- Data da Rodada -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-title"><div class="card-title-bar"></div>📅 Dados da Rodada</div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
         <div class="field-group" style="flex:1;min-width:130px"><label class="form-label">Data</label><input type="date" id="rod-date" class="input-field" onchange="loadRodadaDate()"></div>
-        <div class="field-group" style="flex:2;min-width:160px"><label class="form-label">Adversário</label><input type="text" id="rod-opponent" placeholder="Ex: Raça FC" class="input-field"></div>
         <button onclick="loadRodadaDate()" class="btn-secondary" style="padding:8px 18px;font-size:.82rem;white-space:nowrap;flex-shrink:0">↺ Carregar</button>
       </div>
     </div>
@@ -2489,7 +2488,6 @@ function showRodadaTab(tab) {
 
 function loadRodadaDate() {
   const dateEl = document.getElementById('rod-date');
-  const oppEl  = document.getElementById('rod-opponent');
   const date   = dateEl?.value; if (!date) return;
 
   const att = App.attendances.find(a => a.date === date);
@@ -2499,7 +2497,6 @@ function loadRodadaDate() {
 
   if (att) {
     rodState.confirmedIds = [...att.players];
-    if (oppEl && att.opponent) oppEl.value = att.opponent;
   } else {
     rodState.confirmedIds = App.players.filter(p => p.isRegular).map(p => p.id);
   }
@@ -2746,15 +2743,13 @@ function addRodGoal(playerId, delta) {
 
 function saveRodada() {
   const dateEl = document.getElementById('rod-date');
-  const oppEl  = document.getElementById('rod-opponent');
   const date   = dateEl?.value; if (!date) return alert('Informe a data da rodada.');
   if (!rodState.confirmedIds.length) return alert('Confirme pelo menos um jogador na lista de presença.');
-  const opponent = oppEl?.value.trim() || 'Adversário';
 
   // 1. Attendance
   const existAtt = App.attendances.find(a => a.date === date);
-  if (existAtt) { existAtt.players = [...rodState.confirmedIds]; existAtt.opponent = opponent; }
-  else App.attendances.push({ date, opponent, players: [...rodState.confirmedIds] });
+  if (existAtt) { existAtt.players = [...rodState.confirmedIds]; }
+  else App.attendances.push({ date, players: [...rodState.confirmedIds] });
 
   // 2. Team history
   if (rodState.teamsGenerated && rodState.rodTeams.home.length) {
@@ -2893,12 +2888,11 @@ function openRodadaDate(date) {
 
 function buildRodadaPoll() {
   const date = document.getElementById('rod-date')?.value || new Date().toISOString().split('T')[0];
-  const opp  = document.getElementById('rod-opponent')?.value.trim() || 'Adversário';
   const d    = new Date(date+'T12:00:00');
   const ds   = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
   const regulars = App.players.filter(p=>p.isRegular).sort((a,b)=>a.name.localeCompare(b.name));
   const subs     = App.players.filter(p=>!p.isRegular).sort((a,b)=>getAttCount(b.id)-getAttCount(a.id));
-  const msg = ['⚽ *PELADA DE SEGUNDA!*',`📅 ${ds}`,`🆚 *${opp}*`,'','━━━━━━━━━━━━━━━━━━━━','📋 *MENSALISTAS (confirmados):*',...regulars.map(p=>`✅ ${p.name}`),'','👥 *SUPLENTES:*',...subs.map(p=>`❓ ${p.name}`),'','_Confirme sua presença!_','━━━━━━━━━━━━━━━━━━━━'].join('\n');
+  const msg = ['⚽ *PELADA DE SEGUNDA!*',`📅 ${ds}`,'','━━━━━━━━━━━━━━━━━━━━','📋 *MENSALISTAS (confirmados):*',...regulars.map(p=>`✅ ${p.name}`),'','👥 *SUPLENTES:*',...subs.map(p=>`❓ ${p.name}`),'','_Confirme sua presença!_','━━━━━━━━━━━━━━━━━━━━'].join('\n');
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
