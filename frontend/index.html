@@ -264,7 +264,6 @@
       .mnav-btn.active .micon{filter:drop-shadow(0 0 6px rgba(34,197,94,0.6))}
       .main{padding-bottom:68px}
       .footer{margin-bottom:58px}
-      .brand-name{display:none}
     }
 
     /* ─ UTILS ─ */
@@ -545,6 +544,18 @@
 
   <!-- ── Configurações ── -->
   <div id="fin-config" style="display:none">
+    <div class="card" style="margin-bottom:18px;background:rgba(34,197,94,0.04);border-color:rgba(34,197,94,0.15)">
+      <div class="card-title"><div class="card-title-bar"></div>💵 Saldo Inicial do Caixa</div>
+      <p style="font-size:.78rem;color:#64748b;margin-bottom:14px">Dinheiro que já estava em caixa antes de começar a usar o sistema. Somado automaticamente ao total recebido.</p>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:160px">
+          <span style="font-size:.9rem;color:#64748b;font-weight:600">R$</span>
+          <input type="number" id="initial-balance-input" min="0" step="0.01" placeholder="0,00" class="input-field" style="flex:1">
+        </div>
+        <button onclick="saveInitialBalance()" class="btn-primary" style="padding:9px 20px">💾 Salvar Saldo</button>
+      </div>
+      <div style="margin-top:10px;font-size:.75rem;color:#475569">Saldo atual registrado: <strong id="current-initial-balance" style="color:#4ade80">R$ 0,00</strong></div>
+    </div>
     <div class="card" style="margin-bottom:18px">
       <div class="card-title"><div class="card-title-bar"></div>Tarifas por Categoria</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
@@ -929,7 +940,7 @@ const App = {
   teamHistory: [],
   dinnerHistory: [],
   expenses: [],
-  config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager' },
+  config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
 };
 
 // ═══════════════════════════════════════════════════════
@@ -1481,7 +1492,7 @@ function addResultForDate(date, opponent) {
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════
 function renderDashboard() {
-  const totalCaixa   = App.players.reduce((s, p) => s + p.balance, 0);
+  const totalCaixa   = (App.config.initialBalance || 0) + App.players.reduce((s, p) => s + p.balance, 0);
   const totalFeePend = App.players.reduce((s, p) => s + getFeePending(p), 0);
   const totalDinPend = App.players.reduce((s, p) => s + getDinnerPending(p), 0);
   const pendCount    = App.players.filter(p => getFeePending(p) > 0 || getDinnerPending(p) > 0).length;
@@ -1951,7 +1962,24 @@ function showFinanceTab(tab) {
   });
   if (tab === 'receber') renderFinancialPanel();
   if (tab === 'pagar')   renderExpenses();
-  if (tab === 'config') { renderFinancialStatus(); renderPaymentSelect(); }
+  if (tab === 'config') {
+    renderFinancialStatus(); renderPaymentSelect();
+    const inp = document.getElementById('initial-balance-input');
+    const lbl = document.getElementById('current-initial-balance');
+    if (inp) inp.value = App.config.initialBalance || '';
+    if (lbl) lbl.textContent = `R$ ${(App.config.initialBalance || 0).toFixed(2)}`;
+  }
+}
+
+function saveInitialBalance() {
+  const val = parseFloat(document.getElementById('initial-balance-input')?.value) || 0;
+  App.config.initialBalance = val;
+  const lbl = document.getElementById('current-initial-balance');
+  if (lbl) lbl.textContent = `R$ ${val.toFixed(2)}`;
+  renderDashboard(); renderFinancialPanel();
+  scheduleSync();
+  const btn = event?.target;
+  if (btn) { const orig = btn.textContent; btn.textContent = '✓ Salvo!'; setTimeout(() => btn.textContent = orig, 1500); }
 }
 
 function setFinFilter(f) {
@@ -2082,7 +2110,7 @@ function renderExpenses() {
 //  CONTAS A RECEBER
 // ═══════════════════════════════════════════════════════
 function renderFinancialPanel() {
-  const totalCaixa   = App.players.reduce((s,p) => s + p.balance, 0);
+  const totalCaixa   = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
   const totalFeePend = App.players.reduce((s,p) => s + getFeePending(p), 0);
   const totalDinPend = App.players.reduce((s,p) => s + getDinnerPending(p), 0);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
