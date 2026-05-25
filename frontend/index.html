@@ -554,6 +554,12 @@
 
 <!-- ════════════════ FINANCEIRO ════════════════ -->
 <div id="section-finance" class="section hidden">
+  <!-- Saldo persistente visível em todas as abas -->
+  <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:10px">
+    <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);border-radius:10px;padding:6px 16px;font-size:.82rem;color:#94a3b8">
+      💰 Em Caixa: <strong id="fin-header-balance" style="color:#4ade80;font-size:.95rem">R$ 0,00</strong>
+    </div>
+  </div>
   <div class="att-tabs">
     <button class="att-tab active" id="fintab-receber"    onclick="showFinanceTab('receber')">💰 Contas a Receber</button>
     <button class="att-tab" id="fintab-pagar"             onclick="showFinanceTab('pagar')">📋 Contas a Pagar</button>
@@ -598,7 +604,7 @@
       <button onclick="toggleExpenseForm()" class="btn-primary" id="exp-toggle-btn" style="padding:6px 16px;font-size:.82rem">➕ Nova Despesa</button>
     </div>
     <div class="exp-form-wrap" id="exp-form-wrap" style="display:none">
-      <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em">NOVA DESPESA</div>
+      <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em" id="exp-form-title">NOVA DESPESA</div>
       <div class="form-grid-2" style="margin-bottom:10px">
         <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="exp-desc" placeholder="Ex: Churrasquinho 24/05" class="input-field"></div>
         <div class="field-group"><label class="form-label">Valor (R$)</label><input type="number" id="exp-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
@@ -607,10 +613,17 @@
             <option value="Janta">🍖 Janta / Tira Gosto</option>
             <option value="Campo">⚽ Manutenção do Campo</option>
             <option value="Equipamento">👕 Equipamento</option>
+            <option value="Aluguel">🏠 Aluguel</option>
             <option value="Outros">📌 Outros</option>
           </select>
         </div>
-        <div class="field-group"><label class="form-label">Data</label><input type="date" id="exp-date" class="input-field"></div>
+        <div class="field-group" id="exp-date-field"><label class="form-label">Data</label><input type="date" id="exp-date" class="input-field"></div>
+      </div>
+      <div class="field-group" style="margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03)">
+          <input type="checkbox" id="exp-is-recurring" onchange="onRecurringToggle()" style="width:16px;height:16px;accent-color:#60a5fa;cursor:pointer">
+          <span style="font-size:.82rem;color:#94a3b8">🔁 <strong style="color:#60a5fa">Despesa Recorrente</strong> — repete todo mês automaticamente</span>
+        </label>
       </div>
       <div class="field-group" style="margin-bottom:12px"><label class="form-label">Observação (opcional)</label><input type="text" id="exp-notes" placeholder="Notas adicionais..." class="input-field"></div>
       <div style="display:flex;gap:8px">
@@ -624,38 +637,11 @@
       <button class="hist-filter-btn exp-filter-btn active" data-filter="all"         onclick="setExpenseFilter('all')">Todas</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="pending"     onclick="setExpenseFilter('pending')">⏳ Pendentes</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="paid"        onclick="setExpenseFilter('paid')">✅ Pagas</button>
+      <button class="hist-filter-btn exp-filter-btn"        data-filter="recurring"   onclick="setExpenseFilter('recurring')">🔁 Recorrentes</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="Janta"       onclick="setExpenseFilter('Janta')">🍖 Janta</button>
       <button class="hist-filter-btn exp-filter-btn"        data-filter="Campo"       onclick="setExpenseFilter('Campo')">⚽ Campo</button>
     </div>
     <div id="expense-list"></div>
-
-    <!-- Despesas Recorrentes -->
-    <div style="margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.07)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div style="font-size:.78rem;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase">🔁 Despesas Recorrentes</div>
-        <button onclick="toggleRecurringForm()" id="rec-toggle-btn" class="btn-primary" style="padding:5px 14px;font-size:.78rem">➕ Nova</button>
-      </div>
-      <div class="exp-form-wrap" id="rec-form-wrap" style="display:none">
-        <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em">NOVA DESPESA RECORRENTE</div>
-        <div class="form-grid-2" style="margin-bottom:10px">
-          <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="rec-desc" placeholder="Ex: Aluguel do campo" class="input-field"></div>
-          <div class="field-group"><label class="form-label">Valor Mensal (R$)</label><input type="number" id="rec-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
-          <div class="field-group"><label class="form-label">Categoria</label>
-            <select id="rec-cat" class="input-field">
-              <option value="Aluguel">🏠 Aluguel</option>
-              <option value="Campo">⚽ Campo / Manutenção</option>
-              <option value="Equipamento">👕 Equipamento</option>
-              <option value="Outros">📌 Outros</option>
-            </select>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="addRecurringExpense()" class="btn-primary" style="flex:1">💾 Salvar</button>
-          <button onclick="toggleRecurringForm()" style="padding:7px 18px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;font-family:inherit;font-size:.82rem">Cancelar</button>
-        </div>
-      </div>
-      <div id="recurring-expense-list"></div>
-    </div>
   </div>
 
   <!-- ── Fechamento Mensal ── -->
@@ -1042,7 +1028,6 @@
 <footer class="footer">
   <span>Atletas: <strong id="footer-player-count">0</strong></span>
   <span>Partidas: <strong id="footer-match-count">0</strong></span>
-  <span>Caixa: <strong id="footer-balance" style="color:#22c55e">R$ 0,00</strong></span>
   <span id="footer-sync"><span style="color:#334155;font-size:.72rem">☁️ Sincronizado</span></span>
 </footer>
 
@@ -2126,6 +2111,7 @@ function showFinanceTab(tab) {
     document.getElementById(`fin-${t}`).style.display = t === tab ? 'block' : 'none';
     document.getElementById(`fintab-${t}`).classList.toggle('active', t === tab);
   });
+  updateFinHeaderBalance();
   if (tab === 'receber')    renderFinancialPanel();
   if (tab === 'pagar')      renderExpenses();
   if (tab === 'fechamento') renderFechamentoMensal();
@@ -2181,26 +2167,59 @@ function toggleExpenseForm() {
   const open = wrap.style.display === 'none';
   wrap.style.display = open ? 'block' : 'none';
   if (open) {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('exp-date').value = today;
+    document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('exp-is-recurring').checked = false;
+    document.getElementById('exp-date-field').style.display = '';
+    document.getElementById('exp-form-title').textContent = 'NOVA DESPESA';
     document.getElementById('exp-desc').focus();
   }
 }
 
+function onRecurringToggle() {
+  const isRec = document.getElementById('exp-is-recurring').checked;
+  document.getElementById('exp-date-field').style.display = isRec ? 'none' : '';
+  document.getElementById('exp-form-title').textContent = isRec ? 'NOVA DESPESA RECORRENTE' : 'NOVA DESPESA';
+}
+
 function addExpense() {
-  const desc   = document.getElementById('exp-desc').value.trim();
+  const desc  = document.getElementById('exp-desc').value.trim();
   const amount = parseFloat(document.getElementById('exp-amount').value);
-  const cat    = document.getElementById('exp-cat').value;
-  const date   = document.getElementById('exp-date').value;
-  const notes  = document.getElementById('exp-notes').value.trim();
-  if (!desc || !amount || amount <= 0 || !date) { alert('Preencha descrição, valor e data.'); return; }
-  App.expenses.push({ id: App.nextId(), date, description: desc, category: cat, amount, paid: false, paidDate: null, notes });
+  const cat   = document.getElementById('exp-cat').value;
+  const notes = document.getElementById('exp-notes').value.trim();
+  const isRec = document.getElementById('exp-is-recurring').checked;
+  if (!desc || !amount || amount <= 0) { alert('Preencha descrição e valor.'); return; }
+
+  if (isRec) {
+    App.recurringExpenses.push({ id: App.nextId(), description: desc, category: cat, amount, active: true, lastPaidMonth: null });
+  } else {
+    const date = document.getElementById('exp-date').value;
+    if (!date) { alert('Preencha a data.'); return; }
+    App.expenses.push({ id: App.nextId(), date, description: desc, category: cat, amount, paid: false, paidDate: null, notes });
+  }
   document.getElementById('exp-desc').value = '';
   document.getElementById('exp-amount').value = '';
   document.getElementById('exp-notes').value = '';
+  document.getElementById('exp-is-recurring').checked = false;
+  document.getElementById('exp-date-field').style.display = '';
+  document.getElementById('exp-form-title').textContent = 'NOVA DESPESA';
   document.getElementById('exp-form-wrap').style.display = 'none';
   renderExpenses();
   renderDashboard();
+  updateFinHeaderBalance();
+  scheduleSync();
+}
+
+function darBaixaRecorrente(recurringId) {
+  const r = App.recurringExpenses.find(r => r.id === recurringId);
+  if (!r) return;
+  const today    = new Date().toISOString().split('T')[0];
+  const monthStr = today.slice(0, 7);
+  App.expenses.push({ id: App.nextId(), date: today, description: r.description, category: r.category, amount: r.amount, paid: true, paidDate: today, notes: '', recurringRef: recurringId });
+  r.lastPaidMonth = monthStr;
+  renderExpenses();
+  renderDashboard();
+  updateFinHeaderBalance();
+  scheduleSync();
 }
 
 function markExpensePaid(id) {
@@ -2210,46 +2229,106 @@ function markExpensePaid(id) {
   exp.paidDate = new Date().toISOString().split('T')[0];
   renderExpenses();
   renderDashboard();
+  updateFinHeaderBalance();
+  scheduleSync();
 }
 
 function deleteExpense(id) {
   App.expenses = App.expenses.filter(e => e.id !== id);
   renderExpenses();
   renderDashboard();
+  updateFinHeaderBalance();
+  scheduleSync();
 }
 
 function renderExpenses() {
-  const totalAll  = App.expenses.reduce((s,e) => s + e.amount, 0);
-  const totalPaid = App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0);
-  const totalPend = totalAll - totalPaid;
-  const caixa     = App.players.reduce((s,p) => s + p.balance, 0);
+  const catClass = { Janta:'cat-janta', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros', Aluguel:'cat-aluguel' };
+  const catIcon  = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Outros:'📌', Aluguel:'🏠' };
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  // Recorrentes ativos como entradas virtuais (pendentes se ainda não deram baixa este mês)
+  const recurringItems = (App.recurringExpenses || [])
+    .filter(r => r.active)
+    .map(r => ({
+      _isRecurring: true, _recurringId: r.id,
+      _paidThisMonth: r.lastPaidMonth === currentMonth,
+      id: `rec-${r.id}`, date: '', description: r.description,
+      category: r.category, amount: r.amount,
+      paid: r.lastPaidMonth === currentMonth, paidDate: null, notes: '',
+    }));
+
+  // Stats incluem recorrentes pendentes neste mês
+  const recPend = recurringItems.filter(r => !r._paidThisMonth).reduce((s,r) => s + r.amount, 0);
+  const totalAll  = App.expenses.reduce((s,e) => s + e.amount, 0) + recurringItems.reduce((s,r) => s + r.amount, 0);
+  const totalPaid = App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0) + recurringItems.filter(r => r._paidThisMonth).reduce((s,r) => s + r.amount, 0);
+  const totalPend = recPend + App.expenses.filter(e => !e.paid).reduce((s,e) => s + e.amount, 0);
+  const totalIn   = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
+  const saldoLivre = totalIn - App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0) - totalPend;
+
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('exp-total', `R$ ${totalAll.toFixed(2)}`);
   set('exp-paid',  `R$ ${totalPaid.toFixed(2)}`);
   set('exp-pend',  `R$ ${totalPend.toFixed(2)}`);
-  set('exp-saldo', `R$ ${(caixa - totalPend).toFixed(2)}`);
+  set('exp-saldo', `R$ ${saldoLivre.toFixed(2)}`);
+  updateFinHeaderBalance();
 
-  const catClass = { Janta:'cat-janta', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros' };
-  const catIcon  = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Outros:'📌' };
+  // Lista combinada: recorrentes no topo, depois despesas avulsas por data
+  let regularList = [...App.expenses].sort((a,b) => b.date.localeCompare(a.date));
+  let recList     = [...recurringItems];
 
-  let list = [...App.expenses].sort((a,b) => b.date.localeCompare(a.date));
-  if (expenseFilter === 'pending')     list = list.filter(e => !e.paid);
-  else if (expenseFilter === 'paid')   list = list.filter(e => e.paid);
-  else if (expenseFilter === 'Janta')  list = list.filter(e => e.category === 'Janta');
-  else if (expenseFilter === 'Campo')  list = list.filter(e => e.category === 'Campo');
+  if (expenseFilter === 'pending') {
+    regularList = regularList.filter(e => !e.paid);
+    recList     = recList.filter(r => !r._paidThisMonth);
+  } else if (expenseFilter === 'paid') {
+    regularList = regularList.filter(e => e.paid);
+    recList     = recList.filter(r => r._paidThisMonth);
+  } else if (expenseFilter === 'recurring') {
+    regularList = [];
+  } else if (['Janta','Campo','Equipamento','Aluguel','Outros'].includes(expenseFilter)) {
+    regularList = regularList.filter(e => e.category === expenseFilter);
+    recList     = recList.filter(r => r.category === expenseFilter);
+  }
 
   const el = document.getElementById('expense-list');
   if (!el) return;
-  if (!list.length) {
-    el.innerHTML = `<div class="empty-state" style="padding:36px">Nenhuma despesa encontrada.</div>`;
-    return;
-  }
-  el.innerHTML = list.map(e => {
-    const dateStr = e.date.split('-').reverse().join('/');
+
+  const renderCard = (e) => {
+    if (e._isRecurring) {
+      const paidLine = e._paidThisMonth
+        ? `<span style="font-size:.68rem;color:#4ade80">✅ Baixa dada este mês</span>`
+        : `<span style="font-size:.68rem;color:#fbbf24">⏳ Pendente este mês</span>`;
+      const actionBtn = e._paidThisMonth
+        ? `<button onclick="deleteRecurringExpense(${e._recurringId})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>`
+        : `<div style="display:flex;gap:6px">
+             <button onclick="darBaixaRecorrente(${e._recurringId})" style="padding:5px 12px;border-radius:8px;background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.25);color:#4ade80;cursor:pointer;font-size:.75rem;font-family:inherit;font-weight:600">✅ Dar Baixa</button>
+             <button onclick="toggleRecurringActive(${e._recurringId})" style="padding:5px 10px;border-radius:8px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);color:#60a5fa;cursor:pointer;font-size:.75rem;font-family:inherit" title="Pausar">⏸</button>
+             <button onclick="deleteRecurringExpense(${e._recurringId})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>
+           </div>`;
+      return `<div class="exp-card${e._paidThisMonth ? ' paid' : ''}" style="margin-bottom:8px">
+        <div style="font-size:1.4rem;line-height:1">${catIcon[e.category]||'📌'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-weight:700;font-size:.88rem;color:#e2e8f0">${e.description}</span>
+            <span class="cat-badge ${catClass[e.category]||'cat-outros'}">${e.category}</span>
+            <span style="font-size:.63rem;font-weight:700;color:#60a5fa;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);padding:2px 7px;border-radius:6px">🔁 Recorrente</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:3px;flex-wrap:wrap">
+            <span style="font-size:.72rem;color:#475569">Todo mês</span>
+            ${paidLine}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <span style="font-weight:800;font-size:.95rem;color:#f1f5f9">R$ ${e.amount.toFixed(2)}<span style="font-size:.65rem;color:#475569">/mês</span></span>
+          ${actionBtn}
+        </div>
+      </div>`;
+    }
+    const dateStr  = e.date ? e.date.split('-').reverse().join('/') : '—';
     const paidLine = e.paid
       ? `<span style="font-size:.68rem;color:#4ade80">✅ Paga em ${e.paidDate ? e.paidDate.split('-').reverse().join('/') : '—'}</span>`
       : `<span style="font-size:.68rem;color:#fbbf24">⏳ Pendente</span>`;
-    const noteStr = e.notes ? `<div style="font-size:.68rem;color:#475569;margin-top:2px">${e.notes}</div>` : '';
+    const noteStr  = e.notes ? `<div style="font-size:.68rem;color:#475569;margin-top:2px">${e.notes}</div>` : '';
+    const recBadge = e.recurringRef ? `<span style="font-size:.63rem;color:#60a5fa;background:rgba(96,165,250,0.1);padding:2px 6px;border-radius:5px">🔁 Recorrente</span>` : '';
     const actionBtn = e.paid
       ? `<button onclick="deleteExpense(${e.id})" title="Excluir" style="padding:5px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.75rem;font-family:inherit">🗑️</button>`
       : `<div style="display:flex;gap:6px">
@@ -2262,6 +2341,7 @@ function renderExpenses() {
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-weight:700;font-size:.88rem;color:#e2e8f0">${e.description}</span>
           <span class="cat-badge ${catClass[e.category]||'cat-outros'}">${e.category}</span>
+          ${recBadge}
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:3px;flex-wrap:wrap">
           <span style="font-size:.72rem;color:#475569">${dateStr}</span>
@@ -2274,81 +2354,30 @@ function renderExpenses() {
         ${actionBtn}
       </div>
     </div>`;
-  }).join('');
-  renderRecurringExpenses();
+  };
+
+  const combined = [...recList, ...regularList];
+  if (!combined.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:36px">Nenhuma despesa encontrada.</div>`;
+    return;
+  }
+  el.innerHTML = combined.map(renderCard).join('');
 }
 
-// ═══════════════════════════════════════════════════════
-//  DESPESAS RECORRENTES
-// ═══════════════════════════════════════════════════════
-let recurringFormVisible = false;
-
-function toggleRecurringForm() {
-  recurringFormVisible = !recurringFormVisible;
-  const wrap = document.getElementById('rec-form-wrap');
-  if (wrap) wrap.style.display = recurringFormVisible ? 'block' : 'none';
-  if (recurringFormVisible) document.getElementById('rec-desc')?.focus();
-}
-
-function addRecurringExpense() {
-  const desc   = document.getElementById('rec-desc').value.trim();
-  const amount = parseFloat(document.getElementById('rec-amount').value);
-  const cat    = document.getElementById('rec-cat').value;
-  if (!desc || !amount || amount <= 0) { alert('Preencha descrição e valor.'); return; }
-  App.recurringExpenses.push({ id: App.nextId(), description: desc, category: cat, amount, active: true });
-  document.getElementById('rec-desc').value = '';
-  document.getElementById('rec-amount').value = '';
-  document.getElementById('rec-form-wrap').style.display = 'none';
-  recurringFormVisible = false;
-  renderRecurringExpenses();
+function toggleRecurringActive(id) {
+  const r = App.recurringExpenses.find(r => r.id === id);
+  if (!r) return;
+  r.active = !r.active;
+  renderExpenses();
   scheduleSync();
 }
 
 function deleteRecurringExpense(id) {
   if (!confirm('Excluir esta despesa recorrente?')) return;
   App.recurringExpenses = App.recurringExpenses.filter(r => r.id !== id);
-  renderRecurringExpenses();
+  App.expenses = App.expenses.filter(e => e.recurringRef !== id);
+  renderExpenses();
   scheduleSync();
-}
-
-function toggleRecurringExpense(id) {
-  const r = App.recurringExpenses.find(r => r.id === id);
-  if (!r) return;
-  r.active = !r.active;
-  renderRecurringExpenses();
-  scheduleSync();
-}
-
-function renderRecurringExpenses() {
-  const el = document.getElementById('recurring-expense-list');
-  if (!el) return;
-  const catIcon  = { Aluguel:'🏠', Campo:'⚽', Equipamento:'👕', Outros:'📌' };
-  const catClass = { Aluguel:'cat-aluguel', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros' };
-  if (!App.recurringExpenses.length) {
-    el.innerHTML = `<div style="font-size:.78rem;color:#475569;text-align:center;padding:16px 0">Nenhuma despesa recorrente cadastrada.</div>`;
-    return;
-  }
-  el.innerHTML = App.recurringExpenses.map(r => `
-    <div class="exp-card" style="margin-bottom:8px;opacity:${r.active ? 1 : 0.55}">
-      <div style="font-size:1.4rem;line-height:1">${catIcon[r.category]||'📌'}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-weight:700;font-size:.88rem;color:#e2e8f0">${r.description}</span>
-          <span class="cat-badge ${catClass[r.category]||'cat-outros'}">${r.category}</span>
-          ${r.active
-            ? `<span style="font-size:.65rem;color:#4ade80;font-weight:700;background:rgba(34,197,94,0.12);padding:2px 7px;border-radius:6px">ATIVA</span>`
-            : `<span style="font-size:.65rem;color:#64748b;font-weight:700;background:rgba(100,116,139,0.12);padding:2px 7px;border-radius:6px">INATIVA</span>`}
-        </div>
-        <div style="font-size:.7rem;color:#475569;margin-top:3px">🔁 Todo mês</div>
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-        <span style="font-weight:800;font-size:.95rem;color:#f1f5f9">R$ ${r.amount.toFixed(2)}/mês</span>
-        <div style="display:flex;gap:6px">
-          <button onclick="toggleRecurringExpense(${r.id})" style="padding:4px 10px;border-radius:8px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.25);color:#60a5fa;cursor:pointer;font-size:.72rem;font-family:inherit">${r.active ? '⏸ Pausar' : '▶ Ativar'}</button>
-          <button onclick="deleteRecurringExpense(${r.id})" style="padding:4px 10px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.72rem;font-family:inherit">🗑️</button>
-        </div>
-      </div>
-    </div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2410,12 +2439,17 @@ function renderFechamentoMensal() {
       <span style="font-size:.88rem;color:#f87171;font-weight:700">− R$ ${r.amount.toFixed(2)}</span>
     </div>`).join('');
 
+  // Saldo em caixa acumulado (tudo até hoje)
+  const totalEntradas  = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
+  const totalSaidas    = (App.expenses || []).filter(e => e.paid).reduce((s,e) => s + e.amount, 0);
+  const saldoEmCaixa   = totalEntradas - totalSaidas;
+
   const el = document.getElementById('fechamento-content');
   if (!el) return;
 
   el.innerHTML = `
     <div class="card" style="margin-bottom:14px;background:rgba(34,197,94,0.04);border-color:rgba(34,197,94,0.18)">
-      <div class="card-title"><div class="card-title-bar" style="background:#4ade80"></div>📥 Receitas</div>
+      <div class="card-title"><div class="card-title-bar" style="background:#4ade80"></div>📥 Receitas do Mês</div>
       ${makeRow('📆 Mensalistas', recMensal, '#4ade80', '+ ')}
       ${makeRow('💵 Avulsos', recAvulso, '#4ade80', '+ ')}
       ${makeRow('🍽️ Tira Gosto', recTiraGosto, '#4ade80', '+ ')}
@@ -2427,7 +2461,7 @@ function renderFechamentoMensal() {
     </div>
 
     <div class="card" style="margin-bottom:14px;background:rgba(248,113,113,0.04);border-color:rgba(248,113,113,0.18)">
-      <div class="card-title"><div class="card-title-bar" style="background:#f87171"></div>📤 Despesas</div>
+      <div class="card-title"><div class="card-title-bar" style="background:#f87171"></div>📤 Despesas do Mês</div>
       ${monthExpenses.length
         ? expCatRows
         : `<div style="font-size:.78rem;color:#475569;padding:6px 0 10px">Nenhuma despesa avulsa lançada no mês.</div>`}
@@ -2440,12 +2474,22 @@ function renderFechamentoMensal() {
       </div>
     </div>
 
-    <div class="card" style="background:${saldo >= 0 ? 'rgba(34,197,94,0.07)' : 'rgba(248,113,113,0.07)'};border-color:${saldo >= 0 ? 'rgba(34,197,94,0.28)' : 'rgba(248,113,113,0.28)'}">
+    <div class="card" style="margin-bottom:14px;background:${saldo >= 0 ? 'rgba(34,197,94,0.07)' : 'rgba(248,113,113,0.07)'};border-color:${saldo >= 0 ? 'rgba(34,197,94,0.28)' : 'rgba(248,113,113,0.28)'}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:1rem;font-weight:700;color:#e2e8f0">💰 Saldo do Mês</span>
+        <span style="font-size:1rem;font-weight:700;color:#e2e8f0">📊 Resultado do Mês</span>
         <span style="font-size:1.3rem;font-weight:800;color:${saldo >= 0 ? '#4ade80' : '#f87171'}">${saldo >= 0 ? '+' : ''}R$ ${saldo.toFixed(2)}</span>
       </div>
       <div style="font-size:.73rem;margin-top:6px;color:${saldo >= 0 ? '#4ade80' : '#f87171'}">${saldo >= 0 ? '✅ Mês fechado no positivo' : '⚠️ Mês fechado no negativo'}</div>
+    </div>
+
+    <div class="card" style="background:rgba(96,165,250,0.07);border-color:rgba(96,165,250,0.28)">
+      <div class="card-title"><div class="card-title-bar" style="background:#60a5fa"></div>💰 Saldo em Caixa (acumulado)</div>
+      ${makeRow('Saldo Inicial + Recebimentos', totalEntradas, '#94a3b8', '')}
+      ${makeRow('Total Despesas Pagas', totalSaidas, '#f87171', '− ')}
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 2px;border-top:1px solid rgba(255,255,255,0.07);margin-top:4px">
+        <span style="font-size:.9rem;font-weight:700;color:#e2e8f0">Caixa Disponível</span>
+        <span style="font-size:1.3rem;font-weight:800;color:${saldoEmCaixa >= 0 ? '#4ade80' : '#f87171'}">R$ ${saldoEmCaixa.toFixed(2)}</span>
+      </div>
     </div>`;
 }
 
@@ -3587,8 +3631,16 @@ function saveConfig() {
 //  FOOTER + REFRESH
 // ═══════════════════════════════════════════════════════
 function updateFooter() {
-  document.getElementById('footer-player-count').textContent=App.players.length; document.getElementById('footer-match-count').textContent=App.results.length;
-  document.getElementById('footer-balance').textContent=`R$ ${App.players.reduce((s,p)=>s+p.balance,0).toFixed(2)}`;
+  document.getElementById('footer-player-count').textContent = App.players.length;
+  document.getElementById('footer-match-count').textContent  = App.results.length;
+}
+
+function updateFinHeaderBalance() {
+  const el = document.getElementById('fin-header-balance');
+  if (!el) return;
+  const totalIn  = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
+  const totalOut = App.expenses.filter(e => e.paid).reduce((s,e) => s + e.amount, 0);
+  el.textContent = `R$ ${(totalIn - totalOut).toFixed(2)}`;
 }
 function refreshAll() {
   renderPlayerList(); renderAttendanceList(); renderAvailablePlayers();
@@ -4056,10 +4108,10 @@ async function loadFromServer() {
     const data = await res.json();
     if (data && Object.keys(data).length > 0) {
       restoreAppSnapshot(data);
+      refreshAll(); renderResults(); updateRatingLive();
+      applyBranding();
     }
-    App.dataLoaded = true; // libera sync apenas após dados carregados
-    refreshAll(); renderResults(); updateRatingLive();
-    applyBranding();
+    App.dataLoaded = true; // libera sync somente após dados restaurados (scheduleSync dentro de refreshAll é bloqueado enquanto false)
     setSyncStatus('saved');
     setTimeout(() => setSyncStatus('idle'), 2000);
   } catch (e) {
