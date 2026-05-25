@@ -1968,6 +1968,10 @@ function showFinanceTab(tab) {
     const lbl = document.getElementById('current-initial-balance');
     if (inp) inp.value = App.config.initialBalance || '';
     if (lbl) lbl.textContent = `R$ ${(App.config.initialBalance || 0).toFixed(2)}`;
+    const fm = document.getElementById('fee-mensal');
+    const fa = document.getElementById('fee-avulso');
+    if (fm) fm.value = App.fees.mensal;
+    if (fa) fa.value = App.fees.avulso;
   }
 }
 
@@ -2247,6 +2251,7 @@ function applyFees() {
   App.fees.mensal=parseFloat(document.getElementById('fee-mensal').value)||150; App.fees.avulso=parseFloat(document.getElementById('fee-avulso').value)||50;
   App.players.forEach(p=>p.monthlyFee=p.isRegular?App.fees.mensal:App.fees.avulso);
   renderPlayerList(); renderFinancialStatus(); renderDashboard();
+  scheduleSync();
   alert(`Tarifas salvas!\nMensal: R$ ${App.fees.mensal}  ·  Avulso: R$ ${App.fees.avulso}`);
 }
 function renderPaymentSelect() {
