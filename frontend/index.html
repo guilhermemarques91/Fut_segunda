@@ -277,6 +277,14 @@
     .hidden{display:none!important}
     .empty-state{color:#334155;font-size:.83rem;text-align:center;padding:22px}
 
+    /* ─ LOGIN SCREEN ─ */
+    #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;align-items:center;justify-content:center;padding:20px}
+    .login-card{background:var(--card);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 40px 80px rgba(0,0,0,0.65);animation:fadeUp .3s ease}
+    .login-logo{width:52px;height:52px;background:linear-gradient(135deg,#22c55e,#15803d);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px;box-shadow:0 0 24px rgba(34,197,94,0.45)}
+    .login-brand{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;background:linear-gradient(90deg,#fff 30%,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:4px}
+    .login-sub{font-size:.75rem;color:#475569;text-align:center;margin-bottom:28px}
+    #login-error{display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:9px 12px;font-size:.8rem;color:#f87171;text-align:center;margin-bottom:4px}
+
     /* ─ MOBILE RESPONSIVO ─ */
     html,body{overflow-x:hidden;max-width:100%}
     /* min-width:0 resolve o overflow em filhos de flex/grid sem precisar alterar cada elemento */
@@ -317,6 +325,31 @@
 </head>
 <body>
 
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo" id="login-logo-el">⚽</div>
+    <div class="login-brand" id="login-brand-name">Fut Segunda</div>
+    <div class="login-sub">Entre com sua conta para continuar</div>
+    <div class="space-y">
+      <div class="field-group">
+        <label class="form-label">Usuário</label>
+        <input type="text" id="login-username" class="input-field" placeholder="seu usuário"
+               autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      </div>
+      <div class="field-group">
+        <label class="form-label">Senha</label>
+        <input type="password" id="login-password" class="input-field" placeholder="••••••••"
+               autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="login-error"></div>
+      <button onclick="doLogin()" class="btn-primary" style="width:100%;padding:12px;font-size:.9rem;justify-content:center" id="login-btn">
+        Entrar
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ NAVBAR ═══ -->
 <nav class="navbar">
   <div class="brand" style="cursor:pointer" onclick="showSection('dashboard')">
@@ -331,6 +364,7 @@
     <button onclick="showSection('finance')"    class="nav-link inactive" id="nav-finance">💰 Financeiro</button>
   </div>
   <button onclick="showSection('config')" class="nav-settings-btn" id="nav-config" title="Configurações">⚙️</button>
+  <button onclick="doLogout()" class="nav-settings-btn" id="nav-logout" title="Sair" style="display:none">🚪</button>
 </nav>
 
 <div class="main">
@@ -922,6 +956,33 @@
     </div>
 
   </div>
+
+  <!-- Gestão de usuários — visível somente para admin -->
+  <div class="card" id="card-users" style="display:none;margin-top:18px">
+    <div class="card-title"><div class="card-title-bar"></div>👤 Usuários do Sistema</div>
+    <div id="users-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+      <div class="empty-state">Carregando...</div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:14px">
+      <div style="font-size:.78rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px">Novo Usuário</div>
+      <div class="form-grid-2" style="margin-bottom:10px">
+        <div class="field-group">
+          <label class="form-label">Nome de usuário</label>
+          <input type="text" id="new-user-username" class="input-field" placeholder="joao">
+        </div>
+        <div class="field-group">
+          <label class="form-label">Senha (mín. 6 caracteres)</label>
+          <input type="password" id="new-user-password" class="input-field" placeholder="••••••">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="radio-pill" style="flex:1;min-width:110px"><input type="radio" name="new-user-role" value="viewer" checked><span>👁️ Viewer (só histórico)</span></label>
+        <label class="radio-pill" style="flex:1;min-width:110px"><input type="radio" name="new-user-role" value="admin"><span>🔑 Admin (acesso total)</span></label>
+        <button onclick="createUser()" class="btn-primary" style="padding:8px 18px;font-size:.82rem">+ Criar</button>
+      </div>
+      <div id="user-create-msg" style="display:none;margin-top:8px;font-size:.8rem;padding:8px 12px;border-radius:8px"></div>
+    </div>
+  </div>
 </div>
 
 </div><!-- /main -->
@@ -971,6 +1032,8 @@ const App = {
   currentSection: 'dashboard',
   pendingPollMsg: '',
   pendingDinnerData: null,
+  // autenticação
+  auth: { token: null, role: null, username: null },
   // calendar state
   calYear:  new Date().getFullYear(),
   calMonth: new Date().getMonth(),
@@ -1010,6 +1073,8 @@ function dateStr(daysAgo) { const d = new Date(); d.setDate(d.getDate() - daysAg
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════
 function showSection(sec) {
+  // Viewer só pode acessar histórico
+  if (App.auth.role === 'viewer' && sec !== 'historico') return;
   document.querySelectorAll('.section').forEach(el => { el.classList.add('hidden'); el.classList.remove('active'); });
   document.getElementById(`section-${sec}`).classList.remove('hidden');
   document.getElementById(`section-${sec}`).classList.add('active');
@@ -3175,6 +3240,11 @@ function applyBranding() {
     }
   }
   if (nameEl) nameEl.textContent = cfg.teamName || 'Fut Segunda';
+  // Atualiza tela de login com o branding do app
+  const loginLogo = document.getElementById('login-logo-el');
+  const loginName = document.getElementById('login-brand-name');
+  if (loginLogo) loginLogo.innerHTML = cfg.logo ? `<img src="${cfg.logo}" style="width:100%;height:100%;object-fit:contain;border-radius:10px">` : '⚽';
+  if (loginName) loginName.textContent = cfg.teamName || 'Fut Segunda';
 }
 
 function renderConfigSection() {
@@ -3184,8 +3254,17 @@ function renderConfigSection() {
   if (nameEl) nameEl.value = cfg.teamName || '';
   if (titleEl) titleEl.value = cfg.tabTitle || '';
   updateConfigPreview();
-  // Show logo preview if already set
   if (cfg.logo) showLogoPreview(cfg.logo, 'Logo salva');
+  // Card de usuários — só para admin
+  const cardUsers = document.getElementById('card-users');
+  if (cardUsers) {
+    if (App.auth.role === 'admin') {
+      cardUsers.style.display = 'block';
+      loadUsersList();
+    } else {
+      cardUsers.style.display = 'none';
+    }
+  }
 }
 
 function updateConfigPreview() {
@@ -3364,12 +3443,210 @@ function initDemoData() {
 //  e API_KEY com a mesma chave definida em api/config.php
 // ═══════════════════════════════════════════════════════
 const SERVER_CONFIG = {
-  apiUrl: 'https://fut.barleiseca.com.br/api/api.php',
-  apiKey: 'fut2-minha-chave-secreta',         // ← mesma chave do config.php
+  apiUrl:  'https://fut.barleiseca.com.br/api/api.php',
+  authUrl: 'https://fut.barleiseca.com.br/api/auth.php',
+  apiKey:  'fut2-minha-chave-secreta',   // ← mesma chave do config.php
 };
 
 let _syncTimer = null;
 let _syncStatus = 'idle'; // idle | saving | saved | error
+
+// ═══════════════════════════════════════════════════════
+//  AUTENTICAÇÃO
+// ═══════════════════════════════════════════════════════
+function _authHeaders() {
+  return { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token };
+}
+
+async function doLogin() {
+  const username = (document.getElementById('login-username')?.value || '').trim();
+  const password = document.getElementById('login-password')?.value || '';
+  const btn  = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+
+  if (!username || !password) {
+    errEl.textContent = 'Preencha usuário e senha.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(SERVER_CONFIG.authUrl + '?action=login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey },
+      body:    JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
+
+    App.auth = { token: data.token, role: data.role, username: data.username };
+    localStorage.setItem('fut_token',    data.token);
+    localStorage.setItem('fut_role',     data.role);
+    localStorage.setItem('fut_username', data.username);
+
+    onLoginSuccess();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+}
+
+function onLoginSuccess() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('nav-logout').style.display   = '';
+  document.getElementById('mnav-logout').style.display  = '';
+  applyRoleRestrictions();
+  loadFromServer();
+}
+
+function applyRoleRestrictions() {
+  const isViewer = App.auth.role === 'viewer';
+  if (isViewer) {
+    // Desktop nav — esconde tudo exceto histórico
+    ['dashboard','rodada','players','finance'].forEach(s => {
+      const el = document.getElementById(`nav-${s}`);
+      if (el) el.style.display = 'none';
+    });
+    const cfgBtn = document.getElementById('nav-config');
+    if (cfgBtn) cfgBtn.style.display = 'none';
+    // Mobile nav — esconde tudo exceto histórico e sair
+    ['dashboard','rodada','players','finance','config'].forEach(s => {
+      const el = document.getElementById(`mnav-${s}`);
+      if (el) el.style.display = 'none';
+    });
+    showSection('historico');
+  }
+  // Exibe nome do usuário logado no footer (discreto)
+  const syncEl = document.getElementById('footer-sync');
+  if (syncEl && App.auth.username) {
+    const label = isViewer ? '👁️ ' + App.auth.username : '🔑 ' + App.auth.username;
+    syncEl.insertAdjacentHTML('beforeend',
+      `<span style="color:#334155;font-size:.68rem;margin-left:8px">${label}</span>`);
+  }
+}
+
+async function doLogout() {
+  if (!confirm('Sair da conta?')) return;
+  try {
+    await fetch(SERVER_CONFIG.authUrl + '?action=logout', {
+      method:  'POST',
+      headers: _authHeaders(),
+    });
+  } catch {}
+  App.auth = { token: null, role: null, username: null };
+  localStorage.removeItem('fut_token');
+  localStorage.removeItem('fut_role');
+  localStorage.removeItem('fut_username');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('nav-logout').style.display  = 'none';
+  document.getElementById('mnav-logout').style.display = 'none';
+}
+
+async function checkStoredSession() {
+  const token    = localStorage.getItem('fut_token');
+  const role     = localStorage.getItem('fut_role');
+  const username = localStorage.getItem('fut_username');
+
+  if (!token) {
+    document.getElementById('login-screen').style.display = 'flex';
+    return;
+  }
+
+  // Valida token no servidor
+  try {
+    const res = await fetch(SERVER_CONFIG.authUrl + '?action=validate', {
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': token },
+    });
+    if (!res.ok) throw new Error('invalid');
+    const data = await res.json();
+    App.auth = { token, role: data.role, username: data.username };
+    onLoginSuccess();
+  } catch {
+    localStorage.removeItem('fut_token');
+    localStorage.removeItem('fut_role');
+    localStorage.removeItem('fut_username');
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+}
+
+// ── Gestão de usuários (admin) ───────────────────────────
+async function loadUsersList() {
+  if (App.auth.role !== 'admin') return;
+  const el = document.getElementById('users-list');
+  if (!el) return;
+  try {
+    const res = await fetch(SERVER_CONFIG.authUrl + '?action=list_users', { headers: _authHeaders() });
+    const users = await res.json();
+    el.innerHTML = users.map(u => `
+      <div class="player-item" style="padding:8px 12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-weight:600;font-size:.85rem">${u.username}</span>
+          <span class="badge ${u.role==='admin'?'badge-mensal':'badge-avulso'}">${u.role}</span>
+          ${u.username === App.auth.username ? '<span style="font-size:.68rem;color:#334155">(você)</span>' : ''}
+        </div>
+        ${u.username !== App.auth.username ? `
+          <button onclick="deleteUser(${u.id},'${u.username}')" class="act-btn act-btn-del" style="font-size:.72rem">Remover</button>
+        ` : ''}
+      </div>`).join('');
+  } catch (e) {
+    if (el) el.innerHTML = '<div class="empty-state">Erro ao carregar usuários</div>';
+  }
+}
+
+async function createUser() {
+  const username = (document.getElementById('new-user-username')?.value || '').trim();
+  const password = document.getElementById('new-user-password')?.value || '';
+  const role     = document.querySelector('input[name="new-user-role"]:checked')?.value || 'viewer';
+  const msgEl    = document.getElementById('user-create-msg');
+
+  if (!username || !password) { showUserMsg('Preencha usuário e senha.', false); return; }
+
+  try {
+    const res  = await fetch(SERVER_CONFIG.authUrl + '?action=create_user', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
+      body:    JSON.stringify({ username, password, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro');
+    showUserMsg(`Usuário "${username}" criado!`, true);
+    document.getElementById('new-user-username').value = '';
+    document.getElementById('new-user-password').value = '';
+    loadUsersList();
+  } catch (e) { showUserMsg(e.message, false); }
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Remover o usuário "${name}"?`)) return;
+  try {
+    const res = await fetch(SERVER_CONFIG.authUrl + '?action=delete_user', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
+      body:    JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro');
+    loadUsersList();
+  } catch (e) { alert(e.message); }
+}
+
+function showUserMsg(msg, ok) {
+  const el = document.getElementById('user-create-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = ok ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)';
+  el.style.border = ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(248,113,113,0.2)';
+  el.style.color = ok ? '#4ade80' : '#f87171';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
 
 function setSyncStatus(status, msg) {
   _syncStatus = status;
@@ -3386,6 +3663,7 @@ function setSyncStatus(status, msg) {
 }
 
 function scheduleSync() {
+  if (App.auth.role !== 'admin') return; // viewer não salva
   clearTimeout(_syncTimer);
   setSyncStatus('saving');
   _syncTimer = setTimeout(syncToServer, 1500);
@@ -3419,10 +3697,11 @@ function restoreAppSnapshot(data) {
 }
 
 async function syncToServer() {
+  if (App.auth.role !== 'admin') return;
   try {
     const res = await fetch(SERVER_CONFIG.apiUrl, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey },
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
       body:    getAppSnapshot(),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -3438,7 +3717,7 @@ async function loadFromServer() {
   setSyncStatus('saving');
   try {
     const res = await fetch(SERVER_CONFIG.apiUrl, {
-      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey },
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -3455,21 +3734,23 @@ async function loadFromServer() {
   }
 }
 
-// Salva antes de fechar/recarregar a página
+// Salva antes de fechar/recarregar a página (somente admin)
 window.addEventListener('beforeunload', () => {
+  if (App.auth.role !== 'admin' || !App.auth.token) return;
   const snapshot = getAppSnapshot();
+  const url = SERVER_CONFIG.apiUrl + '?token=' + encodeURIComponent(App.auth.token);
   navigator.sendBeacon
-    ? navigator.sendBeacon(SERVER_CONFIG.apiUrl + '?beacon=1', new Blob([snapshot], { type: 'application/json' }))
+    ? navigator.sendBeacon(url, new Blob([snapshot], { type: 'application/json' }))
     : syncToServer();
 });
 
-// Inicia: carrega dados do servidor ao abrir
+// Inicia: verifica sessão salva ou exibe tela de login
 document.addEventListener('DOMContentLoaded', () => {
   ['config-team-name','config-tab-title'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateConfigPreview);
   });
-  loadFromServer();
+  checkStoredSession();
 });
 </script>
 
@@ -3492,6 +3773,9 @@ document.addEventListener('DOMContentLoaded', () => {
   </button>
   <button class="mnav-btn" id="mnav-config" onclick="showSection('config')">
     <span class="micon">⚙️</span><span>Config</span>
+  </button>
+  <button class="mnav-btn" id="mnav-logout" onclick="doLogout()" style="display:none">
+    <span class="micon">🚪</span><span>Sair</span>
   </button>
 </nav>
 </body>
