@@ -844,6 +844,7 @@
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="generateRodadaTeams()" class="btn-primary" style="font-size:.77rem;padding:6px 16px">⚡ Gerar Times</button>
           <button onclick="generateRodadaTeams()" class="btn-secondary" style="font-size:.77rem;padding:6px 14px">🔄 Refazer</button>
+          <button id="rod-edit-teams-btn" onclick="toggleTeamsEditMode()" class="btn-secondary" style="font-size:.77rem;padding:6px 14px">✏️ Editar</button>
         </div>
       </div>
       <div id="rod-teams-output"><div class="empty-state" style="padding:24px">Confirme a presença e clique em "Gerar Times"</div></div>
@@ -2973,6 +2974,7 @@ let rodState = {
   dinnerIds: [],
   rodTeams: { home: [], away: [], homeReserve: null, awayReserve: null },
   teamsGenerated: false,
+  teamsEditMode: false,
   goals: [],
   motm: null,
 };
@@ -3184,6 +3186,44 @@ function generateRodadaTeams() {
   const awayReserve = pool.shift() || null;
   rodState.rodTeams = { home, away, homeReserve, awayReserve };
   rodState.teamsGenerated = true;
+  rodState.teamsEditMode = false;
+  const editBtn = document.getElementById('rod-edit-teams-btn');
+  if (editBtn) editBtn.textContent = '✏️ Editar';
+  renderRodadaTeams();
+  renderRodadaGoals();
+}
+
+function toggleTeamsEditMode() {
+  if (!rodState.confirmedIds.length) return alert('Confirme a presença de jogadores primeiro.');
+  rodState.teamsEditMode = !rodState.teamsEditMode;
+  if (rodState.teamsEditMode && !rodState.teamsGenerated) {
+    rodState.rodTeams = { home: [], away: [], homeReserve: null, awayReserve: null };
+    rodState.teamsGenerated = true;
+  }
+  const btn = document.getElementById('rod-edit-teams-btn');
+  if (btn) btn.textContent = rodState.teamsEditMode ? '✅ Concluir' : '✏️ Editar';
+  renderRodadaTeams();
+  renderRodadaGoals();
+}
+
+function rodMovePlayer(playerId, target) {
+  const p = findPlayerById(playerId);
+  if (!p) return;
+  const t = rodState.rodTeams;
+  t.home = t.home.filter(x => x.id !== playerId);
+  t.away = t.away.filter(x => x.id !== playerId);
+  if (t.homeReserve?.id === playerId) t.homeReserve = null;
+  if (t.awayReserve?.id  === playerId) t.awayReserve  = null;
+  if (target === 'home') {
+    t.home.push(p);
+  } else if (target === 'away') {
+    t.away.push(p);
+  } else if (target === 'res') {
+    if      (!t.homeReserve) t.homeReserve = p;
+    else if (!t.awayReserve) t.awayReserve  = p;
+    else { alert('Já há 2 reservas. Remova uma antes.'); return; }
+  }
+  // target === 'none' → apenas remove (já feito acima)
   renderRodadaTeams();
   renderRodadaGoals();
 }
@@ -3191,6 +3231,58 @@ function generateRodadaTeams() {
 function renderRodadaTeams() {
   const el = document.getElementById('rod-teams-output'); if (!el) return;
   const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
+
+  // ── MODO EDIÇÃO MANUAL ──────────────────────────────────────
+  if (rodState.teamsEditMode) {
+    const allConfirmed = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    const homeSet = new Set(home.map(p => p.id));
+    const awaySet = new Set(away.map(p => p.id));
+    const resSet  = new Set([homeReserve?.id, awayReserve?.id].filter(Boolean));
+    const getAsgn = id => homeSet.has(id) ? 'home' : awaySet.has(id) ? 'away' : resSet.has(id) ? 'res' : 'none';
+
+    const aBtn = (label, playerId, target, active, color, bg) =>
+      `<button onclick="rodMovePlayer(${playerId},'${target}')" style="padding:5px 11px;border-radius:7px;cursor:pointer;font-size:.73rem;font-family:inherit;font-weight:${active?700:400};background:${active?bg:'rgba(255,255,255,0.04)'};border:1px solid ${active?color:'rgba(255,255,255,0.08)'};color:${active?color:'#475569'}">${label}</button>`;
+
+    const noneBtn = (id, active) =>
+      `<button onclick="rodMovePlayer(${id},'none')" title="Remover dos times" style="padding:5px 8px;border-radius:7px;cursor:pointer;font-size:.7rem;font-family:inherit;background:${active?'rgba(248,113,113,0.1)':'rgba(255,255,255,0.04)'};border:1px solid ${active?'rgba(248,113,113,0.3)':'rgba(255,255,255,0.08)'};color:${active?'#f87171':'#334155'}">—</button>`;
+
+    const rows = allConfirmed.map(p => {
+      const asgn = getAsgn(p.id);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
+        <div style="flex:1;min-width:0">
+          <span style="font-size:.86rem;color:#e2e8f0;font-weight:500">${p.name}</span>
+          <span style="font-size:.6rem;color:#475569;margin-left:5px">${p.overall}</span>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          ${aBtn('⬛🟡', p.id, 'home', asgn==='home', '#eab308', 'rgba(234,179,8,0.15)')}
+          ${aBtn('🔵',   p.id, 'away', asgn==='away', '#60a5fa', 'rgba(96,165,250,0.15)')}
+          ${aBtn('Res',  p.id, 'res',  asgn==='res',  '#94a3b8', 'rgba(148,163,184,0.12)')}
+          ${noneBtn(p.id, asgn==='none')}
+        </div>
+      </div>`;
+    }).join('');
+
+    const resInfo = [homeReserve ? `Res.P: ${homeReserve.name}` : '', awayReserve ? `Res.A: ${awayReserve.name}` : ''].filter(Boolean).join(' · ');
+    el.innerHTML = `
+      <div style="font-size:.7rem;color:#60a5fa;margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
+        <span>✏️ Toque para mover cada jogador de time</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;font-size:.63rem;color:#475569;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
+        <span style="width:46px;text-align:center">⬛🟡</span>
+        <span style="width:36px;text-align:center">🔵</span>
+        <span style="width:36px;text-align:center">Res</span>
+        <span style="width:28px;text-align:center">—</span>
+      </div>
+      ${rows}
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:9px;font-size:.69rem;color:#64748b">
+        T. Preto: <strong style="color:#eab308">${home.length}</strong> · T. Azul: <strong style="color:#60a5fa">${away.length}</strong>${resInfo ? ` · ${resInfo}` : ''}
+        ${allConfirmed.filter(p=>getAsgn(p.id)==='none').length ? ` · <span style="color:#f87171">Sem time: ${allConfirmed.filter(p=>getAsgn(p.id)==='none').length}</span>` : ''}
+      </div>`;
+    return;
+  }
+  // ── FIM MODO EDIÇÃO ─────────────────────────────────────────
+
   if (!home || !home.length) { el.innerHTML = '<div class="empty-state" style="padding:24px">Confirme a presença e clique em "Gerar Times"</div>'; return; }
   const teamHtml = (players, reserve, color, label) => {
     const avg = players.length ? Math.round(players.reduce((s,p)=>s+p.overall,0)/players.length) : 0;
