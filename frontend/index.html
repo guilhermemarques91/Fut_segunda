@@ -1068,6 +1068,7 @@ function getFeePending(p) {
 }
 function getDinnerPending(p) { return p.dinnerDebt || 0; }
 function dateStr(daysAgo) { const d = new Date(); d.setDate(d.getDate() - daysAgo); return d.toISOString().split('T')[0]; }
+function roundUpToFive(val) { if (val <= 0) return 0; return Math.ceil(val / 5) * 5; }
 
 // ═══════════════════════════════════════════════════════
 //  NAVIGATION
@@ -2746,8 +2747,10 @@ function updateRodDinnerSplit() {
   const total = parseFloat(document.getElementById('rod-dinner-total')?.value)||0;
   const cnt   = rodState.dinnerIds.length;
   if (cnt > 0 && total > 0) {
-    const share = total / cnt;
-    el.innerHTML = `<div style="background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.18);border-radius:10px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:.72rem;color:#94a3b8">${cnt} pessoas · R$ ${total.toFixed(2)} total</span><span style="color:#fbbf24;font-weight:800;font-size:.92rem">R$ ${share.toFixed(2)}<span style="font-size:.63rem;font-weight:400;color:#64748b">/pessoa</span></span></div>`;
+    const share   = total / cnt;
+    const rounded = roundUpToFive(share);
+    const realInfo = rounded !== share ? `<span style="font-size:.6rem;color:#94a3b8;display:block">real R$ ${share.toFixed(2).replace('.',',')} → cobrar R$ ${rounded.toFixed(2).replace('.',',')}</span>` : '';
+    el.innerHTML = `<div style="background:rgba(251,191,36,0.07);border:1px solid rgba(251,191,36,0.18);border-radius:10px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:.72rem;color:#94a3b8">${cnt} pessoas · R$ ${total.toFixed(2).replace('.',',')} total</span><span style="text-align:right"><span style="color:#fbbf24;font-weight:800;font-size:.92rem">R$ ${rounded.toFixed(2).replace('.',',')}<span style="font-size:.63rem;font-weight:400;color:#64748b">/pessoa</span></span>${realInfo}</span></div>`;
   } else {
     el.innerHTML = cnt > 0 ? `<div style="font-size:.72rem;color:#475569;padding:3px 0">${cnt} participantes selecionados · informe o valor total</div>` : '';
   }
@@ -2908,14 +2911,15 @@ function saveRodada() {
   const meal = document.getElementById('rod-meal')?.value.trim()||'';
   const dinTotal = parseFloat(document.getElementById('rod-dinner-total')?.value)||0;
   if (rodState.dinnerIds.length > 0) {
-    const share = dinTotal > 0 ? dinTotal / rodState.dinnerIds.length : 0;
+    const realShare = dinTotal > 0 ? dinTotal / rodState.dinnerIds.length : 0;
+    const share     = dinTotal > 0 ? roundUpToFive(realShare) : 0;
     const existDin = App.dinnerHistory.find(d => d.date === date);
     if (existDin) {
       existDin.participants=[...rodState.dinnerIds]; existDin.meal=meal; existDin.opponent=opponent;
-      if (dinTotal > 0) { existDin.total=dinTotal; existDin.share=share; }
+      if (dinTotal > 0) { existDin.total=dinTotal; existDin.share=share; existDin.realShare=realShare; }
       if (dinTotal > 0) syncDinnerExpense(existDin);
     } else {
-      const newDin = { id:App.nextId(), date, opponent, meal, total:dinTotal, share, participants:[...rodState.dinnerIds], paidBy:[] };
+      const newDin = { id:App.nextId(), date, opponent, meal, total:dinTotal, share, realShare, participants:[...rodState.dinnerIds], paidBy:[] };
       App.dinnerHistory.push(newDin);
       if (dinTotal > 0) {
         rodState.dinnerIds.forEach(pid => { const p=findPlayerById(pid); if(p) p.dinnerDebt=(p.dinnerDebt||0)+share; });
@@ -3053,7 +3057,8 @@ function setDinnerTotal(evId) {
   const total = parseFloat(input ? input.value : 0);
   if (!total || total <= 0) return alert('Informe um valor válido.');
   ev.total = total;
-  ev.share = total / (ev.participants.length || 1);
+  ev.realShare = total / (ev.participants.length || 1);
+  ev.share = roundUpToFive(ev.realShare);
   ev.participants.forEach(id => {
     if (!ev.paidBy.includes(id)) {
       const p = findPlayerById(id);
@@ -3179,17 +3184,21 @@ function renderDinnerParticipants() {
 function calculateDinnerSplit() {
   const total=parseFloat(document.getElementById('dinner-total').value); if (!total||total<=0) return alert('Informe o valor total.');
   const checked=document.querySelectorAll('.dinner-check:checked'); if (!checked.length) return alert('Selecione participantes.');
-  const share=total/checked.length; const ids=Array.from(checked).map(cb=>parseInt(cb.value,10));
+  const realShare=total/checked.length;
+  const share=roundUpToFive(realShare);
+  const ids=Array.from(checked).map(cb=>parseInt(cb.value,10));
   const date=document.getElementById('dinner-date').value||new Date().toISOString().split('T')[0];
   const meal=document.getElementById('dinner-meal')?.value.trim()||'';
-  App.pendingDinnerData={share,playerIds:ids,total,date,meal};
+  App.pendingDinnerData={share,realShare,playerIds:ids,total,date,meal};
+  const roundedInfo = share!==realShare ? `<div style="font-size:.72rem;color:#94a3b8;margin-top:3px">divisão real: R$ ${realShare.toFixed(2).replace('.',',')} → cobrado: R$ ${share.toFixed(2).replace('.',',')}</div>` : '';
   document.getElementById('dinner-result').innerHTML=`
     <div style="background:linear-gradient(135deg,rgba(34,197,94,0.1),transparent);border:1px solid rgba(34,197,94,0.22);border-radius:14px;padding:18px;margin-bottom:14px">
-      <div style="font-size:1.35rem;font-weight:800;color:#4ade80">R$ ${share.toFixed(2)}</div>
-      <div style="font-size:.77rem;color:#475569;margin-top:2px">por pessoa · ${checked.length} participantes · total R$ ${total.toFixed(2)}</div>
+      <div style="font-size:1.35rem;font-weight:800;color:#4ade80">R$ ${share.toFixed(2).replace('.',',')}</div>
+      <div style="font-size:.77rem;color:#475569;margin-top:2px">por pessoa · ${checked.length} participantes · total R$ ${total.toFixed(2).replace('.',',')}</div>
+      ${roundedInfo}
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
-      ${Array.from(checked).map(cb=>{const p=findPlayerById(cb.value);return p?`<div class="finance-item"><span style="font-size:.84rem;font-weight:600">${p.name}</span><span style="color:#4ade80;font-weight:700;font-size:.84rem">R$ ${share.toFixed(2)}</span></div>`:''}).join('')}
+      ${Array.from(checked).map(cb=>{const p=findPlayerById(cb.value);return p?`<div class="finance-item"><span style="font-size:.84rem;font-weight:600">${p.name}</span><span style="color:#4ade80;font-weight:700;font-size:.84rem">R$ ${share.toFixed(2).replace('.',',')}</span></div>`:''}).join('')}
     </div>
     <button onclick="registerDinnerDebt()" class="btn-primary" style="width:100%">💾 Registrar Pendências e Salvar Histórico</button>`;
 }
