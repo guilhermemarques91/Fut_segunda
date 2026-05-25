@@ -1,0 +1,4 @@
+# Anti-indexação: instrui buscadores via HTTP header em todas as respostas
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>
