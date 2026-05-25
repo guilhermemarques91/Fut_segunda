@@ -845,6 +845,7 @@
           <button onclick="generateRodadaTeams()" class="btn-primary" style="font-size:.77rem;padding:6px 16px">⚡ Gerar Times</button>
           <button onclick="generateRodadaTeams()" class="btn-secondary" style="font-size:.77rem;padding:6px 14px">🔄 Refazer</button>
           <button id="rod-edit-teams-btn" onclick="toggleTeamsEditMode()" class="btn-secondary" style="font-size:.77rem;padding:6px 14px">✏️ Editar</button>
+          <!-- lock state applied via renderRodadaLockArea() -->
         </div>
       </div>
       <div id="rod-teams-output"><div class="empty-state" style="padding:24px">Confirme a presença e clique em "Gerar Times"</div></div>
@@ -877,8 +878,10 @@
       </div>
     </div>
 
-    <button onclick="saveRodada()" class="btn-primary" style="width:100%;padding:13px;font-size:.95rem;font-weight:700">💾 Salvar Rodada Completa</button>
+    <div id="rod-locked-banner" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;text-align:center;font-size:.82rem;color:#f87171;font-weight:600">🔒 Rodada encerrada — edições bloqueadas pelo administrador</div>
+    <button id="rod-save-btn" onclick="saveRodada()" class="btn-primary" style="width:100%;padding:13px;font-size:.95rem;font-weight:700">💾 Salvar Rodada Completa</button>
     <div id="rod-save-msg" style="display:none;margin-top:10px;text-align:center;font-size:.82rem;color:#4ade80;padding:10px;background:rgba(74,222,128,0.08);border-radius:10px;border:1px solid rgba(74,222,128,0.2)"></div>
+    <div id="rod-lock-area" style="margin-top:8px"></div>
   </div>
 
   <div id="rod-historico" style="display:none">
@@ -1088,6 +1091,7 @@ const App = {
   dinnerHistory: [],
   expenses: [],
   recurringExpenses: [],
+  lockedRodadas: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
   dataLoaded: false,
 };
@@ -2975,6 +2979,7 @@ let rodState = {
   rodTeams: { home: [], away: [], homeReserve: null, awayReserve: null },
   teamsGenerated: false,
   teamsEditMode: false,
+  locked: false,
   goals: [],
   motm: null,
 };
@@ -3041,10 +3046,16 @@ function loadRodadaDate() {
     const tEl = document.getElementById('rod-dinner-total'); if (tEl) tEl.value = '';
   }
 
+  rodState.locked      = (App.lockedRodadas || []).includes(date);
+  rodState.teamsEditMode = false;
+  const editBtn = document.getElementById('rod-edit-teams-btn');
+  if (editBtn) editBtn.textContent = '✏️ Editar';
+
   renderRodadaPresenca();
   renderRodadaDinner();
   renderRodadaTeams();
   renderRodadaGoals();
+  renderRodadaLockArea();
 }
 
 function getAttCount(playerId) {
@@ -3089,6 +3100,7 @@ function renderRodadaPresenca() {
 }
 
 function rodTogglePlayer(id, checked) {
+  if (rodState.locked) return;
   if (checked) {
     if (!rodState.confirmedIds.includes(id)) rodState.confirmedIds.push(id);
     if (!rodState.dinnerIds.includes(id))    rodState.dinnerIds.push(id); // auto-marca janta
@@ -3132,6 +3144,7 @@ function renderRodadaDinner() {
 }
 
 function rodToggleDinner(id, checked) {
+  if (rodState.locked) return;
   if (checked && !rodState.dinnerIds.includes(id)) rodState.dinnerIds.push(id);
   else if (!checked) rodState.dinnerIds = rodState.dinnerIds.filter(x => x !== id);
   updateRodBadges();
@@ -3160,6 +3173,7 @@ function updateRodBadges() {
 }
 
 function generateRodadaTeams() {
+  if (rodState.locked) return;
   const sel = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean);
   if (sel.length < 4) return alert('Confirme pelo menos 4 jogadores para gerar os times.');
   const gks  = sel.filter(p => p.position === 'Goleiro');
@@ -3193,7 +3207,56 @@ function generateRodadaTeams() {
   renderRodadaGoals();
 }
 
+function renderRodadaLockArea() {
+  const area   = document.getElementById('rod-lock-area');
+  const banner = document.getElementById('rod-locked-banner');
+  const saveBtn = document.getElementById('rod-save-btn');
+  const date   = document.getElementById('rod-date')?.value;
+  if (!area) return;
+
+  banner && (banner.style.display = rodState.locked ? 'block' : 'none');
+  if (saveBtn) {
+    saveBtn.disabled = rodState.locked;
+    saveBtn.style.opacity = rodState.locked ? '0.4' : '1';
+    saveBtn.style.cursor  = rodState.locked ? 'not-allowed' : '';
+  }
+  const editBtn = document.getElementById('rod-edit-teams-btn');
+  if (editBtn) {
+    editBtn.disabled = rodState.locked;
+    editBtn.style.opacity = rodState.locked ? '0.35' : '1';
+  }
+
+  if (App.auth.role !== 'admin' || !date) { area.innerHTML = ''; return; }
+  if (rodState.locked) {
+    area.innerHTML = `<button onclick="unlockRodada()" style="width:100%;padding:10px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.25);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:600">🔓 Reabrir Rodada para Edição</button>`;
+  } else {
+    area.innerHTML = `<button onclick="lockRodada()" style="width:100%;padding:10px;border-radius:10px;background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.83rem;font-family:inherit;font-weight:600">🔒 Encerrar e Bloquear Rodada</button>`;
+  }
+}
+
+function lockRodada() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return;
+  if (!confirm(`Encerrar a rodada de ${new Date(date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}?\n\nAs edições ficarão bloqueadas. Somente um administrador poderá reabrir.`)) return;
+  App.lockedRodadas = App.lockedRodadas || [];
+  if (!App.lockedRodadas.includes(date)) App.lockedRodadas.push(date);
+  rodState.locked = true;
+  rodState.teamsEditMode = false;
+  renderRodadaPresenca(); renderRodadaDinner(); renderRodadaTeams(); renderRodadaGoals(); renderRodadaLockArea();
+  scheduleSync();
+}
+
+function unlockRodada() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return;
+  App.lockedRodadas = (App.lockedRodadas || []).filter(d => d !== date);
+  rodState.locked = false;
+  renderRodadaPresenca(); renderRodadaDinner(); renderRodadaTeams(); renderRodadaGoals(); renderRodadaLockArea();
+  scheduleSync();
+}
+
 function toggleTeamsEditMode() {
+  if (rodState.locked) return;
   if (!rodState.confirmedIds.length) return alert('Confirme a presença de jogadores primeiro.');
   rodState.teamsEditMode = !rodState.teamsEditMode;
   if (rodState.teamsEditMode && !rodState.teamsGenerated) {
@@ -3342,6 +3405,7 @@ function renderRodadaGoals() {
 }
 
 function addRodGoal(playerId, delta) {
+  if (rodState.locked) return;
   let g = rodState.goals.find(g => g.playerId === playerId);
   if (!g) { g = {playerId, count:0}; rodState.goals.push(g); }
   g.count = Math.max(0, g.count + delta);
@@ -3350,6 +3414,7 @@ function addRodGoal(playerId, delta) {
 }
 
 function saveRodada() {
+  if (rodState.locked) return;
   const dateEl = document.getElementById('rod-date');
   const date   = dateEl?.value; if (!date) return alert('Informe a data da rodada.');
   if (!rodState.confirmedIds.length) return alert('Confirme pelo menos um jogador na lista de presença.');
@@ -3416,6 +3481,8 @@ function saveRodada() {
 
   // 5. Re-render everything
   renderResults(); renderDashboard(); updateFooter(); renderFinancialStatus();
+  renderRodadaLockArea();
+  scheduleSync();
 
   const msgEl = document.getElementById('rod-save-msg');
   if (msgEl) {
@@ -4268,6 +4335,7 @@ function getAppSnapshot() {
     dinnerHistory:App.dinnerHistory,
     expenses:          App.expenses,
     recurringExpenses: App.recurringExpenses,
+    lockedRodadas:     App.lockedRodadas,
     config:            App.config,
   });
 }
@@ -4283,6 +4351,7 @@ function restoreAppSnapshot(data) {
   if (data.dinnerHistory)App.dinnerHistory= data.dinnerHistory;
   if (data.expenses)          App.expenses          = data.expenses;
   if (data.recurringExpenses) App.recurringExpenses = data.recurringExpenses;
+  if (data.lockedRodadas)     App.lockedRodadas     = data.lockedRodadas;
   if (data.config)            App.config            = data.config;
 }
 
