@@ -100,6 +100,7 @@
     .badge{font-size:.6rem;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
     .badge-mensal{background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.28);color:#4ade80}
     .badge-avulso{background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.28);color:#fbbf24}
+    .badge-isento{background:rgba(148,163,184,0.15);border:1px solid rgba(148,163,184,0.28);color:#94a3b8}
     .badge-ok{background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);color:#4ade80;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px}
     .badge-warn{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.28);color:#fbbf24;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:20px}
 
@@ -269,10 +270,49 @@
     /* ─ UTILS ─ */
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
     @media(max-width:900px){.grid-2{grid-template-columns:1fr}}
+    .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media(max-width:600px){.form-grid-2{grid-template-columns:1fr}}
     .space-y>*+*{margin-top:11px}
     .field-group{display:flex;flex-direction:column;gap:5px}
     .hidden{display:none!important}
     .empty-state{color:#334155;font-size:.83rem;text-align:center;padding:22px}
+
+    /* ─ MOBILE RESPONSIVO ─ */
+    html,body{overflow-x:hidden;max-width:100%}
+    /* min-width:0 resolve o overflow em filhos de flex/grid sem precisar alterar cada elemento */
+    *{min-width:0}
+    @media(max-width:768px){
+      .main{padding:12px}
+      .card{padding:16px}
+      /* modal desce pela base em mobile */
+      .modal-overlay{align-items:flex-end}
+      .modal-content{margin:0;width:100%;max-width:none;padding:20px;border-radius:20px 20px 0 0}
+      /* tarifas empilham verticalmente */
+      .tarifa-row{flex-wrap:wrap;gap:8px}
+      .tarifa-row>div:last-child{width:100%}
+      /* linha financeira de jogador empilha */
+      .finance-item{flex-wrap:wrap;gap:6px}
+      /* radio pills menores */
+      .radio-pill{font-size:.78rem;padding:7px 10px}
+      /* inputs de data no financeiro viram 100% */
+      #fin-date-from,#fin-date-to{width:100%}
+      /* select MVP usa largura disponível */
+      .motm-select{max-width:100%!important;width:100%}
+      /* placar de rodada */
+      .score-input{width:56px!important}
+      /* footer não vai atrás da nav mobile */
+      .footer{margin-bottom:58px}
+    }
+    @media(max-width:480px){
+      .form-grid-2{grid-template-columns:1fr}
+      .card{padding:13px}
+      .main{padding:10px}
+      .stats-grid{gap:8px}
+      /* botões de ação não cortam */
+      .act-btn{padding:5px 7px;font-size:.68rem}
+      /* link-tag empilha se necessário */
+      .link-tag{white-space:normal}
+    }
   </style>
 </head>
 <body>
@@ -365,7 +405,7 @@
       <div class="card-title"><div class="card-title-bar"></div><span id="form-title">Cadastrar Jogador</span></div>
       <div class="space-y">
         <div class="field-group"><label class="form-label">Nome Completo</label><input type="text" id="player-name" placeholder="Ex: João Silva" class="input-field"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-grid-2">
           <div class="field-group"><label class="form-label">Apelido (opcional)</label><input type="text" id="player-apelido" placeholder="Ex: Juninho, Magrão…" class="input-field" maxlength="24"></div>
           <div class="field-group"><label class="form-label">WhatsApp</label><input type="tel" id="player-whatsapp" placeholder="11 99999-9999" class="input-field" maxlength="20"></div>
         </div>
@@ -379,7 +419,7 @@
           <div id="overall-ring" class="overall-ring ovr-preview-ring border-green-400 text-green-400">65</div>
           <div><div style="font-size:.68rem;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">Overall Rating</div><div id="overall-label" style="font-size:.88rem;font-weight:700;color:#e2e8f0">Médio</div><div style="display:flex;gap:8px;margin-top:4px"><span style="font-size:.7rem;color:#4ade80">Fís: <strong id="ovr-physical">13</strong></span><span style="font-size:.7rem;color:#60a5fa">Tát: <strong id="ovr-tactical">12</strong></span><span style="font-size:.7rem;color:#fbbf24">Tec: <strong id="ovr-technical">14</strong></span></div></div>
         </div>
-        <div><label class="form-label">Tipo de Pagamento</label><div style="display:flex;gap:8px"><label class="radio-pill" style="flex:1"><input type="radio" name="player-type" value="mensal" checked><span>📆 Mensal</span></label><label class="radio-pill" style="flex:1"><input type="radio" name="player-type" value="avulso"><span>💵 Avulso</span></label></div><div style="font-size:.7rem;color:#334155;margin-top:5px;padding-left:4px">Valores em <strong style="color:#475569">Financeiro → Tarifas</strong></div></div>
+        <div><label class="form-label">Tipo de Pagamento</label><div style="display:flex;gap:8px;flex-wrap:wrap"><label class="radio-pill" style="flex:1;min-width:80px"><input type="radio" name="player-type" value="mensal" checked><span>📆 Mensal</span></label><label class="radio-pill" style="flex:1;min-width:80px"><input type="radio" name="player-type" value="avulso"><span>💵 Avulso</span></label><label class="radio-pill" style="flex:1;min-width:80px"><input type="radio" name="player-type" value="isento"><span>🆓 Isento</span></label></div><div style="font-size:.7rem;color:#334155;margin-top:5px;padding-left:4px">Isentos: donos do campo, goleiros, convidados especiais</div></div>
         <div style="display:flex;gap:8px;margin-top:4px"><button onclick="savePlayer()" class="btn-primary" id="btn-save" style="flex:1">📥 Cadastrar</button><button onclick="cancelEdit()" class="btn-secondary hidden" id="btn-cancel">✕ Cancelar</button></div>
       </div>
     </div>
@@ -511,7 +551,7 @@
     </div>
     <div class="exp-form-wrap" id="exp-form-wrap" style="display:none">
       <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em">NOVA DESPESA</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="form-grid-2" style="margin-bottom:10px">
         <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="exp-desc" placeholder="Ex: Churrasquinho 24/05" class="input-field"></div>
         <div class="field-group"><label class="form-label">Valor (R$)</label><input type="number" id="exp-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
         <div class="field-group"><label class="form-label">Categoria</label>
@@ -709,9 +749,9 @@
           <div class="card-title" style="margin:0"><div class="card-title-bar"></div>🍽️ Tira Gosto</div>
           <span id="rod-dinner-badge" style="font-size:.72rem;color:#fbbf24;font-weight:700">0 participantes</span>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <div class="field-group" style="flex:2"><label class="form-label">Jantar do dia</label><input type="text" id="rod-meal" placeholder="Ex: Pizza, Churrasquinho..." class="input-field"></div>
-          <div class="field-group" style="flex:1"><label class="form-label">Valor (R$)</label><input type="number" id="rod-dinner-total" placeholder="0,00" min="0" step="0.01" class="input-field" oninput="updateRodDinnerSplit()"></div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <div class="field-group" style="flex:2;min-width:150px"><label class="form-label">Jantar do dia</label><input type="text" id="rod-meal" placeholder="Ex: Pizza, Churrasquinho..." class="input-field"></div>
+          <div class="field-group" style="flex:1;min-width:100px"><label class="form-label">Valor (R$)</label><input type="number" id="rod-dinner-total" placeholder="0,00" min="0" step="0.01" class="input-field" oninput="updateRodDinnerSplit()"></div>
         </div>
         <div id="rod-dinner-list" style="display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;margin-bottom:8px"></div>
         <div id="rod-dinner-split"></div>
@@ -720,9 +760,9 @@
 
     <!-- Times -->
     <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div class="card-title" style="margin:0"><div class="card-title-bar"></div>⚽ Times</div>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button onclick="generateRodadaTeams()" class="btn-primary" style="font-size:.77rem;padding:6px 16px">⚡ Gerar Times</button>
           <button onclick="generateRodadaTeams()" class="btn-secondary" style="font-size:.77rem;padding:6px 14px">🔄 Refazer</button>
         </div>
@@ -958,6 +998,7 @@ const DOW_NAMES = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 function findPlayerById(rawId) { return App.players.find(p => p.id === parseInt(rawId, 10)); }
 function getAttendanceCount(id) { return App.attendances.filter(a => a.players.includes(id)).length; }
 function getFeePending(p) {
+  if (p.isIsento) return 0;
   const paid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s, x) => s + x.amount, 0);
   const owed = p.isRegular ? p.monthlyFee : getAttendanceCount(p.id) * p.monthlyFee;
   return Math.max(0, owed - paid);
@@ -1181,10 +1222,10 @@ function renderAttendanceMatrix() {
       const present = m.players.includes(p.id);
       const hi = App.selectedCalDay === m.date;
       const bg = present
-        ? (p.isRegular ? '#22c55e' : '#f59e0b')
+        ? (p.isIsento ? '#94a3b8' : (p.isRegular ? '#22c55e' : '#f59e0b'))
         : 'rgba(255,255,255,0.07)';
       const glow = present
-        ? (p.isRegular ? 'box-shadow:0 0 5px rgba(34,197,94,0.45)' : 'box-shadow:0 0 5px rgba(245,158,11,0.45)')
+        ? (p.isIsento ? 'box-shadow:0 0 5px rgba(148,163,184,0.45)' : (p.isRegular ? 'box-shadow:0 0 5px rgba(34,197,94,0.45)' : 'box-shadow:0 0 5px rgba(245,158,11,0.45)'))
         : '';
       return `<td style="${hi?'background:rgba(34,197,94,0.04)':''}">
         <div class="matrix-dot" style="background:${bg};${glow}" title="${present?'Presente':'Ausente'}"></div>
@@ -1200,7 +1241,7 @@ function renderAttendanceMatrix() {
           </div>
         </div>
       </td>
-      <td>${p.isRegular ? '<span class="badge badge-mensal" style="font-size:.55rem">M</span>' : '<span class="badge badge-avulso" style="font-size:.55rem">A</span>'}</td>
+      <td>${p.isIsento ? '<span class="badge badge-isento" style="font-size:.55rem">I</span>' : (p.isRegular ? '<span class="badge badge-mensal" style="font-size:.55rem">M</span>' : '<span class="badge badge-avulso" style="font-size:.55rem">A</span>')}</td>
       ${cells}
       <td style="font-weight:700;font-size:.82rem;white-space:nowrap">${counts[p.id]}/${total}</td>
       <td>
@@ -1603,17 +1644,19 @@ function savePlayer() {
   const name = document.getElementById('player-name').value.trim();
   if (!name) return alert('Informe o nome do jogador.');
   const pos=document.getElementById('player-position').value, phy=parseInt(document.getElementById('attr-physical').value), tac=parseInt(document.getElementById('attr-tactical').value), tec=parseInt(document.getElementById('attr-technical').value);
-  const isReg = document.querySelector('input[name="player-type"]:checked').value === 'mensal';
-  const fee = isReg ? App.fees.mensal : App.fees.avulso;
+  const typeVal = document.querySelector('input[name="player-type"]:checked').value;
+  const isReg = typeVal === 'mensal';
+  const isIsento = typeVal === 'isento';
+  const fee = isIsento ? 0 : (isReg ? App.fees.mensal : App.fees.avulso);
   const ovr = calcOverall(phy, tac, tec);
   const apelido  = (document.getElementById('player-apelido')?.value  || '').trim();
   const whatsapp = (document.getElementById('player-whatsapp')?.value || '').trim();
   if (App.editingId !== null) {
     const p = App.players.find(x => x.id === App.editingId);
-    if (p) { p.name=name; p.apelido=apelido; p.whatsapp=whatsapp; p.position=pos; p.attributes={physical:phy,tactical:tac,technical:tec}; p.overall=ovr; p.isRegular=isReg; p.monthlyFee=fee; }
+    if (p) { p.name=name; p.apelido=apelido; p.whatsapp=whatsapp; p.position=pos; p.attributes={physical:phy,tactical:tac,technical:tec}; p.overall=ovr; p.isRegular=isReg; p.isIsento=isIsento; p.monthlyFee=fee; }
     App.editingId=null; document.getElementById('btn-save').textContent='📥 Cadastrar'; document.getElementById('btn-cancel').classList.add('hidden'); document.getElementById('form-title').textContent='Cadastrar Jogador';
   } else {
-    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null});
+    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,isIsento:isIsento,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null});
   }
   document.getElementById('player-name').value='';
   if (document.getElementById('player-apelido'))  document.getElementById('player-apelido').value='';
@@ -1630,7 +1673,7 @@ function editPlayer(id) {
   if (document.getElementById('player-apelido'))  document.getElementById('player-apelido').value  = p.apelido  || '';
   if (document.getElementById('player-whatsapp')) document.getElementById('player-whatsapp').value = p.whatsapp || '';
   document.getElementById('attr-physical').value=p.attributes.physical; document.getElementById('attr-tactical').value=p.attributes.tactical; document.getElementById('attr-technical').value=p.attributes.technical;
-  document.querySelector(`input[name="player-type"][value="${p.isRegular?'mensal':'avulso'}"]`).checked=true;
+  document.querySelector(`input[name="player-type"][value="${p.isIsento?'isento':(p.isRegular?'mensal':'avulso')}"]`).checked=true;
   document.getElementById('btn-save').innerHTML='💾 Atualizar'; document.getElementById('btn-cancel').classList.remove('hidden'); document.getElementById('form-title').textContent='Editar Jogador';
   updateRatingLive(); showSection('players'); window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1693,8 +1736,8 @@ function renderPlayerList() {
             <span class="stat-chip" style="color:#4ade80">💪 ${p.attributes.physical}</span>
             <span class="stat-chip" style="color:#60a5fa">🧠 ${p.attributes.tactical}</span>
             <span class="stat-chip" style="color:#fbbf24">⚡ ${p.attributes.technical}</span>
-            ${p.isRegular?'<span class="badge badge-mensal">Mensal</span>':'<span class="badge badge-avulso">Avulso</span>'}
-            <span style="font-size:.65rem;color:#334155">R$ ${p.monthlyFee}</span>
+            ${p.isIsento?'<span class="badge badge-isento">Isento</span>':(p.isRegular?'<span class="badge badge-mensal">Mensal</span>':'<span class="badge badge-avulso">Avulso</span>')}
+            ${p.isIsento?'<span style="font-size:.65rem;color:#64748b">Sem cobrança</span>':`<span style="font-size:.65rem;color:#334155">R$ ${p.monthlyFee}</span>`}
           </div>
         </div>
       </div>
@@ -1714,8 +1757,9 @@ function renderAttendanceList() {
   const list = document.getElementById('attendance-list');
   if (!App.players.length) { list.innerHTML = '<div class="empty-state">Nenhum jogador cadastrado</div>'; return; }
 
-  const mensalistas = App.players.filter(p => p.isRegular).sort((a, b) => b.overall - a.overall);
-  const suplentes   = App.players.filter(p => !p.isRegular).sort((a, b) => getAttendanceCount(b.id) - getAttendanceCount(a.id));
+  const mensalistas = App.players.filter(p => p.isRegular && !p.isIsento).sort((a, b) => b.overall - a.overall);
+  const isentos     = App.players.filter(p => p.isIsento).sort((a, b) => a.name.localeCompare(b.name));
+  const suplentes   = App.players.filter(p => !p.isRegular && !p.isIsento).sort((a, b) => getAttendanceCount(b.id) - getAttendanceCount(a.id));
 
   const playerRow = (p, preChecked) => {
     const att = getAttendanceCount(p.id);
@@ -1745,8 +1789,11 @@ function renderAttendanceList() {
   const supHtml = suplentes.length ? `
     <div style="font-size:.63rem;font-weight:700;color:#fbbf24;letter-spacing:.07em;padding:8px 8px 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;text-transform:uppercase">🔁 Suplentes — ${suplentes.length} · ordem de presença</div>
     ${suplentes.map(p => playerRow(p, false)).join('')}` : '';
+  const isentoHtml = isentos.length ? `
+    <div style="font-size:.63rem;font-weight:700;color:#94a3b8;letter-spacing:.07em;padding:8px 8px 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;text-transform:uppercase">🆓 Isentos — ${isentos.length} · sem cobrança</div>
+    ${isentos.map(p => playerRow(p, false)).join('')}` : '';
 
-  list.innerHTML = mensHtml + supHtml
+  list.innerHTML = mensHtml + supHtml + isentoHtml
     + `<div style="display:flex;gap:16px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);padding-left:8px">
         <div style="display:flex;align-items:center;gap:5px;font-size:.66rem;color:#475569"><div style="width:9px;height:9px;border-radius:2px;background:#22c55e"></div>⚽ Futebol</div>
         <div style="display:flex;align-items:center;gap:5px;font-size:.66rem;color:#475569"><div style="width:9px;height:9px;border-radius:2px;background:#f59e0b"></div>🍽️ Tira Gosto</div>
@@ -1822,7 +1869,7 @@ function confirmAttendance() {
     }
   }
 
-  const avulsos = footballIds.filter(id => { const p = findPlayerById(id); return p && !p.isRegular; });
+  const avulsos = footballIds.filter(id => { const p = findPlayerById(id); return p && !p.isRegular && !p.isIsento; });
   const postDiv = document.getElementById('post-confirm-actions');
   if (postDiv) {
     postDiv.innerHTML = `
@@ -2159,12 +2206,12 @@ function renderFinancialPanel() {
         <div style="flex:1;min-width:130px">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
             <span style="font-weight:700;font-size:.88rem">${displayName}</span>
-            ${p.isRegular ? '<span class="badge badge-mensal">Mensal</span>' : '<span class="badge badge-avulso">Avulso</span>'}
+            ${p.isIsento?'<span class="badge badge-isento">Isento</span>':(p.isRegular ? '<span class="badge badge-mensal">Mensal</span>' : '<span class="badge badge-avulso">Avulso</span>')}
             ${waHref ? `<a href="${waHref}" target="_blank" style="font-size:.63rem;color:#25d366;text-decoration:none;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.2);padding:2px 7px;border-radius:6px">📱 WA</a>` : ''}
           </div>
           <div style="font-size:.66rem;margin-top:3px;display:flex;gap:9px;flex-wrap:wrap">
             <span style="color:${POS_COLOR[p.position]||'#94a3b8'};font-weight:600;text-transform:uppercase">${p.position}</span>
-            <span style="color:#334155">${p.isRegular ? `Mensal R$ ${p.monthlyFee}` : `${getAttendanceCount(p.id)} jogo(s) × R$ ${p.monthlyFee}`}</span>
+            <span style="color:#334155">${p.isIsento ? 'Isento · sem cobrança' : (p.isRegular ? `Mensal R$ ${p.monthlyFee}` : `${getAttendanceCount(p.id)} jogo(s) × R$ ${p.monthlyFee}`)}</span>
             <span style="color:#475569">Recebido: <strong style="color:#4ade80">R$ ${paid.toFixed(2)}</strong></span>
           </div>
         </div>
@@ -2248,14 +2295,14 @@ function _afterPay() {
 // ═══════════════════════════════════════════════════════
 function applyFees() {
   App.fees.mensal=parseFloat(document.getElementById('fee-mensal').value)||150; App.fees.avulso=parseFloat(document.getElementById('fee-avulso').value)||50;
-  App.players.forEach(p=>p.monthlyFee=p.isRegular?App.fees.mensal:App.fees.avulso);
+  App.players.forEach(p=>{ if(!p.isIsento) p.monthlyFee=p.isRegular?App.fees.mensal:App.fees.avulso; });
   renderPlayerList(); renderFinancialStatus(); renderDashboard();
   scheduleSync();
   alert(`Tarifas salvas!\nMensal: R$ ${App.fees.mensal}  ·  Avulso: R$ ${App.fees.avulso}`);
 }
 function renderPaymentSelect() {
   const sel=document.getElementById('payment-player');
-  sel.innerHTML='<option value="">Selecione o jogador</option>'+App.players.map(p=>`<option value="${p.id}">${p.name} (${p.isRegular?'Mensal':'Avulso'})</option>`).join('');
+  sel.innerHTML='<option value="">Selecione o jogador</option>'+App.players.map(p=>`<option value="${p.id}">${p.name} (${p.isIsento?'Isento':(p.isRegular?'Mensal':'Avulso')})</option>`).join('');
 }
 function registerPayment() {
   const pid=parseInt(document.getElementById('payment-player').value,10); if (!pid) return alert('Selecione um jogador.');
@@ -2277,7 +2324,9 @@ function renderFinancialStatus() {
   div.innerHTML=App.players.map(p=>{
     const paid=p.payments.reduce((s,x)=>s+x.amount,0), fp=getFeePending(p), dp=getDinnerPending(p);
     tr+=paid; tf+=fp; td+=dp;
-    return `<div class="finance-item"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="font-weight:600;font-size:.84rem">${p.name}</span>${p.isRegular?'<span class="badge badge-mensal">Mensal</span>':'<span class="badge badge-avulso">Avulso</span>'}<span style="font-size:.68rem;color:#334155">R$ ${p.monthlyFee}</span></div><div style="text-align:right;display:flex;flex-direction:column;gap:1px"><span style="color:#4ade80;font-size:.8rem;font-weight:600">↑ R$ ${paid.toFixed(2)}</span>${fp>0?`<span style="color:#fbbf24;font-size:.73rem">mens. −R$ ${fp.toFixed(2)}</span>`:''}${dp>0?`<span style="color:#f87171;font-size:.73rem">janta −R$ ${dp.toFixed(2)}</span>`:''}</div></div>`;
+    const typeBadge = p.isIsento?'<span class="badge badge-isento">Isento</span>':(p.isRegular?'<span class="badge badge-mensal">Mensal</span>':'<span class="badge badge-avulso">Avulso</span>');
+    const feeLabel = p.isIsento?'<span style="font-size:.68rem;color:#64748b">sem cobrança</span>':`<span style="font-size:.68rem;color:#334155">R$ ${p.monthlyFee}</span>`;
+    return `<div class="finance-item"><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap"><span style="font-weight:600;font-size:.84rem">${p.name}</span>${typeBadge}${feeLabel}</div><div style="text-align:right;display:flex;flex-direction:column;gap:1px"><span style="color:#4ade80;font-size:.8rem;font-weight:600">↑ R$ ${paid.toFixed(2)}</span>${fp>0?`<span style="color:#fbbf24;font-size:.73rem">mens. −R$ ${fp.toFixed(2)}</span>`:''}${dp>0?`<span style="color:#f87171;font-size:.73rem">janta −R$ ${dp.toFixed(2)}</span>`:''}</div></div>`;
   }).join('');
   const trEl=document.getElementById('total-received'); if(trEl) trEl.textContent=`R$ ${tr.toFixed(2)}`;
   const tfEl=document.getElementById('total-pending');  if(tfEl) tfEl.textContent=`R$ ${tf.toFixed(2)}`;
@@ -2498,7 +2547,7 @@ function loadRodadaDate() {
   if (att) {
     rodState.confirmedIds = [...att.players];
   } else {
-    rodState.confirmedIds = App.players.filter(p => p.isRegular).map(p => p.id);
+    rodState.confirmedIds = App.players.filter(p => p.isRegular && !p.isIsento).map(p => p.id);
   }
 
   if (th) {
@@ -2552,23 +2601,28 @@ function getAttCount(playerId) {
 
 function renderRodadaPresenca() {
   const el = document.getElementById('rod-player-list'); if (!el) return;
-  const regulars = App.players.filter(p => p.isRegular).sort((a,b) => a.name.localeCompare(b.name));
-  const subs     = App.players.filter(p => !p.isRegular).sort((a,b) => getAttCount(b.id) - getAttCount(a.id));
-  const all      = [...regulars, ...subs];
+  const regulars = App.players.filter(p => p.isRegular && !p.isIsento).sort((a,b) => a.name.localeCompare(b.name));
+  const subs     = App.players.filter(p => !p.isRegular && !p.isIsento).sort((a,b) => getAttCount(b.id) - getAttCount(a.id));
+  const exempt   = App.players.filter(p => p.isIsento).sort((a,b) => a.name.localeCompare(b.name));
+  const all      = [...regulars, ...subs, ...exempt];
   if (!all.length) { el.innerHTML = '<div class="empty-state" style="padding:12px">Nenhum jogador cadastrado</div>'; return; }
 
   let html = '';
   all.forEach((p, idx) => {
     const checked = rodState.confirmedIds.includes(p.id);
-    const isFirstSub = !p.isRegular && idx > 0 && all[idx-1].isRegular;
-    if (isFirstSub) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
+    const isFirstSub = !p.isRegular && !p.isIsento && idx > 0 && all[idx-1].isRegular;
+    const isFirstExempt = p.isIsento && idx > 0 && !all[idx-1].isIsento;
+    if (isFirstSub || isFirstExempt) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
     const ac = getAttCount(p.id);
+    const typeBadge = p.isIsento
+      ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(148,163,184,0.12);color:#94a3b8">Isento</span>'
+      : (p.isRegular ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#4ade80">Mensal</span>' : `<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(245,158,11,0.1);color:#f59e0b">${ac}× pres.</span>`);
     html += `<label style="display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;cursor:pointer;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.18)':'transparent'}">
       <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
       <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span style="font-size:.82rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
         <span style="font-size:.62rem;color:${POS_COLOR[p.position]||'#94a3b8'}">${p.position}</span>
-        ${p.isRegular ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#4ade80">Mensal</span>' : `<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(245,158,11,0.1);color:#f59e0b">${ac}× pres.</span>`}
+        ${typeBadge}
       </div>
     </label>`;
   });
@@ -2608,7 +2662,7 @@ function renderRodadaDinner() {
     return `<label style="display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:9px;cursor:pointer;background:${checked?'rgba(251,191,36,0.07)':'transparent'}">
       <input type="checkbox" ${checked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:15px;height:15px;accent-color:#fbbf24;cursor:pointer;flex-shrink:0">
       <span style="font-size:.81rem;color:${checked?'#f1f5f9':'#64748b'}">${p.name}</span>
-      ${!p.isRegular ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(245,158,11,0.1);color:#f59e0b;margin-left:auto">avulso</span>' : ''}
+      ${p.isIsento ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(148,163,184,0.1);color:#94a3b8;margin-left:auto">isento</span>' : (!p.isRegular ? '<span style="font-size:.58rem;padding:1px 5px;border-radius:7px;background:rgba(245,158,11,0.1);color:#f59e0b;margin-left:auto">avulso</span>' : '')}
     </label>`;
   }).join('') : '<div style="color:#334155;font-size:.76rem;padding:6px">Confirme a presença primeiro</div>';
   updateRodBadges();
@@ -2828,7 +2882,7 @@ function renderRodadaHistory() {
     const d   = new Date(date+'T12:00:00');
     const opponent  = att?.opponent||th?.opponent||'';
     const presentes = att ? att.players.map(id=>findPlayerById(id)).filter(Boolean) : [];
-    const avulsos   = presentes.filter(p=>!p.isRegular);
+    const avulsos   = presentes.filter(p=>!p.isRegular && !p.isIsento);
     const pending   = !res||res.pending||res.homeScore===null;
     const hw = !pending && res.homeScore>res.awayScore, aw = !pending && res.awayScore>res.homeScore;
     const goals     = (res?.goals||[]).filter(g=>g.count>0).sort((a,b)=>b.count-a.count);
@@ -2890,8 +2944,8 @@ function buildRodadaPoll() {
   const date = document.getElementById('rod-date')?.value || new Date().toISOString().split('T')[0];
   const d    = new Date(date+'T12:00:00');
   const ds   = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
-  const regulars = App.players.filter(p=>p.isRegular).sort((a,b)=>a.name.localeCompare(b.name));
-  const subs     = App.players.filter(p=>!p.isRegular).sort((a,b)=>getAttCount(b.id)-getAttCount(a.id));
+  const regulars = App.players.filter(p=>p.isRegular && !p.isIsento).sort((a,b)=>a.name.localeCompare(b.name));
+  const subs     = App.players.filter(p=>!p.isRegular && !p.isIsento).sort((a,b)=>getAttCount(b.id)-getAttCount(a.id));
   const msg = ['⚽ *PELADA DE SEGUNDA!*',`📅 ${ds}`,'','━━━━━━━━━━━━━━━━━━━━','📋 *MENSALISTAS (confirmados):*',...regulars.map(p=>`✅ ${p.name}`),'','👥 *SUPLENTES:*',...subs.map(p=>`❓ ${p.name}`),'','_Confirme sua presença!_','━━━━━━━━━━━━━━━━━━━━'].join('\n');
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
