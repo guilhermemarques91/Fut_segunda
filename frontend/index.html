@@ -829,11 +829,13 @@
           <span id="rod-dinner-badge" style="font-size:.72rem;color:#fbbf24;font-weight:700">0 participantes</span>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-          <div class="field-group" style="flex:2;min-width:150px"><label class="form-label">Jantar do dia</label><input type="text" id="rod-meal" placeholder="Ex: Pizza, Churrasquinho..." class="input-field"></div>
-          <div class="field-group" style="flex:1;min-width:100px"><label class="form-label">Valor (R$)</label><input type="number" id="rod-dinner-total" placeholder="0,00" min="0" step="0.01" class="input-field" oninput="updateRodDinnerSplit()"></div>
+          <div class="field-group" style="flex:2;min-width:150px"><label class="form-label">Jantar do dia</label><input type="text" id="rod-meal" placeholder="Ex: Pizza, Churrasquinho..." class="input-field" oninput="autoSaveDinnerData()"></div>
+          <div class="field-group" style="flex:1;min-width:100px"><label class="form-label">Valor (R$)</label><input type="number" id="rod-dinner-total" placeholder="0,00" min="0" step="0.01" class="input-field" oninput="updateRodDinnerSplit(); autoSaveDinnerData()"></div>
         </div>
         <div id="rod-dinner-list" style="display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;margin-bottom:8px"></div>
         <div id="rod-dinner-split"></div>
+        <div id="rod-dinner-status" style="margin-top:6px"></div>
+        <button onclick="fecharTiraGosto()" id="rod-dinner-close-btn" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.08));border:1px solid rgba(251,191,36,0.3);color:#fbbf24;cursor:pointer;font-size:.83rem;font-family:inherit;font-weight:700">🍽️ Fechar Tira Gosto</button>
       </div>
     </div>
 
@@ -878,6 +880,7 @@
       </div>
     </div>
 
+    <div id="rod-autosave-msg" style="opacity:0;transition:opacity .4s;text-align:right;font-size:.7rem;color:#4ade80;padding:2px 4px;margin-bottom:4px">💾 salvo automaticamente</div>
     <div id="rod-locked-banner" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:10px;text-align:center;font-size:.82rem;color:#f87171;font-weight:600">🔒 Rodada encerrada — edições bloqueadas pelo administrador</div>
     <button id="rod-save-btn" onclick="saveRodada()" class="btn-primary" style="width:100%;padding:13px;font-size:.95rem;font-weight:700">💾 Salvar Rodada Completa</button>
     <div id="rod-save-msg" style="display:none;margin-top:10px;text-align:center;font-size:.82rem;color:#4ade80;padding:10px;background:rgba(74,222,128,0.08);border-radius:10px;border:1px solid rgba(74,222,128,0.2)"></div>
@@ -3056,6 +3059,7 @@ function loadRodadaDate() {
   renderRodadaTeams();
   renderRodadaGoals();
   renderRodadaLockArea();
+  renderRodadaDinnerStatus();
 }
 
 function getAttCount(playerId) {
@@ -3110,6 +3114,7 @@ function rodTogglePlayer(id, checked) {
   }
   renderRodadaPresenca();
   renderRodadaDinner();
+  autoSavePresenca();
 }
 
 function rodSelectAll() {
@@ -3117,11 +3122,11 @@ function rodSelectAll() {
     if (!rodState.confirmedIds.includes(p.id)) rodState.confirmedIds.push(p.id);
     if (!rodState.dinnerIds.includes(p.id))    rodState.dinnerIds.push(p.id);
   });
-  renderRodadaPresenca(); renderRodadaDinner();
+  renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 function rodClearAll() {
   rodState.confirmedIds = []; rodState.dinnerIds = [];
-  renderRodadaPresenca(); renderRodadaDinner();
+  renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 
 function renderRodadaDinner() {
@@ -3149,6 +3154,7 @@ function rodToggleDinner(id, checked) {
   else if (!checked) rodState.dinnerIds = rodState.dinnerIds.filter(x => x !== id);
   updateRodBadges();
   updateRodDinnerSplit();
+  autoSaveDinnerData();
 }
 
 function updateRodDinnerSplit() {
@@ -3205,6 +3211,7 @@ function generateRodadaTeams() {
   if (editBtn) editBtn.textContent = '✏️ Editar';
   renderRodadaTeams();
   renderRodadaGoals();
+  autoSaveTeams();
 }
 
 function renderRodadaLockArea() {
@@ -3267,6 +3274,7 @@ function toggleTeamsEditMode() {
   if (btn) btn.textContent = rodState.teamsEditMode ? '✅ Concluir' : '✏️ Editar';
   renderRodadaTeams();
   renderRodadaGoals();
+  if (!rodState.teamsEditMode) autoSaveTeams();
 }
 
 function rodMovePlayer(playerId, target) {
@@ -3289,6 +3297,7 @@ function rodMovePlayer(playerId, target) {
   // target === 'none' → apenas remove (já feito acima)
   renderRodadaTeams();
   renderRodadaGoals();
+  autoSaveTeams();
 }
 
 function renderRodadaTeams() {
@@ -3411,6 +3420,167 @@ function addRodGoal(playerId, delta) {
   g.count = Math.max(0, g.count + delta);
   if (g.count === 0) rodState.goals = rodState.goals.filter(g => g.playerId !== playerId);
   renderRodadaGoals();
+  autoSaveGoals();
+}
+
+function rodAutoSaveIndicator() {
+  const el = document.getElementById('rod-autosave-msg');
+  if (!el) return;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 2000);
+}
+
+function autoSavePresenca() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date || rodState.locked) return;
+  const opp = App.attendances.find(a => a.date === date)?.opponent || App.teamHistory.find(t => t.date === date)?.opponent || '';
+  const existAtt = App.attendances.find(a => a.date === date);
+  if (existAtt) {
+    existAtt.players = [...rodState.confirmedIds];
+  } else if (rodState.confirmedIds.length > 0) {
+    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds] });
+  }
+  scheduleSync();
+  rodAutoSaveIndicator();
+}
+
+function autoSaveTeams() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date || rodState.locked || !rodState.teamsGenerated) return;
+  const homeIds = rodState.rodTeams.home.map(p => p.id);
+  const awayIds = rodState.rodTeams.away.map(p => p.id);
+  if (!homeIds.length && !awayIds.length) return;
+  const hrId = rodState.rodTeams.homeReserve?.id || null;
+  const arId = rodState.rodTeams.awayReserve?.id || null;
+  const opp = App.attendances.find(a => a.date === date)?.opponent || App.teamHistory.find(t => t.date === date)?.opponent || '';
+  const existTH = App.teamHistory.find(t => t.date === date);
+  if (existTH) {
+    existTH.home = homeIds; existTH.away = awayIds;
+    existTH.homeReserve = hrId; existTH.awayReserve = arId;
+  } else {
+    App.teamHistory.push({ id: App.nextId(), date, opponent: opp, home: homeIds, away: awayIds, homeReserve: hrId, awayReserve: arId });
+  }
+  const existRes = App.results.find(r => r.date === date);
+  if (existRes) {
+    existRes.homePlayerIds = homeIds;
+    existRes.awayPlayerIds = awayIds;
+  } else {
+    App.results.push({ id: App.nextId(), date, homeTeam: 'T. Preto e Amarelo', awayTeam: 'T. Azul', homeScore: null, awayScore: null, pending: true, goals: [], motm: null, homePlayerIds: homeIds, awayPlayerIds: awayIds });
+  }
+  scheduleSync();
+  rodAutoSaveIndicator();
+}
+
+function autoSaveGoals() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date || rodState.locked) return;
+  const homePlayerIds = (rodState.rodTeams.home || []).map(p => p.id);
+  const awayPlayerIds = (rodState.rodTeams.away || []).map(p => p.id);
+  if (!homePlayerIds.length && !awayPlayerIds.length) return;
+  const goalCnt = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
+  const hScore = homePlayerIds.reduce((s, pid) => s + goalCnt(pid), 0);
+  const aScore = awayPlayerIds.reduce((s, pid) => s + goalCnt(pid), 0);
+  const pending = rodState.goals.length === 0;
+  const existRes = App.results.find(r => r.date === date);
+  if (existRes) {
+    existRes.goals = [...rodState.goals];
+    if (!pending) { existRes.homeScore = hScore; existRes.awayScore = aScore; existRes.pending = false; }
+  } else {
+    App.results.push({ id: App.nextId(), date, homeTeam: 'T. Preto e Amarelo', awayTeam: 'T. Azul', homeScore: pending ? null : hScore, awayScore: pending ? null : aScore, pending, goals: [...rodState.goals], motm: null, homePlayerIds, awayPlayerIds });
+  }
+  scheduleSync();
+  rodAutoSaveIndicator();
+}
+
+function autoSaveDinnerData() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date || rodState.locked) return;
+  const meal = document.getElementById('rod-meal')?.value.trim() || '';
+  const dinTotal = parseFloat(document.getElementById('rod-dinner-total')?.value) || 0;
+  const cnt = rodState.dinnerIds.length;
+  if (cnt === 0 && !meal && dinTotal === 0) return;
+  const realShare = cnt > 0 && dinTotal > 0 ? dinTotal / cnt : 0;
+  const share = dinTotal > 0 ? roundUpToFive(realShare) : 0;
+  const existDin = App.dinnerHistory.find(d => d.date === date);
+  if (existDin) {
+    if (!existDin.closed) { existDin.participants = [...rodState.dinnerIds]; if (dinTotal > 0) { existDin.total = dinTotal; existDin.share = share; existDin.realShare = realShare; } }
+    existDin.meal = meal;
+    if (dinTotal > 0) syncDinnerExpense(existDin);
+  } else {
+    const newDin = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: false };
+    App.dinnerHistory.push(newDin);
+    if (dinTotal > 0) syncDinnerExpense(newDin);
+  }
+  updateRodDinnerSplit();
+  scheduleSync();
+  rodAutoSaveIndicator();
+}
+
+function fecharTiraGosto() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return alert('Informe a data da rodada primeiro.');
+  const meal = document.getElementById('rod-meal')?.value.trim() || '';
+  const dinTotal = parseFloat(document.getElementById('rod-dinner-total')?.value) || 0;
+  if (rodState.dinnerIds.length === 0) return alert('Nenhum participante marcado para o Tira Gosto.');
+  if (dinTotal <= 0) return alert('Informe o valor total do Tira Gosto antes de fechar.');
+  const cnt = rodState.dinnerIds.length;
+  const realShare = dinTotal / cnt;
+  const share = roundUpToFive(realShare);
+  const existDin = App.dinnerHistory.find(d => d.date === date);
+  let din;
+  if (existDin) {
+    if (existDin.closed) {
+      if (!confirm(`Tira Gosto já foi fechado (${existDin.participants.length} participantes · R$ ${existDin.share.toFixed(2).replace('.',',')} por pessoa).\n\nDeseja recalcular?\n\nOs débitos anteriores serão removidos e recriados.`)) return;
+      existDin.participants.forEach(pid => {
+        if (!existDin.paidBy.includes(pid)) {
+          const p = findPlayerById(pid);
+          if (p) p.dinnerDebt = Math.max(0, (p.dinnerDebt || 0) - existDin.share);
+        }
+      });
+    }
+    existDin.participants = [...rodState.dinnerIds];
+    existDin.meal = meal;
+    existDin.total = dinTotal;
+    existDin.share = share;
+    existDin.realShare = realShare;
+    existDin.closed = true;
+    din = existDin;
+  } else {
+    din = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: true };
+    App.dinnerHistory.push(din);
+  }
+  din.participants.forEach(pid => {
+    if (!din.paidBy.includes(pid)) {
+      const p = findPlayerById(pid);
+      if (p) p.dinnerDebt = (p.dinnerDebt || 0) + share;
+    }
+  });
+  syncDinnerExpense(din);
+  renderRodadaDinnerStatus();
+  renderDinnerHistory(); renderFinancialStatus(); renderDashboard();
+  scheduleSync();
+  const msgEl = document.getElementById('rod-save-msg');
+  if (msgEl) {
+    msgEl.textContent = `✅ Tira Gosto fechado: ${cnt} pessoas · R$ ${share.toFixed(2).replace('.',',')} cada · 1 conta a pagar criada`;
+    msgEl.style.display = 'block';
+    setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+  }
+}
+
+function renderRodadaDinnerStatus() {
+  const el = document.getElementById('rod-dinner-status');
+  const btn = document.getElementById('rod-dinner-close-btn');
+  if (!el) return;
+  const date = document.getElementById('rod-date')?.value;
+  const din = date ? App.dinnerHistory.find(d => d.date === date) : null;
+  if (din?.closed) {
+    el.innerHTML = `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:9px;padding:7px 12px;font-size:.75rem;color:#fbbf24;font-weight:600">✅ Fechado · ${din.participants.length} participantes · R$ ${(din.share||0).toFixed(2).replace('.',',')} por pessoa · cobranças criadas</div>`;
+    if (btn) btn.textContent = '🔄 Recalcular Tira Gosto';
+  } else {
+    el.innerHTML = '';
+    if (btn) btn.textContent = '🍽️ Fechar Tira Gosto';
+  }
 }
 
 function saveRodada() {
@@ -3418,6 +3588,7 @@ function saveRodada() {
   const dateEl = document.getElementById('rod-date');
   const date   = dateEl?.value; if (!date) return alert('Informe a data da rodada.');
   if (!rodState.confirmedIds.length) return alert('Confirme pelo menos um jogador na lista de presença.');
+  const opponent = App.attendances.find(a => a.date === date)?.opponent || App.teamHistory.find(t => t.date === date)?.opponent || '';
 
   // 1. Attendance
   const existAtt = App.attendances.find(a => a.date === date);
@@ -3458,24 +3629,22 @@ function saveRodada() {
     App.results.push({ id:App.nextId(), date, homeTeam:'T. Preto e Amarelo', awayTeam:'T. Azul', homeScore:hScore, awayScore:aScore, pending, goals:[...rodState.goals], motm:rodState.motm, homePlayerIds, awayPlayerIds });
   }
 
-  // 4. Dinner
+  // 4. Dinner — apenas salva dados; débitos são criados somente via "Fechar Tira Gosto"
   const meal = document.getElementById('rod-meal')?.value.trim()||'';
   const dinTotal = parseFloat(document.getElementById('rod-dinner-total')?.value)||0;
-  if (rodState.dinnerIds.length > 0) {
-    const realShare = dinTotal > 0 ? dinTotal / rodState.dinnerIds.length : 0;
+  if (rodState.dinnerIds.length > 0 || meal || dinTotal > 0) {
+    const cnt = rodState.dinnerIds.length || 1;
+    const realShare = dinTotal > 0 ? dinTotal / cnt : 0;
     const share     = dinTotal > 0 ? roundUpToFive(realShare) : 0;
     const existDin = App.dinnerHistory.find(d => d.date === date);
     if (existDin) {
-      existDin.participants=[...rodState.dinnerIds]; existDin.meal=meal; existDin.opponent=opponent;
-      if (dinTotal > 0) { existDin.total=dinTotal; existDin.share=share; existDin.realShare=realShare; }
+      if (!existDin.closed) { existDin.participants=[...rodState.dinnerIds]; if (dinTotal > 0) { existDin.total=dinTotal; existDin.share=share; existDin.realShare=realShare; } }
+      existDin.meal=meal;
       if (dinTotal > 0) syncDinnerExpense(existDin);
     } else {
-      const newDin = { id:App.nextId(), date, opponent, meal, total:dinTotal, share, realShare, participants:[...rodState.dinnerIds], paidBy:[] };
+      const newDin = { id:App.nextId(), date, meal, total:dinTotal, share, realShare, participants:[...rodState.dinnerIds], paidBy:[], closed:false };
       App.dinnerHistory.push(newDin);
-      if (dinTotal > 0) {
-        rodState.dinnerIds.forEach(pid => { const p=findPlayerById(pid); if(p) p.dinnerDebt=(p.dinnerDebt||0)+share; });
-        syncDinnerExpense(newDin);
-      }
+      if (dinTotal > 0) syncDinnerExpense(newDin);
     }
   }
 
@@ -3591,7 +3760,9 @@ function markDinnerPaid(eventId, playerId) {
 }
 
 function syncDinnerExpense(ev) {
-  const desc = ev.opponent ? `Tira Gosto · ${ev.opponent}` : `Tira Gosto · ${ev.date}`;
+  const d = new Date(ev.date + 'T12:00:00');
+  const dateStr = d.toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'});
+  const desc = ev.meal ? `Tira Gosto · ${dateStr} (${ev.meal})` : `Tira Gosto · ${dateStr}`;
   const existing = App.expenses.find(e => e.dinnerRef === ev.id);
   if (existing) {
     existing.amount = ev.total;
