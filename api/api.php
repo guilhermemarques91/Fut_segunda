@@ -178,6 +178,25 @@ if ($action === 'change_password') {
     exit;
 }
 
+// ── VERIFY PASSWORD ──────────────────────────────────────
+if ($action === 'verify_password') {
+    $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+    $password = $body['password'] ?? '';
+
+    $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ?');
+    $stmt->execute([$session['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user || !password_verify($password, $user['password'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Senha incorreta']);
+        exit;
+    }
+
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // ── Actions somente para admin ───────────────────────────
 if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
