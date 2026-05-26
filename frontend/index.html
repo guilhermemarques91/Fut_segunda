@@ -2679,7 +2679,7 @@ function renderFinancialPanel() {
                 <span style="font-size:.7rem;color:#94a3b8;font-weight:800;background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:7px">= R$ ${tot.toFixed(2)}</span>
               </div>
               <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
-                ${fp > 0 ? `<button class="link-tag link-tag-yellow" onclick="quickPayFee(${p.id})" style="padding:5px 13px;font-size:.72rem">💳 Mensalidade R$ ${fp.toFixed(2)}</button>` : ''}
+                ${fp > 0 ? `<button class="link-tag link-tag-yellow" onclick="quickPayFee(${p.id})" style="padding:5px 13px;font-size:.72rem">💳 ${p.isRegular ? 'Mensalidade' : 'Jogo Avulso'} R$ ${fp.toFixed(2)}</button>` : ''}
                 ${dp > 0 ? `<button class="link-tag" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;padding:5px 13px;font-size:.72rem" onclick="quickPayDinner(${p.id})">🍽️ Janta R$ ${dp.toFixed(2)}</button>` : ''}
                 ${fp > 0 && dp > 0 ? `<button class="link-tag link-tag-green" onclick="quickPayAll(${p.id})" style="padding:5px 13px;font-size:.72rem;font-weight:700">⚡ Quitar Tudo R$ ${tot.toFixed(2)}</button>` : ''}
               </div>
@@ -3152,6 +3152,7 @@ function rodToggleDinner(id, checked) {
   if (rodState.locked) return;
   if (checked && !rodState.dinnerIds.includes(id)) rodState.dinnerIds.push(id);
   else if (!checked) rodState.dinnerIds = rodState.dinnerIds.filter(x => x !== id);
+  renderRodadaDinner();
   updateRodBadges();
   updateRodDinnerSplit();
   autoSaveDinnerData();
