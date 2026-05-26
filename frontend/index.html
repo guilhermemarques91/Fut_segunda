@@ -3383,15 +3383,16 @@ function renderRodadaTeams() {
   // ── FIM MODO EDIÇÃO ─────────────────────────────────────────
 
   if (!home || !home.length) { el.innerHTML = '<div class="empty-state" style="padding:24px">Confirme a presença e clique em "Gerar Times"</div>'; return; }
+  const sortByPos = arr => [...arr].sort((a,b) => (POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
   const teamHtml = (players, reserve, color, label) => {
     const avg = players.length ? Math.round(players.reduce((s,p)=>s+p.overall,0)/players.length) : 0;
+    const all = sortByPos(reserve ? [...players, reserve] : [...players]);
     return `<div>
       <div style="font-size:.7rem;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">${label} · Média ${avg}</div>
-      ${players.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.035)">
+      ${all.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.035)">
         <span style="font-size:.81rem;color:#e2e8f0">${p.name}</span>
         <div style="display:flex;gap:6px"><span style="font-size:.62rem;color:${POS_COLOR[p.position]};font-weight:700">${p.position.slice(0,3).toUpperCase()}</span><span style="font-size:.67rem;color:#475569;font-weight:700">${p.overall}</span></div>
       </div>`).join('')}
-      ${reserve ? `<div style="padding:5px 0;margin-top:4px;border-top:1px solid rgba(255,255,255,0.05)"><span style="font-size:.61rem;color:#475569;font-weight:700;text-transform:uppercase">Reserva</span> <span style="font-size:.78rem;color:#64748b">${reserve.name}</span></div>` : ''}
     </div>`;
   };
   el.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -3415,17 +3416,19 @@ function renderRodadaGoals() {
   const all = [...(home||[]), ...(away||[])];
   if (!all.length) { el.innerHTML = '<div style="color:#334155;font-size:.76rem;text-align:center;padding:8px">Gere os times para registrar gols</div>'; if (motmSec) motmSec.style.display='none'; return; }
   const cnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
-  const homeIds = (home||[]).map(p=>p.id);
+  const sortByPos = arr => [...arr].sort((a,b)=>(POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
+  const homeSorted = sortByPos(home||[]);
+  const awaySorted = sortByPos(away||[]);
   const renderRow = (p, color) => { const c=cnt(p.id); return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0"><button class="goal-btn" onclick="addRodGoal(${p.id},-1)">−</button><span class="goal-count" style="color:${c>0?color:'#334155'}">${c}</span><button class="goal-btn" onclick="addRodGoal(${p.id},1)">+</button><span style="font-size:.76rem;color:${c>0?'#e2e8f0':'#475569'}">${p.name}</span></div>`; };
   el.innerHTML = `<div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:12px">
     <div style="font-size:.65rem;font-weight:700;color:#475569;letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">⚽ Gols por Jogador</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div><div style="font-size:.63rem;color:#eab308;font-weight:700;margin-bottom:5px">⬛🟡 T. PRETO</div>${(home||[]).map(p=>renderRow(p,'#fbbf24')).join('')}</div>
-      <div><div style="font-size:.63rem;color:#60a5fa;font-weight:700;margin-bottom:5px">🔵 T. AZUL</div>${(away||[]).map(p=>renderRow(p,'#60a5fa')).join('')}</div>
+      <div><div style="font-size:.63rem;color:#eab308;font-weight:700;margin-bottom:5px">⬛🟡 T. PRETO</div>${homeSorted.map(p=>renderRow(p,'#fbbf24')).join('')}</div>
+      <div><div style="font-size:.63rem;color:#60a5fa;font-weight:700;margin-bottom:5px">🔵 T. AZUL</div>${awaySorted.map(p=>renderRow(p,'#60a5fa')).join('')}</div>
     </div>
   </div>`;
-  const hs = homeIds.reduce((s,pid)=>s+cnt(pid),0);
-  const as = (away||[]).map(p=>p.id).reduce((s,pid)=>s+cnt(pid),0);
+  const hs = homeSorted.reduce((s,p)=>s+cnt(p.id),0);
+  const as = awaySorted.reduce((s,p)=>s+cnt(p.id),0);
   const hEl = document.getElementById('rod-home-score'), aEl = document.getElementById('rod-away-score');
   if (hEl && document.activeElement!==hEl) hEl.value = hs||'';
   if (aEl && document.activeElement!==aEl) aEl.value = as||'';
@@ -3619,37 +3622,94 @@ function renderRodadaDinnerStatus() {
 // ═══════════════════════════════════════════════════════
 //  PARTIDA AO VIVO
 // ═══════════════════════════════════════════════════════
-let liveTimer = { running: false, elapsed: 0, startedAt: null, _iv: null };
+// periodo: 1|2 · t1ms: ms do 1T encerrado · elapsed: ms no período atual
+let liveTimer = { running:false, elapsed:0, startedAt:null, _iv:null, periodo:1, t1ms:null };
+
+function _liveElapsed() {
+  return liveTimer.elapsed + (liveTimer.running ? Date.now() - liveTimer.startedAt : 0);
+}
+function _fmtMs(ms) {
+  const s = Math.floor(ms/1000), mm = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
+  return `${mm}:${ss}`;
+}
 
 function toggleLiveTimer() {
+  if (liveTimer.t1ms !== null && liveTimer.periodo === 1) return; // 1T encerrado, aguarda iniciar 2T
   if (liveTimer.running) {
     liveTimer.elapsed += Date.now() - liveTimer.startedAt;
-    clearInterval(liveTimer._iv); liveTimer._iv = null;
-    liveTimer.running = false;
+    clearInterval(liveTimer._iv); liveTimer._iv = null; liveTimer.running = false;
   } else {
     liveTimer.startedAt = Date.now();
-    liveTimer._iv = setInterval(refreshLiveTimer, 500);
-    liveTimer.running = true;
+    liveTimer._iv = setInterval(refreshLiveTimer, 500); liveTimer.running = true;
   }
   refreshLiveTimer();
 }
 
-function resetLiveTimer() {
-  if (!confirm('Zerar o cronômetro?')) return;
-  clearInterval(liveTimer._iv);
-  liveTimer = { running: false, elapsed: 0, startedAt: null, _iv: null };
+function encerrarPeriodo() {
+  if (liveTimer.running) { liveTimer.elapsed += Date.now() - liveTimer.startedAt; clearInterval(liveTimer._iv); liveTimer._iv = null; liveTimer.running = false; }
+  if (liveTimer.periodo === 1) {
+    liveTimer.t1ms = liveTimer.elapsed;
+    liveTimer.elapsed = 0; liveTimer.startedAt = null;
+  } else {
+    liveTimer.elapsed = liveTimer.elapsed; // congela
+  }
   refreshLiveTimer();
+  renderLiveTimerPanel();
+}
+
+function iniciarSegundoTempo() {
+  liveTimer.periodo = 2; liveTimer.elapsed = 0; liveTimer.startedAt = Date.now();
+  liveTimer._iv = setInterval(refreshLiveTimer, 500); liveTimer.running = true;
+  refreshLiveTimer();
+  renderLiveTimerPanel();
+}
+
+function resetLiveTimer() {
+  if (!confirm('Zerar cronômetro e resetar os tempos?')) return;
+  clearInterval(liveTimer._iv);
+  liveTimer = { running:false, elapsed:0, startedAt:null, _iv:null, periodo:1, t1ms:null };
+  refreshLiveTimer();
+  renderLiveTimerPanel();
 }
 
 function refreshLiveTimer() {
-  const total = liveTimer.elapsed + (liveTimer.running ? Date.now() - liveTimer.startedAt : 0);
-  const secs  = Math.floor(total / 1000);
-  const mm    = String(Math.floor(secs / 60)).padStart(2, '0');
-  const ss    = String(secs % 60).padStart(2, '0');
-  const disp  = document.getElementById('live-timer-display');
-  const hint  = document.getElementById('live-timer-hint');
-  if (disp) { disp.textContent = `${mm}:${ss}`; disp.className = 'live-timer-display ' + (liveTimer.running ? 'running' : 'paused'); }
-  if (hint) hint.textContent = liveTimer.running ? '● Toque para pausar' : '○ Toque para iniciar';
+  const cur = _liveElapsed();
+  const disp = document.getElementById('live-timer-display');
+  if (disp) { disp.textContent = _fmtMs(cur); disp.className = 'live-timer-display ' + (liveTimer.running ? 'running' : 'paused'); }
+}
+
+function renderLiveTimerPanel() {
+  const panel = document.getElementById('live-timer-panel');
+  if (!panel) return;
+  const t = liveTimer;
+  const periodoLabel = t.periodo === 1 ? '1º Tempo' : '2º Tempo';
+  const t1done = t.t1ms !== null;
+  const t2done = t.periodo === 2 && !t.running && t.elapsed > 0;
+
+  let timerHtml = '';
+  if (t1done) {
+    timerHtml += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">1º Tempo: <strong style="color:#64748b">${_fmtMs(t.t1ms)} ✓</strong></div>`;
+  }
+  timerHtml += `
+    <div style="font-size:.58rem;font-weight:700;color:${t.periodo===1?'#4ade80':'#60a5fa'};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
+    <div onclick="toggleLiveTimer()" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent${t1done&&t.periodo===1?';opacity:.4;pointer-events:none':''}">
+      <div id="live-timer-display" class="live-timer-display paused">00:00</div>
+      <div id="live-timer-hint" style="font-size:.62rem;color:#475569;margin-top:3px">${t.running?'● Toque para pausar':'○ Toque para iniciar'}</div>
+    </div>
+  `;
+
+  // Botões de controle de período
+  let btnHtml = '';
+  if (!t1done && (t.running || t.elapsed > 0)) {
+    btnHtml = `<button onclick="encerrarPeriodo()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 1º Tempo</button>`;
+  } else if (t1done && t.periodo === 1) {
+    btnHtml = `<button onclick="iniciarSegundoTempo()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:700">▶ Iniciar 2º Tempo</button>`;
+  } else if (t.periodo === 2 && (t.running || t.elapsed > 0) && !t2done) {
+    btnHtml = `<button onclick="encerrarPeriodo()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 2º Tempo</button>`;
+  }
+
+  panel.innerHTML = timerHtml + btnHtml + `<button onclick="resetLiveTimer()" style="margin-top:6px;width:100%;padding:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#334155;cursor:pointer;font-size:.72rem;font-family:inherit">↺ Zerar tudo</button>`;
+  refreshLiveTimer();
 }
 
 function startPartida() {
@@ -3660,36 +3720,36 @@ function renderLiveMatch() {
   const el = document.getElementById('live-match-content');
   if (!el) return;
 
-  // Se rodState não tem times, tenta carregar a rodada mais recente com times
   if (!rodState.teamsGenerated || (!rodState.rodTeams.home?.length && !rodState.rodTeams.away?.length)) {
-    const latest = [...App.teamHistory].sort((a, b) => b.date.localeCompare(a.date))[0];
+    const latest = [...App.teamHistory].sort((a,b) => b.date.localeCompare(a.date))[0];
     if (latest) {
       const dateEl = document.getElementById('rod-date');
       if (dateEl && dateEl.value !== latest.date) { dateEl.value = latest.date; loadRodadaDate(); }
-      setTimeout(() => renderLiveMatch(), 80);
-      return;
+      setTimeout(() => renderLiveMatch(), 80); return;
     }
     el.innerHTML = `<div class="empty-state" style="padding:60px;text-align:center">
       <div style="font-size:2.5rem;margin-bottom:12px">⚽</div>
       <div style="font-weight:700;margin-bottom:6px">Nenhuma partida ativa</div>
       <div style="font-size:.78rem;color:#475569">Gere os times na aba Rodada e clique em "▶ Iniciar Partida".</div>
-    </div>`;
-    return;
+    </div>`; return;
   }
 
   const date = document.getElementById('rod-date')?.value || '';
-  const dateLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'short'}) : '';
-  const { home, away } = rodState.rodTeams;
-  const cnt   = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
-  const hScore = (home||[]).reduce((s, p) => s + cnt(p.id), 0);
-  const aScore = (away||[]).reduce((s, p) => s + cnt(p.id), 0);
+  const dateLabel = date ? new Date(date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
+  const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
+  const sortByPos = arr => [...arr].sort((a,b)=>(POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
+  const homeFull = sortByPos(homeReserve ? [...(home||[]), homeReserve] : (home||[]));
+  const awayFull = sortByPos(awayReserve ? [...(away||[]), awayReserve] : (away||[]));
+  const cnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
+  const hScore = (home||[]).reduce((s,p)=>s+cnt(p.id),0);
+  const aScore = (away||[]).reduce((s,p)=>s+cnt(p.id),0);
 
   const makeRow = (p, color) => {
     const c = cnt(p.id);
-    const balls = c > 0 ? ' ' + (c <= 5 ? '⚽'.repeat(c) : `⚽×${c}`) : '';
+    const balls = c > 0 ? ' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`) : '';
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.9rem;color:${c > 0 ? '#f1f5f9' : '#64748b'};font-weight:${c > 0 ? 700 : 400}">${p.name}<span style="font-size:.75rem"> ${balls}</span></span>
-      <span style="font-size:1.1rem;font-weight:800;color:${c > 0 ? color : '#334155'};min-width:20px;text-align:center">${c}</span>
+      <span style="flex:1;font-size:.88rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.72rem">${balls}</span></span>
+      <span style="font-size:1.05rem;font-weight:800;color:${c>0?color:'#334155'};min-width:20px;text-align:center">${c}</span>
       <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
       <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
     </div>`;
@@ -3701,9 +3761,8 @@ function renderLiveMatch() {
       <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
     </div>
 
-    <!-- Placar principal -->
-    <div class="card" style="margin-bottom:14px;padding:22px 16px;text-align:center">
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:18px">
+    <div class="card" style="margin-bottom:14px;padding:20px 16px;text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
         <div style="flex:1;text-align:center">
           <div style="font-size:.6rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">⬛🟡 T. Preto</div>
           <div id="live-home-score" class="live-score-num">${hScore}</div>
@@ -3714,78 +3773,66 @@ function renderLiveMatch() {
           <div id="live-away-score" class="live-score-num">${aScore}</div>
         </div>
       </div>
-      <!-- Cronômetro -->
-      <div onclick="toggleLiveTimer()" style="cursor:pointer;padding:10px 0;user-select:none;-webkit-tap-highlight-color:transparent">
-        <div id="live-timer-display" class="live-timer-display paused">00:00</div>
-        <div id="live-timer-hint" style="font-size:.65rem;color:#475569;margin-top:4px;letter-spacing:.04em">○ Toque para iniciar</div>
-      </div>
+      <div id="live-timer-panel"></div>
     </div>
 
-    <!-- Marcador de gols -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div class="card" style="padding:12px 10px">
         <div style="font-size:.58rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 Preto</div>
-        <div id="live-home-players">${(home||[]).map(p => makeRow(p, '#fbbf24')).join('')}</div>
-        ${!(home||[]).length ? '<div style="color:#334155;font-size:.75rem;padding:6px 0">—</div>' : ''}
+        <div id="live-home-players">${homeFull.map(p=>makeRow(p,'#fbbf24')).join('')}</div>
       </div>
       <div class="card" style="padding:12px 10px">
         <div style="font-size:.58rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
-        <div id="live-away-players">${(away||[]).map(p => makeRow(p, '#60a5fa')).join('')}</div>
-        ${!(away||[]).length ? '<div style="color:#334155;font-size:.75rem;padding:6px 0">—</div>' : ''}
+        <div id="live-away-players">${awayFull.map(p=>makeRow(p,'#60a5fa')).join('')}</div>
       </div>
     </div>
 
-    <!-- Ações -->
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button onclick="resetLiveTimer()" class="btn-secondary" style="padding:11px 14px;font-size:.82rem">↺ Zerar</button>
-      <button onclick="saveLiveResult()" class="btn-primary" style="flex:1;padding:11px;font-size:.88rem;font-weight:700">💾 Salvar Resultado</button>
-    </div>
+    <button onclick="saveLiveResult()" class="btn-primary" style="width:100%;padding:12px;font-size:.9rem;font-weight:700">💾 Salvar Resultado</button>
   `;
-  refreshLiveTimer();
+  renderLiveTimerPanel();
 }
 
 function addLiveGoal(playerId, delta) {
   if (rodState.locked) return;
-  let g = rodState.goals.find(g => g.playerId === playerId);
-  if (!g) { g = { playerId, count: 0 }; rodState.goals.push(g); }
-  g.count = Math.max(0, g.count + delta);
-  if (g.count === 0) rodState.goals = rodState.goals.filter(g => g.playerId !== playerId);
+  let g = rodState.goals.find(g=>g.playerId===playerId);
+  if (!g) { g={playerId,count:0}; rodState.goals.push(g); }
+  g.count = Math.max(0, g.count+delta);
+  if (g.count===0) rodState.goals = rodState.goals.filter(g=>g.playerId!==playerId);
 
-  // Atualiza placar
-  const cnt = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
-  const { home, away } = rodState.rodTeams;
+  const cnt = pid=>(rodState.goals.find(g=>g.playerId===pid)?.count)||0;
+  const {home, away, homeReserve, awayReserve} = rodState.rodTeams;
+  const sortByPos = arr=>[...arr].sort((a,b)=>(POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
+  const homeFull = sortByPos(homeReserve?[...(home||[]),homeReserve]:(home||[]));
+  const awayFull = sortByPos(awayReserve?[...(away||[]),awayReserve]:(away||[]));
+
   const hs = document.getElementById('live-home-score');
   const as = document.getElementById('live-away-score');
-  if (hs) hs.textContent = (home||[]).reduce((s, p) => s + cnt(p.id), 0);
-  if (as) as.textContent = (away||[]).reduce((s, p) => s + cnt(p.id), 0);
+  if (hs) hs.textContent = (home||[]).reduce((s,p)=>s+cnt(p.id),0);
+  if (as) as.textContent = (away||[]).reduce((s,p)=>s+cnt(p.id),0);
 
-  // Atualiza linhas de gols sem recriar o painel todo (timer continua)
-  const makeRow = (p, color) => {
-    const c = cnt(p.id);
-    const balls = c > 0 ? ' ' + (c <= 5 ? '⚽'.repeat(c) : `⚽×${c}`) : '';
+  const makeRow = (p,color) => {
+    const c=cnt(p.id), balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.9rem;color:${c > 0 ? '#f1f5f9' : '#64748b'};font-weight:${c > 0 ? 700 : 400}">${p.name}<span style="font-size:.75rem"> ${balls}</span></span>
-      <span style="font-size:1.1rem;font-weight:800;color:${c > 0 ? color : '#334155'};min-width:20px;text-align:center">${c}</span>
+      <span style="flex:1;font-size:.88rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.72rem">${balls}</span></span>
+      <span style="font-size:1.05rem;font-weight:800;color:${c>0?color:'#334155'};min-width:20px;text-align:center">${c}</span>
       <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
       <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
     </div>`;
   };
-  const homeEl = document.getElementById('live-home-players');
-  const awayEl = document.getElementById('live-away-players');
-  if (homeEl) homeEl.innerHTML = (home||[]).map(p => makeRow(p, '#fbbf24')).join('');
-  if (awayEl) awayEl.innerHTML = (away||[]).map(p => makeRow(p, '#60a5fa')).join('');
+  const homeEl=document.getElementById('live-home-players');
+  const awayEl=document.getElementById('live-away-players');
+  if (homeEl) homeEl.innerHTML = homeFull.map(p=>makeRow(p,'#fbbf24')).join('');
+  if (awayEl) awayEl.innerHTML = awayFull.map(p=>makeRow(p,'#60a5fa')).join('');
 
-  autoSaveGoals();
-  renderRodadaGoals();
+  autoSaveGoals(); renderRodadaGoals();
 }
 
 function saveLiveResult() {
   autoSaveGoals();
   const btn = document.querySelector('#live-match-content .btn-primary');
   if (btn) {
-    const orig = btn.innerHTML;
-    btn.innerHTML = '✅ Salvo!'; btn.disabled = true;
-    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
+    const orig = btn.innerHTML; btn.innerHTML='✅ Salvo!'; btn.disabled=true;
+    setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},2000);
   }
 }
 
