@@ -1115,7 +1115,7 @@ const DOW_NAMES = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 function findPlayerById(rawId) { return App.players.find(p => p.id === parseInt(rawId, 10)); }
 function getAttendanceCount(id) { return App.attendances.filter(a => a.players.includes(id)).length; }
 function getFeePending(p) {
-  if (p.isIsento) return 0;
+  if (p.isIsento || p.position === 'Goleiro') return 0;
   const paid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s, x) => s + x.amount, 0);
   const owed = p.isRegular ? p.monthlyFee : getAttendanceCount(p.id) * p.monthlyFee;
   return Math.max(0, owed - paid);
@@ -2666,7 +2666,7 @@ function renderFinancialPanel() {
           </div>
           <div style="font-size:.66rem;margin-top:3px;display:flex;gap:9px;flex-wrap:wrap">
             <span style="color:${POS_COLOR[p.position]||'#94a3b8'};font-weight:600;text-transform:uppercase">${p.position}</span>
-            <span style="color:#334155">${p.isIsento ? 'Isento · sem cobrança' : (p.isRegular ? `Mensal R$ ${p.monthlyFee}` : `${getAttendanceCount(p.id)} jogo(s) × R$ ${p.monthlyFee}`)}</span>
+            <span style="color:#334155">${p.isIsento ? 'Isento · sem cobrança' : p.position === 'Goleiro' ? 'Goleiro · isento de mensalidade' : (p.isRegular ? `Mensal R$ ${p.monthlyFee}` : `${getAttendanceCount(p.id)} jogo(s) × R$ ${p.monthlyFee}`)}</span>
             <span style="color:#475569">Recebido: <strong style="color:#4ade80">R$ ${paid.toFixed(2)}</strong></span>
           </div>
         </div>
@@ -3246,6 +3246,8 @@ function lockRodada() {
   const date = document.getElementById('rod-date')?.value;
   if (!date) return;
   if (!confirm(`Encerrar a rodada de ${new Date(date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}?\n\nAs edições ficarão bloqueadas. Somente um administrador poderá reabrir.`)) return;
+  // Persiste todo o estado atual antes de bloquear
+  autoSavePresenca(); autoSaveTeams(); autoSaveGoals(); autoSaveDinnerData();
   App.lockedRodadas = App.lockedRodadas || [];
   if (!App.lockedRodadas.includes(date)) App.lockedRodadas.push(date);
   rodState.locked = true;
@@ -4304,7 +4306,7 @@ async function loadPublicHistory() {
     const pMap = Object.fromEntries((d.players||[]).map(p => [p.id, p]));
 
     // Resultados
-    const results = (d.results || []).slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
+    const results = (d.results || []).filter(r => r.homeScore !== null && r.awayScore !== null).sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
     const rEl = document.getElementById('pub-results');
     if (rEl) {
       if (results.length) {
