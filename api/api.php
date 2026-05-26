@@ -62,12 +62,20 @@ if ($action === 'public') {
         'position' => $p['position'] ?? '',
         'overall'  => $p['overall']  ?? 60,
     ], $d['players'] ?? []);
+    $dinner = array_map(fn($h) => [
+        'date'  => $h['date'],
+        'meal'  => $h['meal']  ?? '',
+        'total' => $h['total'] ?? 0,
+        'share' => $h['share'] ?? 0,
+        'count' => count($h['participants'] ?? []),
+    ], $d['dinnerHistory'] ?? []);
     echo json_encode([
-        'players'     => $players,
-        'attendances' => $d['attendances'] ?? [],
-        'results'     => $d['results']     ?? [],
-        'teamHistory' => $d['teamHistory'] ?? [],
-        'liveState'   => $d['liveState']   ?? null,
+        'players'       => $players,
+        'attendances'   => $d['attendances']  ?? [],
+        'results'       => $d['results']      ?? [],
+        'teamHistory'   => $d['teamHistory']  ?? [],
+        'dinnerHistory' => $dinner,
+        'liveState'     => $d['liveState']    ?? null,
     ]);
     exit;
 }

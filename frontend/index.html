@@ -367,11 +367,8 @@
 
   <!-- Histórico público — visível sem login -->
   <div id="public-history">
-    <div style="text-align:center;font-size:.72rem;color:#334155;margin-bottom:16px;letter-spacing:.03em">
-      ─── Histórico Público ───
-    </div>
-    <div id="pub-results"></div>
-    <div id="pub-teams"></div>
+    <div style="text-align:center;font-size:.72rem;color:#334155;margin-bottom:12px;letter-spacing:.03em">─── Histórico Público ───</div>
+    <div id="pub-rodadas"></div>
   </div>
 </div>
 
@@ -4839,60 +4836,107 @@ async function doLogout() {
   startPubLivePoll();
 }
 
+function togglePubRod(id) {
+  const el = document.getElementById(id);
+  const ch = document.getElementById(id+'-ch');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (ch) { ch.textContent = open ? '▼' : '▲'; ch.style.color = open ? '#334155' : '#4ade80'; }
+}
+
 async function loadPublicHistory() {
   try {
-    const res  = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
     if (!res.ok) return;
-    const d    = await res.json();
+    const d = await res.json();
     renderPublicLivePanel(d);
-    const pMap = Object.fromEntries((d.players||[]).map(p => [p.id, p]));
 
-    // Resultados
-    const results = (d.results || []).filter(r => r.homeScore !== null && r.awayScore !== null).sort((a,b) => b.date.localeCompare(a.date)).slice(0,10);
-    const rEl = document.getElementById('pub-results');
-    if (rEl) {
-      if (results.length) {
-        rEl.innerHTML = '<div class="pub-section-title">⚽ Últimas Partidas</div>'
-          + results.map(r => {
-            const dt = r.date ? r.date.split('-').reverse().join('/') : '—';
-            const homeScore = r.homeScore ?? '—';
-            const awayScore = r.awayScore ?? '—';
-            const motm = r.motm ? pMap[r.motm]?.name : null;
-            return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-                <span style="font-size:.72rem;color:#475569">${dt}</span>
-                <div style="display:flex;align-items:center;gap:8px">
-                  <span style="font-size:.7rem;font-weight:700;color:#eab308">⬛🟡</span>
-                  <span style="font-size:1.15rem;font-weight:800;color:#f1f5f9">${homeScore} × ${awayScore}</span>
-                  <span style="font-size:.7rem;font-weight:700;color:#60a5fa">🔵</span>
-                </div>
-                ${motm ? `<span style="font-size:.68rem;color:#fbbf24">⭐ ${motm}</span>` : '<span></span>'}
-              </div>
-            </div>`;
-          }).join('');
-      } else { rEl.innerHTML = ''; }
-    }
+    const pMap   = Object.fromEntries((d.players||[]).map(p=>[p.id,p]));
+    const dinMap = Object.fromEntries((d.dinnerHistory||[]).map(h=>[h.date,h]));
 
-    // Times recentes
-    const teams = (d.teamHistory || []).slice().sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
-    const tEl = document.getElementById('pub-teams');
-    if (tEl) {
-      if (teams.length) {
-        tEl.innerHTML = '<div class="pub-section-title">👥 Times Recentes</div>'
-          + teams.map(t => {
-            const dt   = t.date ? t.date.split('-').reverse().join('/') : '—';
-            const home = (t.home||[]).map(id => pMap[id]?.name || '?').join(', ');
-            const away = (t.away||[]).map(id => pMap[id]?.name || '?').join(', ');
-            return `<div class="card" style="margin-bottom:8px;padding:12px 16px">
-              <div style="font-size:.62rem;color:#475569;margin-bottom:8px">${dt}</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                <div><div style="font-size:.6rem;font-weight:700;color:#eab308;margin-bottom:4px">⬛🟡 PRETO E AMARELO</div><div style="font-size:.75rem;color:#94a3b8;line-height:1.6">${home || '—'}</div></div>
-                <div><div style="font-size:.6rem;font-weight:700;color:#60a5fa;margin-bottom:4px">🔵 AZUL</div><div style="font-size:.75rem;color:#94a3b8;line-height:1.6">${away || '—'}</div></div>
-              </div>
-            </div>`;
-          }).join('');
-      } else { tEl.innerHTML = ''; }
-    }
+    const allDates = new Set([
+      ...(d.results||[]).map(r=>r.date),
+      ...(d.teamHistory||[]).map(t=>t.date)
+    ]);
+    const dates = [...allDates].sort((a,b)=>b.localeCompare(a)).slice(0,15);
+
+    const el = document.getElementById('pub-rodadas');
+    if (!el) return;
+    if (!dates.length) { el.innerHTML = ''; return; }
+
+    const balls = n => n>0 ? (n<=5?'⚽'.repeat(n):`⚽×${n}`) : '';
+
+    el.innerHTML = dates.map(date => {
+      const result  = (d.results||[]).find(r=>r.date===date);
+      const th      = (d.teamHistory||[]).find(t=>t.date===date);
+      const din     = dinMap[date];
+      const pending = !result || result.homeScore===null || result.homeScore===undefined;
+      const hScore  = pending ? null : result.homeScore;
+      const aScore  = pending ? null : result.awayScore;
+      const hw = hScore!==null && hScore>aScore;
+      const aw = aScore!==null && aScore>hScore;
+
+      const dObj   = new Date(date+'T12:00:00');
+      const wday   = dObj.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','');
+      const dstr   = dObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'}).replace('.','/');
+      const id     = 'pub-rod-'+date.replace(/-/g,'');
+
+      // gols por jogador
+      const gMap = {};
+      (result?.goals||[]).forEach(g=>{ if(g.count>0) gMap[g.playerId]=g.count; });
+
+      // coluna de time
+      const teamCol = (ids, resId, color, label) => {
+        const all = resId ? [...(ids||[]), resId] : [...(ids||[])];
+        if (!all.length) return `<div><div style="font-size:.58rem;font-weight:700;color:${color};letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">${label}</div><div style="font-size:.75rem;color:#334155">—</div></div>`;
+        const sorted = [...all].sort((a,b)=>(gMap[b]||0)-(gMap[a]||0));
+        const rows = sorted.map(pid=>{
+          const p=pMap[pid]; if(!p) return '';
+          const g=gMap[pid]||0;
+          const isRes = pid===resId;
+          return `<div style="display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.03)">
+            <span style="flex:1;font-size:.78rem;color:${g>0?'#f1f5f9':'#64748b'};font-weight:${g>0?600:400}${isRes?';font-style:italic':''}">${p.name}${isRes?'<sup style="font-size:.55rem;color:#334155"> res</sup>':''}</span>
+            ${g>0?`<span style="font-size:.68rem;letter-spacing:.01em;color:#fbbf24">${balls(g)}</span>`:''}
+          </div>`;
+        }).join('');
+        return `<div><div style="font-size:.58rem;font-weight:700;color:${color};letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">${label}</div>${rows}</div>`;
+      };
+
+      const motmP = result?.motm ? pMap[result.motm] : null;
+
+      const detail = `<div style="padding:0 14px 14px;border-top:1px solid rgba(255,255,255,0.05)">
+        ${th?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          ${teamCol(th.home,th.homeReserve,'#eab308','⬛🟡 Preto')}
+          ${teamCol(th.away,th.awayReserve,'#60a5fa','🔵 Azul')}
+        </div>`:''}
+        ${motmP?`<div style="margin-top:10px;font-size:.76rem;color:#fbbf24">⭐ MVP: <strong>${motmP.name}</strong></div>`:''}
+        ${din?`<div style="margin-top:10px;padding:9px 12px;background:rgba(255,255,255,0.03);border-radius:9px;border:1px solid rgba(255,255,255,0.05)">
+          <div style="font-size:.58rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">🍽️ Tira Gosto</div>
+          ${din.meal?`<div style="font-size:.82rem;font-weight:600;color:#e2e8f0;margin-bottom:3px">${din.meal}</div>`:''}
+          ${din.total>0?`<div style="font-size:.73rem;color:#94a3b8">R$ ${Number(din.total).toFixed(2)} total &middot; R$ ${Number(din.share).toFixed(2)}/pessoa <span style="color:#334155">(${din.count} participantes)</span></div>`:''}
+        </div>`:''}
+      </div>`;
+
+      return `<div style="border-radius:12px;border:1px solid var(--border);background:var(--card);overflow:hidden;margin-bottom:8px">
+        <div onclick="togglePubRod('${id}')" style="display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none">
+          <div style="flex:1">
+            <span style="font-size:.7rem;font-weight:600;color:#475569;text-transform:capitalize">${wday}</span>
+            <span style="font-size:.84rem;font-weight:700;color:#e2e8f0;margin-left:6px">${dstr}</span>
+          </div>
+          ${!pending
+            ? `<div style="font-size:1.18rem;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.02em">
+                <span style="color:${hw?'#fbbf24':'#94a3b8'}">${hScore}</span>
+                <span style="color:#2d3f55;font-weight:300;margin:0 5px">×</span>
+                <span style="color:${aw?'#60a5fa':'#94a3b8'}">${aScore}</span>
+               </div>`
+            : `<span style="font-size:.7rem;color:#2d3f55">sem resultado</span>`}
+          <span id="${id}-ch" style="font-size:.68rem;color:#334155;min-width:10px;text-align:right">▼</span>
+        </div>
+        <div id="${id}" style="display:none">${detail}</div>
+      </div>`;
+    }).join('');
+
   } catch { /* silencia erros de rede no histórico público */ }
 }
 
