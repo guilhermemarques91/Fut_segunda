@@ -4297,11 +4297,17 @@ async function gerarLinksRodada() {
   if (!date) return alert('Selecione uma data para a rodada.');
 
   const playersWithPhone = App.players
-    .filter(p => !p.isIsento && p.whatsapp && _normalizePhone(p.whatsapp))
+    .filter(p => p.whatsapp && _normalizePhone(p.whatsapp))
     .map(p => ({ id: p.id, name: p.name, phone: p.whatsapp }));
 
   if (!playersWithPhone.length) {
-    return alert('Nenhum jogador com WhatsApp válido cadastrado.\nAdicione os números na seção Jogadores.');
+    const semWpp  = App.players.filter(p => !p.whatsapp).map(p => p.name);
+    const invalido = App.players.filter(p => p.whatsapp && !_normalizePhone(p.whatsapp)).map(p => `${p.name} (${p.whatsapp})`);
+    let msg = 'Nenhum jogador com WhatsApp válido encontrado.\n\n';
+    if (semWpp.length)   msg += `Sem número: ${semWpp.join(', ')}\n`;
+    if (invalido.length) msg += `Número inválido (precisa ter DDD + 9 dígitos):\n${invalido.join('\n')}\n`;
+    msg += '\nFormato aceito: (11) 99999-9999 ou 11999999999';
+    return alert(msg);
   }
 
   const btn = document.getElementById('btn-gen-links');
