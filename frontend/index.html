@@ -830,7 +830,9 @@
           <button onclick="rodSelectAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Todos</button>
           <button onclick="rodClearAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Limpar</button>
           <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit;margin-left:auto">📋 WA</button>
+          <button id="btn-gen-links" onclick="gerarLinksRodada()" style="display:none;font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.28);color:#60a5fa;cursor:pointer;font-family:inherit">🔗 Links</button>
         </div>
+        <div id="rod-confirm-panel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)"></div>
       </div>
 
       <div class="card">
@@ -3083,6 +3085,7 @@ function loadRodadaDate() {
   renderRodadaGoals();
   renderRodadaLockArea();
   renderRodadaDinnerStatus();
+  loadConfirmations(date);
 }
 
 function getAttCount(playerId) {
@@ -4280,6 +4283,147 @@ function buildRodadaPoll() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  CONFIRMAÇÕES DE PRESENÇA VIA LINK
+// ═══════════════════════════════════════════════════════
+function _normalizePhone(raw) {
+  let d = (raw || '').replace(/\D/g, '');
+  if (d.length >= 12 && d.startsWith('55')) d = d.slice(2);
+  if (d.length === 10) d = d.slice(0, 2) + '9' + d.slice(2);
+  return d.length === 11 ? d : null;
+}
+
+async function gerarLinksRodada() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return alert('Selecione uma data para a rodada.');
+
+  const playersWithPhone = App.players
+    .filter(p => !p.isIsento && p.whatsapp && _normalizePhone(p.whatsapp))
+    .map(p => ({ id: p.id, name: p.name, phone: p.whatsapp }));
+
+  if (!playersWithPhone.length) {
+    return alert('Nenhum jogador com WhatsApp válido cadastrado.\nAdicione os números na seção Jogadores.');
+  }
+
+  const btn = document.getElementById('btn-gen-links');
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=generate_tokens', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+      body:    JSON.stringify({ date, players: playersWithPhone }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao gerar links');
+
+    const baseUrl  = SERVER_CONFIG.apiUrl.replace('/api/api.php', '/confirmar.php');
+    const link     = `${baseUrl}?t=${data.token}`;
+    const d        = new Date(date + 'T12:00:00');
+    const ds       = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+    const regulars = App.players.filter(p => p.isRegular && !p.isIsento).sort((a, b) => a.name.localeCompare(b.name));
+    const subs     = App.players.filter(p => !p.isRegular && !p.isIsento).sort((a, b) => a.name.localeCompare(b.name));
+
+    const lines = [
+      `⚽ *PELADA DE SEGUNDA!*`, `📅 ${ds}`, ``,
+      `━━━━━━━━━━━━━━━━━━━━`,
+      `📋 *MENSALISTAS:*`, ...regulars.map(p => `⏳ ${p.name}`),
+      ``, `👥 *SUPLENTES:*`, ...subs.map(p => `⏳ ${p.name}`), ``,
+      `🔗 *Confirme sua presença pelo link:*`, link, ``,
+      `_Clique no link, informe seu número e confirme!_`,
+      `━━━━━━━━━━━━━━━━━━━━`,
+    ];
+    window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+    loadConfirmations(date);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Links';
+  }
+}
+
+async function loadConfirmations(date) {
+  if (!date || !App.auth?.token) return;
+  const panel = document.getElementById('rod-confirm-panel');
+  const btn   = document.getElementById('btn-gen-links');
+  try {
+    const res = await fetch(`${SERVER_CONFIG.apiUrl}?action=get_confirmations&date=${date}`, {
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+    });
+    if (!res.ok) { if (panel) panel.style.display = 'none'; return; }
+    const rows = await res.json();
+    _renderConfirmations(rows, date);
+  } catch {
+    if (panel) panel.style.display = 'none';
+  }
+}
+
+function _renderConfirmations(rows, date) {
+  const panel = document.getElementById('rod-confirm-panel');
+  if (!panel) return;
+  if (!rows || !rows.length) { panel.style.display = 'none'; return; }
+
+  const icon  = { pending:'⏳', football:'⚽', football_dinner:'⚽🍖', dinner_only:'🍖', no:'❌' };
+  const color = { pending:'#64748b', football:'#4ade80', football_dinner:'#fbbf24', dinner_only:'#a78bfa', no:'#f87171' };
+  const label = { pending:'Pendente', football:'Vai jogar', football_dinner:'Jogar+Janta', dinner_only:'Só Janta', no:'Não vai' };
+
+  const confirmed = rows.filter(r => r.status !== 'pending').length;
+  const football  = rows.filter(r => r.status === 'football' || r.status === 'football_dinner').length;
+  const dinner    = rows.filter(r => r.status === 'football_dinner' || r.status === 'dinner_only').length;
+  const absent    = rows.filter(r => r.status === 'no').length;
+
+  const importBtn = App.auth.role === 'admin'
+    ? `<button onclick="importConfirmations('${date}')" style="float:right;padding:2px 8px;border-radius:6px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);color:#4ade80;cursor:pointer;font-size:.65rem;font-family:inherit">↓ Importar</button>`
+    : '';
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="font-size:.68rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;overflow:hidden">
+      Confirmações Online · ${confirmed}/${rows.length} ${importBtn}
+    </div>
+    <div style="display:flex;gap:14px;margin-bottom:8px;font-size:.73rem;flex-wrap:wrap">
+      <span>⚽ <b style="color:#4ade80">${football}</b></span>
+      <span>🍖 <b style="color:#a78bfa">${dinner}</b></span>
+      <span>❌ <b style="color:#f87171">${absent}</b></span>
+      <span style="color:#64748b">⏳ ${rows.length - confirmed}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;max-height:150px;overflow-y:auto">
+      ${rows.map(r => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,0.02)">
+          <span style="font-size:.78rem;color:#e2e8f0">${r.player_name}</span>
+          <span style="font-size:.7rem;color:${color[r.status]}">${icon[r.status]} ${label[r.status]}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function importConfirmations(date) {
+  if (!date) return;
+  try {
+    const res = await fetch(`${SERVER_CONFIG.apiUrl}?action=get_confirmations&date=${date}`, {
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+    });
+    if (!res.ok) return;
+    const rows = await res.json();
+
+    const footballIds = rows
+      .filter(r => r.status === 'football' || r.status === 'football_dinner')
+      .map(r => Number(r.player_id))
+      .filter(id => id && App.players.find(p => p.id === id));
+    const dinnerIds = rows
+      .filter(r => r.status === 'football_dinner' || r.status === 'dinner_only')
+      .map(r => Number(r.player_id))
+      .filter(id => id && App.players.find(p => p.id === id));
+
+    rodState.confirmedIds = footballIds;
+    rodState.dinnerIds    = dinnerIds;
+    renderRodadaPresenca();
+    renderRodadaDinner();
+    autoSavePresenca();
+    alert(`✅ Importado: ${footballIds.length} jogam, ${dinnerIds.length} jantam.`);
+  } catch (e) {
+    alert('Erro ao importar: ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 //  DINNER HISTORY
 // ═══════════════════════════════════════════════════════
 function markDinnerPaid(eventId, playerId) {
@@ -4791,6 +4935,8 @@ function applyRoleRestrictions() {
   // Garante visibilidade do card de usuários imediatamente ao autenticar
   const cardUsers = document.getElementById('card-users');
   if (cardUsers) cardUsers.style.display = isAdmin ? 'block' : 'none';
+  const btnLinks = document.getElementById('btn-gen-links');
+  if (btnLinks) btnLinks.style.display = isAdmin ? '' : 'none';
   if (isViewer) {
     // Desktop nav — esconde tudo exceto histórico
     ['dashboard','rodada','players','finance'].forEach(s => {

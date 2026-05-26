@@ -37,7 +37,7 @@ try {
 
 $action = $_GET['action'] ?? '';
 
-// ── HELPER ───────────────────────────────────────────────
+// ── HELPERS ──────────────────────────────────────────────
 function getSession($pdo, $token) {
     if (!$token) return null;
     $stmt = $pdo->prepare(
@@ -48,6 +48,13 @@ function getSession($pdo, $token) {
     );
     $stmt->execute([$token]);
     return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+function normalizePhone($raw) {
+    $d = preg_replace('/\D/', '', (string)$raw);
+    if (strlen($d) >= 12 && substr($d, 0, 2) === '55') $d = substr($d, 2);
+    if (strlen($d) === 10) $d = substr($d, 0, 2) . '9' . substr($d, 2);
+    return strlen($d) === 11 ? $d : null;
 }
 
 // ── HISTÓRICO PÚBLICO (sem token) ───────────────────────
@@ -202,6 +209,51 @@ if ($action === 'verify_password') {
     }
 
     echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── GENERATE TOKENS (admin) ──────────────────────────────
+if ($action === 'generate_tokens') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body    = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date    = $body['date'] ?? '';
+    $players = $body['players'] ?? [];
+    if (!$date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400); echo json_encode(['error' => 'Data inválida']); exit;
+    }
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    $token = '';
+    $bytes = random_bytes(12);
+    for ($i = 0; $i < 12; $i++) $token .= $alphabet[ord($bytes[$i]) % strlen($alphabet)];
+    $pdo->prepare('DELETE FROM presence_confirmations WHERE rodada_date = ?')->execute([$date]);
+    $stmt = $pdo->prepare(
+        'INSERT INTO presence_confirmations (rodada_date, token, phone, player_id, player_name) VALUES (?, ?, ?, ?, ?)'
+    );
+    $inserted = 0;
+    foreach ($players as $p) {
+        $phone = normalizePhone($p['phone'] ?? '');
+        if (!$phone) continue;
+        $stmt->execute([$date, $token, $phone, (string)($p['id'] ?? ''), (string)($p['name'] ?? '')]);
+        $inserted++;
+    }
+    echo json_encode(['ok' => true, 'token' => $token, 'inserted' => $inserted]);
+    exit;
+}
+
+// ── GET CONFIRMATIONS ────────────────────────────────────
+if ($action === 'get_confirmations') {
+    $date = $_GET['date'] ?? '';
+    if (!$date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400); echo json_encode(['error' => 'Data inválida']); exit;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT player_id, player_name, status, confirmed_at
+         FROM presence_confirmations WHERE rodada_date = ? ORDER BY player_name'
+    );
+    $stmt->execute([$date]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     exit;
 }
 
