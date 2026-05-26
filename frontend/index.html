@@ -280,14 +280,14 @@
     .empty-state{color:#334155;font-size:.83rem;text-align:center;padding:22px}
 
     /* ─ LOGIN SCREEN ─ */
-    #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:40px 20px 60px}
-    .login-card{background:var(--card);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 40px 80px rgba(0,0,0,0.65);animation:fadeUp .3s ease;flex-shrink:0}
-    #public-history{width:100%;max-width:900px;margin-top:36px}
+    #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:14px 14px 40px}
+    .login-card{background:var(--card);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:14px;padding:12px 16px;width:100%;max-width:900px;box-shadow:0 8px 40px rgba(0,0,0,0.5);animation:fadeUp .3s ease;flex-shrink:0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    #public-history{width:100%;max-width:900px;margin-top:20px}
     .pub-section-title{font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#475569;margin:18px 0 8px;padding:0 2px}
-    .login-logo{width:52px;height:52px;background:linear-gradient(135deg,#22c55e,#15803d);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 14px;box-shadow:0 0 24px rgba(34,197,94,0.45)}
-    .login-brand{font-size:1.2rem;font-weight:800;letter-spacing:-.02em;background:linear-gradient(90deg,#fff 30%,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;margin-bottom:4px}
-    .login-sub{font-size:.75rem;color:#475569;text-align:center;margin-bottom:28px}
-    #login-error{display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:9px 12px;font-size:.8rem;color:#f87171;text-align:center;margin-bottom:4px}
+    .login-logo{width:34px;height:34px;background:linear-gradient(135deg,#22c55e,#15803d);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;box-shadow:0 0 16px rgba(34,197,94,0.4)}
+    .login-brand{font-size:1rem;font-weight:800;letter-spacing:-.02em;background:linear-gradient(90deg,#fff 30%,#4ade80);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;white-space:nowrap;flex-shrink:0}
+    .login-fields{flex:1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:200px}
+    #login-error{display:none;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.2);border-radius:8px;padding:8px 12px;font-size:.78rem;color:#f87171;text-align:center;width:100%}
 
     /* ─ MOBILE RESPONSIVO ─ */
     html,body{overflow-x:hidden;max-width:100%}
@@ -347,22 +347,15 @@
   <div class="login-card">
     <div class="login-logo" id="login-logo-el">⚽</div>
     <div class="login-brand" id="login-brand-name">Fut Segunda</div>
-    <div class="login-sub">Entre com sua conta para continuar</div>
-    <div class="space-y">
-      <div class="field-group">
-        <label class="form-label">Usuário</label>
-        <input type="text" id="login-username" class="input-field" placeholder="seu usuário"
-               autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
-      </div>
-      <div class="field-group">
-        <label class="form-label">Senha</label>
-        <input type="password" id="login-password" class="input-field" placeholder="••••••••"
-               autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
+    <div class="login-fields">
+      <input type="text" id="login-username" class="input-field" placeholder="usuário"
+             style="flex:1;min-width:110px" autocomplete="username"
+             onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      <input type="password" id="login-password" class="input-field" placeholder="senha"
+             style="flex:1;min-width:110px" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')doLogin()">
+      <button onclick="doLogin()" class="btn-primary" style="white-space:nowrap;padding:10px 20px;flex-shrink:0" id="login-btn">Entrar</button>
       <div id="login-error"></div>
-      <button onclick="doLogin()" class="btn-primary" style="width:100%;padding:12px;font-size:.9rem;justify-content:center" id="login-btn">
-        Entrar
-      </button>
     </div>
   </div>
 
