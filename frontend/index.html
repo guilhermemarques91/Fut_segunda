@@ -325,6 +325,16 @@
       /* link-tag empilha se necessário */
       .link-tag{white-space:normal}
     }
+    /* ─ PARTIDA AO VIVO ─ */
+    .live-score-num{font-size:4.5rem;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+    .live-timer-display{font-size:2.8rem;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;transition:color .3s;color:#475569}
+    .live-timer-display.running{color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.4)}
+    .goal-btn-lg{width:46px;height:46px;border-radius:10px;border:none;cursor:pointer;font-size:1.25rem;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:transform .1s,background .15s}
+    .goal-btn-lg:active{transform:scale(.88)}
+    .goal-btn-plus{background:rgba(34,197,94,0.15);color:#4ade80}.goal-btn-plus:hover{background:rgba(34,197,94,0.28)}
+    .goal-btn-minus{background:rgba(255,255,255,0.06);color:#475569}.goal-btn-minus:hover{background:rgba(255,255,255,0.12);color:#94a3b8}
+    .live-pulse{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;animation:livepulse 1.4s infinite}
+    @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
   </style>
 </head>
 <body>
@@ -372,6 +382,7 @@
   <div class="nav-links">
     <button onclick="showSection('dashboard')"  class="nav-link active"   id="nav-dashboard">🏠 Dashboard</button>
     <button onclick="showSection('rodada')"     class="nav-link inactive" id="nav-rodada">🗓️ Rodada</button>
+    <button onclick="showSection('partida')"    class="nav-link inactive" id="nav-partida">▶ Ao Vivo</button>
     <button onclick="showSection('historico')"  class="nav-link inactive" id="nav-historico">📋 Histórico</button>
     <button onclick="showSection('players')"    class="nav-link inactive" id="nav-players">👥 Jogadores</button>
     <button onclick="showSection('finance')"    class="nav-link inactive" id="nav-finance">💰 Financeiro</button>
@@ -851,6 +862,7 @@
         </div>
       </div>
       <div id="rod-teams-output"><div class="empty-state" style="padding:24px">Confirme a presença e clique em "Gerar Times"</div></div>
+      <div id="rod-start-match-area"></div>
     </div>
 
     <!-- Resultado -->
@@ -889,6 +901,17 @@
 
   <div id="rod-historico" style="display:none">
     <div id="rod-historico-content"></div>
+  </div>
+</div>
+
+<!-- ════════════════ PARTIDA AO VIVO ════════════════ -->
+<div id="section-partida" class="section hidden">
+  <div id="live-match-content">
+    <div class="empty-state" style="padding:60px;text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:12px">⚽</div>
+      <div style="font-weight:700;margin-bottom:6px">Nenhuma partida ativa</div>
+      <div style="font-size:.78rem">Gere os times na aba Rodada e clique em "▶ Iniciar Partida".</div>
+    </div>
   </div>
 </div>
 
@@ -1128,8 +1151,8 @@ function roundUpToFive(val) { if (val <= 0) return 0; return Math.ceil(val / 5) 
 //  NAVIGATION
 // ═══════════════════════════════════════════════════════
 function showSection(sec) {
-  // Viewer só pode acessar histórico
-  if (App.auth.role === 'viewer' && sec !== 'historico') return;
+  // Viewer só pode acessar histórico e partida ao vivo
+  if (App.auth.role === 'viewer' && sec !== 'historico' && sec !== 'partida') return;
   document.querySelectorAll('.section').forEach(el => { el.classList.add('hidden'); el.classList.remove('active'); });
   document.getElementById(`section-${sec}`).classList.remove('hidden');
   document.getElementById(`section-${sec}`).classList.add('active');
@@ -1160,6 +1183,7 @@ function showSection(sec) {
     if (dd && !dd.value) dd.value = new Date().toISOString().split('T')[0];
   }
   if (sec === 'config') renderConfigSection();
+  if (sec === 'partida') renderLiveMatch();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -3374,6 +3398,12 @@ function renderRodadaTeams() {
     ${teamHtml(home, homeReserve, '#eab308', '⬛🟡 T. Preto e Amarelo')}
     ${teamHtml(away, awayReserve, '#60a5fa', '🔵 T. Azul')}
   </div>`;
+  const startArea = document.getElementById('rod-start-match-area');
+  if (startArea && !rodState.locked) {
+    startArea.innerHTML = `<button onclick="startPartida()" style="margin-top:12px;width:100%;padding:11px;border-radius:12px;background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.1));border:1px solid rgba(74,222,128,0.35);color:#4ade80;cursor:pointer;font-size:.9rem;font-family:inherit;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px">▶ Iniciar Partida</button>`;
+  } else if (startArea) {
+    startArea.innerHTML = '';
+  }
 }
 
 function renderRodadaGoals() {
@@ -3583,6 +3613,179 @@ function renderRodadaDinnerStatus() {
   } else {
     el.innerHTML = '';
     if (btn) btn.textContent = '🍽️ Fechar Tira Gosto';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PARTIDA AO VIVO
+// ═══════════════════════════════════════════════════════
+let liveTimer = { running: false, elapsed: 0, startedAt: null, _iv: null };
+
+function toggleLiveTimer() {
+  if (liveTimer.running) {
+    liveTimer.elapsed += Date.now() - liveTimer.startedAt;
+    clearInterval(liveTimer._iv); liveTimer._iv = null;
+    liveTimer.running = false;
+  } else {
+    liveTimer.startedAt = Date.now();
+    liveTimer._iv = setInterval(refreshLiveTimer, 500);
+    liveTimer.running = true;
+  }
+  refreshLiveTimer();
+}
+
+function resetLiveTimer() {
+  if (!confirm('Zerar o cronômetro?')) return;
+  clearInterval(liveTimer._iv);
+  liveTimer = { running: false, elapsed: 0, startedAt: null, _iv: null };
+  refreshLiveTimer();
+}
+
+function refreshLiveTimer() {
+  const total = liveTimer.elapsed + (liveTimer.running ? Date.now() - liveTimer.startedAt : 0);
+  const secs  = Math.floor(total / 1000);
+  const mm    = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss    = String(secs % 60).padStart(2, '0');
+  const disp  = document.getElementById('live-timer-display');
+  const hint  = document.getElementById('live-timer-hint');
+  if (disp) { disp.textContent = `${mm}:${ss}`; disp.className = 'live-timer-display ' + (liveTimer.running ? 'running' : 'paused'); }
+  if (hint) hint.textContent = liveTimer.running ? '● Toque para pausar' : '○ Toque para iniciar';
+}
+
+function startPartida() {
+  showSection('partida');
+}
+
+function renderLiveMatch() {
+  const el = document.getElementById('live-match-content');
+  if (!el) return;
+
+  // Se rodState não tem times, tenta carregar a rodada mais recente com times
+  if (!rodState.teamsGenerated || (!rodState.rodTeams.home?.length && !rodState.rodTeams.away?.length)) {
+    const latest = [...App.teamHistory].sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (latest) {
+      const dateEl = document.getElementById('rod-date');
+      if (dateEl && dateEl.value !== latest.date) { dateEl.value = latest.date; loadRodadaDate(); }
+      setTimeout(() => renderLiveMatch(), 80);
+      return;
+    }
+    el.innerHTML = `<div class="empty-state" style="padding:60px;text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:12px">⚽</div>
+      <div style="font-weight:700;margin-bottom:6px">Nenhuma partida ativa</div>
+      <div style="font-size:.78rem;color:#475569">Gere os times na aba Rodada e clique em "▶ Iniciar Partida".</div>
+    </div>`;
+    return;
+  }
+
+  const date = document.getElementById('rod-date')?.value || '';
+  const dateLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'short'}) : '';
+  const { home, away } = rodState.rodTeams;
+  const cnt   = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
+  const hScore = (home||[]).reduce((s, p) => s + cnt(p.id), 0);
+  const aScore = (away||[]).reduce((s, p) => s + cnt(p.id), 0);
+
+  const makeRow = (p, color) => {
+    const c = cnt(p.id);
+    const balls = c > 0 ? ' ' + (c <= 5 ? '⚽'.repeat(c) : `⚽×${c}`) : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <span style="flex:1;font-size:.9rem;color:${c > 0 ? '#f1f5f9' : '#64748b'};font-weight:${c > 0 ? 700 : 400}">${p.name}<span style="font-size:.75rem"> ${balls}</span></span>
+      <span style="font-size:1.1rem;font-weight:800;color:${c > 0 ? color : '#334155'};min-width:20px;text-align:center">${c}</span>
+      <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
+      <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
+      <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
+    </div>
+
+    <!-- Placar principal -->
+    <div class="card" style="margin-bottom:14px;padding:22px 16px;text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:18px">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:.6rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">⬛🟡 T. Preto</div>
+          <div id="live-home-score" class="live-score-num">${hScore}</div>
+        </div>
+        <div style="font-size:2rem;font-weight:200;color:#334155;padding-bottom:4px">×</div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:.6rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🔵 T. Azul</div>
+          <div id="live-away-score" class="live-score-num">${aScore}</div>
+        </div>
+      </div>
+      <!-- Cronômetro -->
+      <div onclick="toggleLiveTimer()" style="cursor:pointer;padding:10px 0;user-select:none;-webkit-tap-highlight-color:transparent">
+        <div id="live-timer-display" class="live-timer-display paused">00:00</div>
+        <div id="live-timer-hint" style="font-size:.65rem;color:#475569;margin-top:4px;letter-spacing:.04em">○ Toque para iniciar</div>
+      </div>
+    </div>
+
+    <!-- Marcador de gols -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div class="card" style="padding:12px 10px">
+        <div style="font-size:.58rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 Preto</div>
+        <div id="live-home-players">${(home||[]).map(p => makeRow(p, '#fbbf24')).join('')}</div>
+        ${!(home||[]).length ? '<div style="color:#334155;font-size:.75rem;padding:6px 0">—</div>' : ''}
+      </div>
+      <div class="card" style="padding:12px 10px">
+        <div style="font-size:.58rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
+        <div id="live-away-players">${(away||[]).map(p => makeRow(p, '#60a5fa')).join('')}</div>
+        ${!(away||[]).length ? '<div style="color:#334155;font-size:.75rem;padding:6px 0">—</div>' : ''}
+      </div>
+    </div>
+
+    <!-- Ações -->
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button onclick="resetLiveTimer()" class="btn-secondary" style="padding:11px 14px;font-size:.82rem">↺ Zerar</button>
+      <button onclick="saveLiveResult()" class="btn-primary" style="flex:1;padding:11px;font-size:.88rem;font-weight:700">💾 Salvar Resultado</button>
+    </div>
+  `;
+  refreshLiveTimer();
+}
+
+function addLiveGoal(playerId, delta) {
+  if (rodState.locked) return;
+  let g = rodState.goals.find(g => g.playerId === playerId);
+  if (!g) { g = { playerId, count: 0 }; rodState.goals.push(g); }
+  g.count = Math.max(0, g.count + delta);
+  if (g.count === 0) rodState.goals = rodState.goals.filter(g => g.playerId !== playerId);
+
+  // Atualiza placar
+  const cnt = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
+  const { home, away } = rodState.rodTeams;
+  const hs = document.getElementById('live-home-score');
+  const as = document.getElementById('live-away-score');
+  if (hs) hs.textContent = (home||[]).reduce((s, p) => s + cnt(p.id), 0);
+  if (as) as.textContent = (away||[]).reduce((s, p) => s + cnt(p.id), 0);
+
+  // Atualiza linhas de gols sem recriar o painel todo (timer continua)
+  const makeRow = (p, color) => {
+    const c = cnt(p.id);
+    const balls = c > 0 ? ' ' + (c <= 5 ? '⚽'.repeat(c) : `⚽×${c}`) : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <span style="flex:1;font-size:.9rem;color:${c > 0 ? '#f1f5f9' : '#64748b'};font-weight:${c > 0 ? 700 : 400}">${p.name}<span style="font-size:.75rem"> ${balls}</span></span>
+      <span style="font-size:1.1rem;font-weight:800;color:${c > 0 ? color : '#334155'};min-width:20px;text-align:center">${c}</span>
+      <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
+      <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
+    </div>`;
+  };
+  const homeEl = document.getElementById('live-home-players');
+  const awayEl = document.getElementById('live-away-players');
+  if (homeEl) homeEl.innerHTML = (home||[]).map(p => makeRow(p, '#fbbf24')).join('');
+  if (awayEl) awayEl.innerHTML = (away||[]).map(p => makeRow(p, '#60a5fa')).join('');
+
+  autoSaveGoals();
+  renderRodadaGoals();
+}
+
+function saveLiveResult() {
+  autoSaveGoals();
+  const btn = document.querySelector('#live-match-content .btn-primary');
+  if (btn) {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✅ Salvo!'; btn.disabled = true;
+    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 2000);
   }
 }
 
@@ -4595,6 +4798,9 @@ document.addEventListener('DOMContentLoaded', () => {
   </button>
   <button class="mnav-btn" id="mnav-rodada" onclick="showSection('rodada')">
     <span class="micon">🗓️</span><span>Rodada</span>
+  </button>
+  <button class="mnav-btn" id="mnav-partida" onclick="showSection('partida')">
+    <span class="micon">▶</span><span>Ao Vivo</span>
   </button>
   <button class="mnav-btn" id="mnav-historico" onclick="showSection('historico')">
     <span class="micon">📋</span><span>Histórico</span>
