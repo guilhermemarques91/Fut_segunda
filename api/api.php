@@ -67,6 +67,7 @@ if ($action === 'public') {
         'attendances' => $d['attendances'] ?? [],
         'results'     => $d['results']     ?? [],
         'teamHistory' => $d['teamHistory'] ?? [],
+        'liveState'   => $d['liveState']   ?? null,
     ]);
     exit;
 }
@@ -102,6 +103,21 @@ if ($action === 'login') {
         ->execute([$token, $user['id'], $user['role'], $expires]);
 
     echo json_encode(['token' => $token, 'role' => $user['role'], 'username' => $username]);
+    exit;
+}
+
+// ── LIVE UPDATE (público — só API key) ──────────────────
+if ($action === 'live_update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($body)) { http_response_code(400); echo json_encode(['error' => 'Invalid JSON']); exit; }
+    $stmt = $pdo->query('SELECT data FROM app_data WHERE id = 1');
+    $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+    $d    = $row ? (json_decode($row['data'], true) ?? []) : [];
+    $d['liveState'] = $body;
+    $newJson = json_encode($d, JSON_UNESCAPED_UNICODE);
+    $pdo->prepare('INSERT INTO app_data (id, data) VALUES (1, ?) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = CURRENT_TIMESTAMP')
+        ->execute([$newJson]);
+    echo json_encode(['ok' => true]);
     exit;
 }
 

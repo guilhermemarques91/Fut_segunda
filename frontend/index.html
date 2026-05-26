@@ -335,6 +335,9 @@
     .goal-btn-minus{background:rgba(255,255,255,0.06);color:#475569}.goal-btn-minus:hover{background:rgba(255,255,255,0.12);color:#94a3b8}
     .live-pulse{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;animation:livepulse 1.4s infinite}
     @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
+    .pub-live-score{font-size:3.5rem;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+    .pub-live-timer{font-size:2.2rem;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:color .3s;color:#475569}
+    .pub-live-timer.running{color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.4)}
   </style>
 </head>
 <body>
@@ -361,6 +364,12 @@
         Entrar
       </button>
     </div>
+  </div>
+
+  <!-- Partida ao vivo — visível sem login quando ativa -->
+  <div id="public-live" style="display:none;width:100%;max-width:900px;margin-top:28px">
+    <div style="text-align:center;font-size:.72rem;color:#334155;margin-bottom:12px;letter-spacing:.03em">─── Partida Ao Vivo ───</div>
+    <div id="pub-live-content"></div>
   </div>
 
   <!-- Histórico público — visível sem login -->
@@ -3643,6 +3652,7 @@ function toggleLiveTimer() {
     liveTimer._iv = setInterval(refreshLiveTimer, 500); liveTimer.running = true;
   }
   refreshLiveTimer();
+  _syncLiveTimer();
 }
 
 function encerrarPeriodo() {
@@ -3655,6 +3665,7 @@ function encerrarPeriodo() {
   }
   refreshLiveTimer();
   renderLiveTimerPanel();
+  _syncLiveTimer();
 }
 
 function iniciarSegundoTempo() {
@@ -3662,6 +3673,7 @@ function iniciarSegundoTempo() {
   liveTimer._iv = setInterval(refreshLiveTimer, 500); liveTimer.running = true;
   refreshLiveTimer();
   renderLiveTimerPanel();
+  _syncLiveTimer();
 }
 
 function resetLiveTimer() {
@@ -3670,6 +3682,7 @@ function resetLiveTimer() {
   liveTimer = { running:false, elapsed:0, startedAt:null, _iv:null, periodo:1, t1ms:null };
   refreshLiveTimer();
   renderLiveTimerPanel();
+  _syncLiveTimer();
 }
 
 function refreshLiveTimer() {
@@ -3713,6 +3726,19 @@ function renderLiveTimerPanel() {
 }
 
 function startPartida() {
+  const date = document.getElementById('rod-date')?.value || '';
+  const {home, away, homeReserve, awayReserve} = rodState.rodTeams;
+  pubLiveSrv = null;
+  _pushLiveState({
+    active: true, date,
+    homePlayers: (home||[]).map(p=>p.id),
+    awayPlayers: (away||[]).map(p=>p.id),
+    homeReserveId: homeReserve?.id||null,
+    awayReserveId: awayReserve?.id||null,
+    goals: [...(rodState.goals||[])],
+    periodo: liveTimer.periodo||1, t1ms: liveTimer.t1ms||null,
+    timerRunning: false, timerElapsed: liveTimer.elapsed||0, timerStartedAt: null
+  });
   showSection('partida');
 }
 
@@ -3788,6 +3814,7 @@ function renderLiveMatch() {
     </div>
 
     <button onclick="saveLiveResult()" class="btn-primary" style="width:100%;padding:12px;font-size:.9rem;font-weight:700">💾 Salvar Resultado</button>
+    <button onclick="encerrarPartida()" class="btn-secondary" style="width:100%;padding:8px;margin-top:6px;font-size:.8rem">🔴 Encerrar Partida</button>
   `;
   renderLiveTimerPanel();
 }
@@ -3825,6 +3852,7 @@ function addLiveGoal(playerId, delta) {
   if (awayEl) awayEl.innerHTML = awayFull.map(p=>makeRow(p,'#60a5fa')).join('');
 
   autoSaveGoals(); renderRodadaGoals();
+  _syncLiveGoals();
 }
 
 function saveLiveResult() {
@@ -3834,6 +3862,203 @@ function saveLiveResult() {
     const orig = btn.innerHTML; btn.innerHTML='✅ Salvo!'; btn.disabled=true;
     setTimeout(()=>{btn.innerHTML=orig;btn.disabled=false;},2000);
   }
+}
+
+async function encerrarPartida() {
+  if (!confirm('Encerrar a partida? O painel ao vivo será desativado.')) return;
+  saveLiveResult();
+  if (pubLiveSrv) await _pushLiveState({active: false});
+  pubLiveSrv = null;
+}
+
+// ── PUBLIC LIVE STATE ─────────────────────────────────────
+let pubLiveSrv = null;
+let _pubLiveIv  = null;
+let _pubLivePoll = null;
+let _pubPlayerMap = {};
+
+async function _pushLiveState(patch) {
+  pubLiveSrv = Object.assign(pubLiveSrv || {}, patch);
+  try {
+    await fetch(SERVER_CONFIG.apiUrl + '?action=live_update', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-Api-Key':SERVER_CONFIG.apiKey},
+      body: JSON.stringify(pubLiveSrv)
+    });
+  } catch {}
+}
+
+function _pubElapsed() {
+  const s = pubLiveSrv; if (!s) return 0;
+  return (s.timerElapsed||0) + (s.timerRunning && s.timerStartedAt ? Math.max(0, Date.now()-s.timerStartedAt) : 0);
+}
+
+function _pubRefreshTimerDisp() {
+  const d = document.getElementById('pub-live-timer-disp');
+  if (d && pubLiveSrv) { d.textContent = _fmtMs(_pubElapsed()); d.className='pub-live-timer'+(pubLiveSrv.timerRunning?' running':''); }
+}
+
+function _syncLiveTimer() {
+  if (!pubLiveSrv?.active) return;
+  _pushLiveState({
+    periodo: liveTimer.periodo, t1ms: liveTimer.t1ms,
+    timerRunning: liveTimer.running,
+    timerElapsed: liveTimer.elapsed,
+    timerStartedAt: liveTimer.running ? liveTimer.startedAt : null
+  });
+}
+
+function _syncLiveGoals() {
+  if (!pubLiveSrv?.active) return;
+  _pushLiveState({goals: [...(rodState.goals||[])]});
+}
+
+function renderPubLiveTimer() {
+  const panel = document.getElementById('pub-live-timer-panel');
+  if (!panel || !pubLiveSrv) return;
+  const s = pubLiveSrv;
+  const t1done = s.t1ms !== null;
+  const periodoLabel = s.periodo === 1 ? '1º Tempo' : '2º Tempo';
+  const blocked = t1done && s.periodo === 1;
+  let html = '';
+  if (t1done) html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">1º Tempo: <strong style="color:#64748b">${_fmtMs(s.t1ms)} ✓</strong></div>`;
+  html += `<div style="font-size:.58rem;font-weight:700;color:${s.periodo===1?'#4ade80':'#60a5fa'};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
+    <div onclick="${blocked?'':'pubLiveToggleTimer()'}" style="cursor:${blocked?'default':'pointer'};user-select:none;-webkit-tap-highlight-color:transparent;${blocked?'opacity:.4':''}">
+      <div id="pub-live-timer-disp" class="pub-live-timer${s.timerRunning?' running':''}">${_fmtMs(_pubElapsed())}</div>
+      <div style="font-size:.62rem;color:#475569;margin-top:3px">${s.timerRunning?'● Toque para pausar':'○ Toque para iniciar'}</div>
+    </div>`;
+  const t2done = s.periodo===2 && !s.timerRunning && s.timerElapsed>0;
+  let btnHtml = '';
+  if (!t1done && (s.timerRunning || s.timerElapsed > 0)) {
+    btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 1º Tempo</button>`;
+  } else if (t1done && s.periodo===1) {
+    btnHtml = `<button onclick="pubLiveIniciar2T()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:700">▶ Iniciar 2º Tempo</button>`;
+  } else if (s.periodo===2 && (s.timerRunning || s.timerElapsed>0) && !t2done) {
+    btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 2º Tempo</button>`;
+  }
+  panel.innerHTML = html + btnHtml + `<button onclick="pubLiveReset()" style="margin-top:6px;width:100%;padding:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#334155;cursor:pointer;font-size:.72rem;font-family:inherit">↺ Zerar tudo</button>`;
+  clearInterval(_pubLiveIv); _pubLiveIv = null;
+  if (s.timerRunning) _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
+}
+
+async function pubLiveToggleTimer() {
+  if (!pubLiveSrv) return;
+  if (pubLiveSrv.t1ms !== null && pubLiveSrv.periodo === 1) return;
+  if (pubLiveSrv.timerRunning) {
+    await _pushLiveState({timerRunning:false, timerElapsed:_pubElapsed(), timerStartedAt:null});
+    clearInterval(_pubLiveIv); _pubLiveIv = null;
+  } else {
+    await _pushLiveState({timerRunning:true, timerStartedAt:Date.now(), timerElapsed:pubLiveSrv.timerElapsed||0});
+    _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
+  }
+  renderPubLiveTimer();
+}
+
+async function pubLiveEncerrar() {
+  if (!pubLiveSrv) return;
+  const elapsed = _pubElapsed();
+  clearInterval(_pubLiveIv); _pubLiveIv = null;
+  if (pubLiveSrv.periodo === 1) {
+    await _pushLiveState({timerRunning:false, timerElapsed:0, timerStartedAt:null, t1ms:elapsed, periodo:1});
+  } else {
+    await _pushLiveState({timerRunning:false, timerElapsed:elapsed, timerStartedAt:null});
+  }
+  renderPubLiveTimer();
+}
+
+async function pubLiveIniciar2T() {
+  if (!pubLiveSrv) return;
+  await _pushLiveState({periodo:2, timerElapsed:0, timerRunning:true, timerStartedAt:Date.now()});
+  _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
+  renderPubLiveTimer();
+}
+
+async function pubLiveReset() {
+  if (!confirm('Zerar cronômetro?')) return;
+  clearInterval(_pubLiveIv); _pubLiveIv = null;
+  await _pushLiveState({periodo:1, t1ms:null, timerRunning:false, timerElapsed:0, timerStartedAt:null});
+  renderPubLiveTimer();
+}
+
+async function pubLiveAddGoal(playerId, delta) {
+  if (!pubLiveSrv) return;
+  const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
+  let g = goals.find(g=>g.playerId===playerId);
+  if (!g) { g={playerId,count:0}; goals.push(g); }
+  g.count = Math.max(0, g.count+delta);
+  await _pushLiveState({goals: goals.filter(g=>g.count>0)});
+  const cnt = id => (pubLiveSrv.goals||[]).find(g=>g.playerId===id)?.count||0;
+  const hEl=document.getElementById('pub-live-home-score'); if(hEl) hEl.textContent=(pubLiveSrv.homePlayers||[]).reduce((a,id)=>a+cnt(id),0);
+  const aEl=document.getElementById('pub-live-away-score'); if(aEl) aEl.textContent=(pubLiveSrv.awayPlayers||[]).reduce((a,id)=>a+cnt(id),0);
+  const makeRow=(id,color)=>{const p=_pubPlayerMap[id];if(!p)return '';const c=cnt(id);const balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <span style="flex:1;font-size:.85rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.7rem">${balls}</span></span>
+      <span style="font-size:1rem;font-weight:800;color:${c>0?color:'#334155'};min-width:18px;text-align:center">${c}</span>
+      <button class="goal-btn-lg goal-btn-minus" onclick="pubLiveAddGoal(${id},-1)">−</button>
+      <button class="goal-btn-lg goal-btn-plus"  onclick="pubLiveAddGoal(${id}, 1)">+</button>
+    </div>`;};
+  const hEl2=document.getElementById('pub-live-home-players'); if(hEl2) hEl2.innerHTML=(pubLiveSrv.homePlayers||[]).map(id=>makeRow(id,'#fbbf24')).join('');
+  const aEl2=document.getElementById('pub-live-away-players'); if(aEl2) aEl2.innerHTML=(pubLiveSrv.awayPlayers||[]).map(id=>makeRow(id,'#60a5fa')).join('');
+}
+
+function renderPublicLivePanel(d) {
+  const wrapEl = document.getElementById('public-live');
+  if (!wrapEl) return;
+  const s = d?.liveState;
+  if (!s || !s.active) { wrapEl.style.display='none'; return; }
+  pubLiveSrv = s;
+  _pubPlayerMap = Object.fromEntries((d.players||[]).map(p=>[p.id,p]));
+  wrapEl.style.display = 'block';
+  const cnt = id => (s.goals||[]).find(g=>g.playerId===id)?.count||0;
+  const hScore = (s.homePlayers||[]).reduce((a,id)=>a+cnt(id),0);
+  const aScore = (s.awayPlayers||[]).reduce((a,id)=>a+cnt(id),0);
+  const dateLabel = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
+  const makeRow = (id,color)=>{const p=_pubPlayerMap[id];if(!p)return '';const c=cnt(id);const balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
+      <span style="flex:1;font-size:.85rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.7rem">${balls}</span></span>
+      <span style="font-size:1rem;font-weight:800;color:${c>0?color:'#334155'};min-width:18px;text-align:center">${c}</span>
+      <button class="goal-btn-lg goal-btn-minus" onclick="pubLiveAddGoal(${id},-1)">−</button>
+      <button class="goal-btn-lg goal-btn-plus"  onclick="pubLiveAddGoal(${id}, 1)">+</button>
+    </div>`;};
+  document.getElementById('pub-live-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
+      <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
+    </div>
+    <div class="card" style="margin-bottom:12px;padding:18px 14px;text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px">
+        <div style="flex:1;text-align:center">
+          <div style="font-size:.58rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">⬛🟡 T. Preto</div>
+          <div id="pub-live-home-score" class="pub-live-score">${hScore}</div>
+        </div>
+        <div style="font-size:1.8rem;font-weight:200;color:#334155;padding-bottom:4px">×</div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:.58rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🔵 T. Azul</div>
+          <div id="pub-live-away-score" class="pub-live-score">${aScore}</div>
+        </div>
+      </div>
+      <div id="pub-live-timer-panel"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="card" style="padding:12px 10px">
+        <div style="font-size:.56rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 Preto</div>
+        <div id="pub-live-home-players">${(s.homePlayers||[]).map(id=>makeRow(id,'#fbbf24')).join('')}</div>
+      </div>
+      <div class="card" style="padding:12px 10px">
+        <div style="font-size:.56rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
+        <div id="pub-live-away-players">${(s.awayPlayers||[]).map(id=>makeRow(id,'#60a5fa')).join('')}</div>
+      </div>
+    </div>`;
+  renderPubLiveTimer();
+}
+
+function startPubLivePoll() {
+  if (_pubLivePoll) return;
+  _pubLivePoll = setInterval(loadPublicHistory, 12000);
+}
+function stopPubLivePoll() {
+  clearInterval(_pubLivePoll); _pubLivePoll = null;
+  clearInterval(_pubLiveIv); _pubLiveIv = null;
 }
 
 function saveRodada() {
@@ -4491,6 +4716,7 @@ async function doLogin() {
 }
 
 function onLoginSuccess() {
+  stopPubLivePoll();
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('nav-logout').style.display   = '';
   document.getElementById('mnav-logout').style.display  = '';
@@ -4546,6 +4772,8 @@ async function doLogout() {
   document.getElementById('login-password').value = '';
   document.getElementById('nav-logout').style.display  = 'none';
   document.getElementById('mnav-logout').style.display = 'none';
+  loadPublicHistory();
+  startPubLivePoll();
 }
 
 async function loadPublicHistory() {
@@ -4553,6 +4781,7 @@ async function loadPublicHistory() {
     const res  = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
     if (!res.ok) return;
     const d    = await res.json();
+    renderPublicLivePanel(d);
     const pMap = Object.fromEntries((d.players||[]).map(p => [p.id, p]));
 
     // Resultados
@@ -4612,6 +4841,7 @@ async function checkStoredSession() {
   if (!token) {
     document.getElementById('login-screen').style.display = 'flex';
     loadPublicHistory();
+    startPubLivePoll();
     return;
   }
 
@@ -4633,6 +4863,8 @@ async function checkStoredSession() {
     localStorage.removeItem('fut_role');
     localStorage.removeItem('fut_username');
     document.getElementById('login-screen').style.display = 'flex';
+    loadPublicHistory();
+    startPubLivePoll();
   }
 }
 
