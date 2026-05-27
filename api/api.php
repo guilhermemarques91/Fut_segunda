@@ -364,10 +364,20 @@ if ($method === 'POST') {
         exit;
     }
     $body = file_get_contents('php://input');
-    if (!$body || !json_decode($body)) {
+    $newData = json_decode($body, true);
+    if (!$body || !is_array($newData)) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid JSON']);
         exit;
+    }
+    // Preserve liveState — it is managed separately via live_update and must not be wiped on every save
+    $existing = $pdo->query('SELECT data FROM app_data WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+    if ($existing) {
+        $existingData = json_decode($existing['data'], true) ?? [];
+        if (array_key_exists('liveState', $existingData)) {
+            $newData['liveState'] = $existingData['liveState'];
+            $body = json_encode($newData, JSON_UNESCAPED_UNICODE);
+        }
     }
     $stmt = $pdo->prepare(
         'INSERT INTO app_data (id, data) VALUES (1, ?)

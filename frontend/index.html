@@ -4373,10 +4373,24 @@ async function confirmDeleteRodada() {
   }
   App.lockedRodadas = (App.lockedRodadas || []).filter(d => d !== date);
 
+  // If the deleted rodada is the currently active match, reset live state
+  const currentRodDate = document.getElementById('rod-date')?.value;
+  if (currentRodDate === date) {
+    if (pubLiveSrv?.active) _pushLiveState({active: false});
+    pubLiveSrv = null;
+    clearInterval(liveTimer._iv); clearInterval(liveTimer._intervaloIv);
+    liveTimer = { running:false, elapsed:0, startedAt:null, _iv:null, periodo:1, t1ms:null, intervaloStart:null, intervaloMs:null, _intervaloIv:null, ended:false };
+    rodState.matchActive = false;
+    rodState.teamsGenerated = false;
+    rodState.rodTeams = { home: [], away: [], homeReserve: null, awayReserve: null };
+    rodState.goals = [];
+  }
+
   scheduleSync();
   renderRodadaHistory();
   renderDashboard();
   updateFooter();
+  renderLiveMatch();
 }
 
 function renderRodadaHistory() {
