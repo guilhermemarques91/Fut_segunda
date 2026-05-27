@@ -850,6 +850,15 @@
         </div>
         <div id="rod-dinner-list" style="display:flex;flex-direction:column;gap:2px;max-height:180px;overflow-y:auto;margin-bottom:8px"></div>
         <div id="rod-dinner-split"></div>
+        <div id="rod-louça-row" style="display:none;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.14);border-radius:10px">
+            <span style="font-size:.85rem;flex-shrink:0">🧹</span>
+            <span style="font-size:.74rem;color:#94a3b8;white-space:nowrap;flex-shrink:0">Louça:</span>
+            <select id="rod-louça-select" class="input-field" style="flex:1;padding:4px 8px;font-size:.8rem" onchange="saveLoucaResponsavel()">
+              <option value="">— Não definido —</option>
+            </select>
+          </div>
+        </div>
         <div id="rod-dinner-status" style="margin-top:6px"></div>
         <button onclick="fecharTiraGosto()" id="rod-dinner-close-btn" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(245,158,11,0.08));border:1px solid rgba(251,191,36,0.3);color:#fbbf24;cursor:pointer;font-size:.83rem;font-family:inherit;font-weight:700">🍽️ Fechar Tira Gosto</button>
       </div>
@@ -1033,6 +1042,19 @@
 
   </div>
 
+  <!-- Rotação de louça -->
+  <div class="card" id="card-louça-rotation" style="margin-top:18px">
+    <div class="card-title"><div class="card-title-bar"></div>🧹 Rotação de Louça</div>
+    <div style="font-size:.74rem;color:#475569;margin-bottom:12px">Defina a ordem de quem lava a louça a cada semana. A lista é seguida automaticamente ao abrir uma nova rodada.</div>
+    <div id="louça-rotation-list" style="margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <select id="louça-add-select" class="input-field" style="flex:1;font-size:.83rem">
+        <option value="">+ Adicionar jogador à rotação…</option>
+      </select>
+      <button onclick="addToLoucaRotation()" class="btn-secondary" style="padding:8px 14px;font-size:.82rem;white-space:nowrap">Adicionar</button>
+    </div>
+  </div>
+
   <!-- Gestão de usuários — visível somente para admin -->
   <div class="card" id="card-users" style="display:none;margin-top:18px">
     <div class="card-title"><div class="card-title-bar"></div>👤 Usuários do Sistema</div>
@@ -1119,6 +1141,7 @@ const App = {
   expenses: [],
   recurringExpenses: [],
   lockedRodadas: [],
+  loucaRotation: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
   dataLoaded: false,
 };
@@ -3081,6 +3104,7 @@ function loadRodadaDate() {
     const mEl = document.getElementById('rod-meal'); if (mEl) mEl.value = '';
     const tEl = document.getElementById('rod-dinner-total'); if (tEl) tEl.value = '';
   }
+  updateLoucaSelectInRodada(date);
 
   rodState.locked      = (App.lockedRodadas || []).includes(date);
   rodState.teamsEditMode = false;
@@ -3180,6 +3204,8 @@ function renderRodadaDinner() {
     : '<div style="color:#334155;font-size:.76rem;padding:6px">Marque 🍽️ na lista ao lado</div>';
   updateRodBadges();
   updateRodDinnerSplit();
+  const date = document.getElementById('rod-date')?.value;
+  updateLoucaSelectInRodada(date);
 }
 
 function rodToggleDinner(id, checked) {
@@ -3549,12 +3575,15 @@ function autoSaveDinnerData() {
   const realShare = cnt > 0 && dinTotal > 0 ? dinTotal / cnt : 0;
   const share = dinTotal > 0 ? roundUpToFive(realShare) : 0;
   const existDin = App.dinnerHistory.find(d => d.date === date);
+  const loucaVal = document.getElementById('rod-louça-select')?.value;
+  const loucaId = loucaVal ? parseInt(loucaVal) : null;
   if (existDin) {
     if (!existDin.closed) { existDin.participants = [...rodState.dinnerIds]; if (dinTotal > 0) { existDin.total = dinTotal; existDin.share = share; existDin.realShare = realShare; } }
     existDin.meal = meal;
+    if (loucaId !== null) existDin.loucaResponsavel = loucaId;
     if (dinTotal > 0) syncDinnerExpense(existDin);
   } else {
-    const newDin = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: false };
+    const newDin = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: false, loucaResponsavel: loucaId };
     App.dinnerHistory.push(newDin);
     if (dinTotal > 0) syncDinnerExpense(newDin);
   }
@@ -3591,9 +3620,12 @@ function fecharTiraGosto() {
     existDin.share = share;
     existDin.realShare = realShare;
     existDin.closed = true;
+    const lv = document.getElementById('rod-louça-select')?.value;
+    if (lv) existDin.loucaResponsavel = parseInt(lv);
     din = existDin;
   } else {
-    din = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: true };
+    const lv = document.getElementById('rod-louça-select')?.value;
+    din = { id: App.nextId(), date, meal, total: dinTotal, share, realShare, participants: [...rodState.dinnerIds], paidBy: [], closed: true, loucaResponsavel: lv ? parseInt(lv) : null };
     App.dinnerHistory.push(din);
   }
   din.participants.forEach(pid => {
@@ -4839,6 +4871,138 @@ function renderConfigSection() {
       cardUsers.style.display = 'none';
     }
   }
+  renderLoucaRotation();
+}
+
+// ── ROTAÇÃO DE LOUÇA ──────────────────────────────────────
+function getNextLoucaResponsavel(currentDate) {
+  const rot = App.loucaRotation || [];
+  if (!rot.length) return null;
+  const lastEntry = [...App.dinnerHistory]
+    .filter(d => d.loucaResponsavel && d.date !== currentDate)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  if (!lastEntry) return rot[0];
+  const idx = rot.indexOf(lastEntry.loucaResponsavel);
+  if (idx === -1) return rot[0];
+  return rot[(idx + 1) % rot.length];
+}
+
+function renderLoucaRotation() {
+  const el = document.getElementById('louça-rotation-list');
+  const sel = document.getElementById('louça-add-select');
+  if (!el) return;
+  const rot = App.loucaRotation || [];
+
+  // Populate add-select with players not yet in rotation
+  if (sel) {
+    const inRot = new Set(rot);
+    sel.innerHTML = '<option value="">+ Adicionar jogador à rotação…</option>' +
+      App.players.filter(p => !inRot.has(p.id)).sort((a,b) => a.name.localeCompare(b.name))
+        .map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
+
+  if (!rot.length) {
+    el.innerHTML = '<div style="color:#334155;font-size:.76rem;padding:6px 2px">Nenhum jogador na rotação ainda.</div>';
+    return;
+  }
+
+  // Compute who is next
+  const lastEntry = [...App.dinnerHistory]
+    .filter(d => d.loucaResponsavel)
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const lastId = lastEntry?.loucaResponsavel;
+  const lastIdx = lastId !== undefined ? rot.indexOf(lastId) : -1;
+  const nextId = rot[(lastIdx + 1) % rot.length];
+
+  el.innerHTML = rot.map((id, i) => {
+    const p = findPlayerById(id);
+    if (!p) return '';
+    const isNext = id === nextId;
+    const isLast = id === lastId;
+    const btnStyle = 'background:none;border:none;color:#475569;cursor:pointer;padding:3px 6px;border-radius:6px;font-size:.8rem;font-family:inherit;transition:color .15s';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;background:${isNext?'rgba(34,197,94,0.07)':'rgba(255,255,255,0.025)'};border:1px solid ${isNext?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.06)'};margin-bottom:4px">
+      <span style="font-size:.62rem;font-weight:700;color:#334155;min-width:16px;text-align:center">${i+1}</span>
+      <span style="flex:1;font-size:.84rem;color:${isNext?'#f1f5f9':'#94a3b8'};font-weight:${isNext?700:400}">${p.name}
+        ${isNext?'<span style="font-size:.6rem;color:#4ade80;margin-left:4px">← próxima vez</span>':''}
+        ${isLast&&!isNext?'<span style="font-size:.6rem;color:#334155;margin-left:4px">(última vez)</span>':''}
+      </span>
+      <button onclick="moveLoucaUp(${i})" style="${btnStyle}" title="Subir" ${i===0?'disabled':''}><span style="opacity:${i===0?.3:1}">▲</span></button>
+      <button onclick="moveLoucaDown(${i})" style="${btnStyle}" title="Descer" ${i===rot.length-1?'disabled':''}><span style="opacity:${i===rot.length-1?.3:1}">▼</span></button>
+      <button onclick="removeLoucaRotation(${i})" style="${btnStyle};color:#f87171" title="Remover">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addToLoucaRotation() {
+  const sel = document.getElementById('louça-add-select');
+  const id = parseInt(sel?.value);
+  if (!id) return;
+  App.loucaRotation = App.loucaRotation || [];
+  if (!App.loucaRotation.includes(id)) App.loucaRotation.push(id);
+  renderLoucaRotation();
+  scheduleSync();
+}
+
+function removeLoucaRotation(idx) {
+  App.loucaRotation = App.loucaRotation || [];
+  App.loucaRotation.splice(idx, 1);
+  renderLoucaRotation();
+  scheduleSync();
+}
+
+function moveLoucaUp(idx) {
+  if (idx === 0) return;
+  const rot = App.loucaRotation;
+  [rot[idx-1], rot[idx]] = [rot[idx], rot[idx-1]];
+  renderLoucaRotation();
+  scheduleSync();
+}
+
+function moveLoucaDown(idx) {
+  const rot = App.loucaRotation;
+  if (idx >= rot.length-1) return;
+  [rot[idx+1], rot[idx]] = [rot[idx], rot[idx+1]];
+  renderLoucaRotation();
+  scheduleSync();
+}
+
+function updateLoucaSelectInRodada(currentDate) {
+  const row = document.getElementById('rod-louça-row');
+  const sel = document.getElementById('rod-louça-select');
+  if (!row || !sel) return;
+  const rot = App.loucaRotation || [];
+  if (!rot.length && !rodState.dinnerIds.length) { row.style.display = 'none'; return; }
+  row.style.display = 'block';
+  // Populate options: rotation members first, then any dinner participant not in rotation
+  const opts = new Map();
+  rot.forEach(id => { const p = findPlayerById(id); if (p) opts.set(id, p.name); });
+  rodState.dinnerIds.forEach(id => { if (!opts.has(id)) { const p = findPlayerById(id); if (p) opts.set(id, p.name); } });
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Não definido —</option>' +
+    [...opts.entries()].map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+  // Set saved value or auto-computed next
+  const din = currentDate ? App.dinnerHistory.find(d => d.date === currentDate) : null;
+  const saved = din?.loucaResponsavel;
+  if (saved) {
+    sel.value = saved;
+  } else {
+    const next = getNextLoucaResponsavel(currentDate);
+    sel.value = next || '';
+  }
+}
+
+function saveLoucaResponsavel() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return;
+  const sel = document.getElementById('rod-louça-select');
+  const val = sel?.value ? parseInt(sel.value) : null;
+  const existDin = App.dinnerHistory.find(d => d.date === date);
+  if (existDin) {
+    existDin.loucaResponsavel = val;
+  } else if (val) {
+    App.dinnerHistory.push({ id: App.nextId(), date, meal: '', total: 0, share: 0, realShare: 0, participants: [...rodState.dinnerIds], paidBy: [], closed: false, loucaResponsavel: val });
+  }
+  scheduleSync();
 }
 
 function updateConfigPreview() {
@@ -5412,6 +5576,7 @@ function getAppSnapshot() {
     expenses:          App.expenses,
     recurringExpenses: App.recurringExpenses,
     lockedRodadas:     App.lockedRodadas,
+    loucaRotation:     App.loucaRotation,
     config:            App.config,
   });
 }
@@ -5428,6 +5593,7 @@ function restoreAppSnapshot(data) {
   if (data.expenses)          App.expenses          = data.expenses;
   if (data.recurringExpenses) App.recurringExpenses = data.recurringExpenses;
   if (data.lockedRodadas)     App.lockedRodadas     = data.lockedRodadas;
+  if (data.loucaRotation)     App.loucaRotation     = data.loucaRotation;
   if (data.config)            App.config            = data.config;
 }
 
