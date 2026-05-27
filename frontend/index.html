@@ -403,7 +403,7 @@
 
   <!-- Quick actions -->
   <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-    <button onclick="showSection('rodada')" class="btn-primary" style="padding:7px 16px;font-size:.8rem">⚽ Nova Rodada</button>
+    <button onclick="showSection('rodada');openNovaRodada()" class="btn-primary" style="padding:7px 16px;font-size:.8rem">⚽ Nova Rodada</button>
     <button onclick="showSection('finance')" class="btn-secondary" style="padding:7px 16px;font-size:.8rem">💳 Financeiro</button>
     <button onclick="showSection('historico')" class="btn-secondary" style="padding:7px 16px;font-size:.8rem">📋 Histórico</button>
     <button onclick="showSection('players')" class="btn-secondary" style="padding:7px 16px;font-size:.8rem">👥 Jogadores</button>
@@ -803,12 +803,23 @@
 
 <!-- ════════════════ RODADA UNIFICADA ════════════════ -->
 <div id="section-rodada" class="section hidden">
-  <div class="att-tabs">
-    <button class="att-tab active" id="rodtab-gerenciar" onclick="showRodadaTab('gerenciar')">⚽ Gerenciar Rodada</button>
-    <button class="att-tab" id="rodtab-historico" onclick="showRodadaTab('historico')">📋 Histórico</button>
+
+  <!-- ── Landing ── -->
+  <div id="rod-landing">
+    <div style="text-align:center;padding:36px 16px 20px">
+      <div style="font-size:2rem;margin-bottom:12px">⚽</div>
+      <button onclick="openNovaRodada()" class="btn-primary" style="padding:12px 40px;font-size:.95rem;font-weight:700;border-radius:14px">+ Nova Rodada</button>
+    </div>
+    <div style="font-size:.63rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;text-align:center;margin-bottom:10px">Rodadas Anteriores</div>
+    <div id="rod-historico-content"></div>
   </div>
 
-  <div id="rod-gerenciar">
+  <!-- ── Formulário (oculto por padrão) ── -->
+  <div id="rod-gerenciar" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <button onclick="voltarRodadaLanding()" style="padding:6px 14px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;font-size:.8rem;font-family:inherit;font-weight:600">← Voltar</button>
+      <span id="rod-form-title" style="font-size:.88rem;font-weight:700;color:#f1f5f9">Nova Rodada</span>
+    </div>
     <!-- Data da Rodada -->
     <div class="card" style="margin-bottom:14px">
       <div class="card-title"><div class="card-title-bar"></div>📅 Dados da Rodada</div>
@@ -898,11 +909,7 @@
     <button id="rod-save-btn" onclick="saveRodada()" class="btn-primary" style="width:100%;padding:13px;font-size:.95rem;font-weight:700">💾 Salvar Rodada Completa</button>
     <div id="rod-save-msg" style="display:none;margin-top:10px;text-align:center;font-size:.82rem;color:#4ade80;padding:10px;background:rgba(74,222,128,0.08);border-radius:10px;border:1px solid rgba(74,222,128,0.2)"></div>
     <div id="rod-lock-area" style="margin-top:8px"></div>
-  </div>
-
-  <div id="rod-historico" style="display:none">
-    <div id="rod-historico-content"></div>
-  </div>
+  </div><!-- /rod-gerenciar -->
 </div>
 
 <!-- ════════════════ PARTIDA AO VIVO ════════════════ -->
@@ -1171,11 +1178,9 @@ function showSection(sec) {
   if (sec === 'dashboard') renderDashboard();
   if (sec === 'historico') showHistTab('presencas');
   if (sec === 'rodada') {
-    showRodadaTab('gerenciar');
-    const rd = document.getElementById('rod-date');
-    if (rd && !rd.value) rd.value = new Date().toISOString().split('T')[0];
-    renderRodadaPresenca();
-    renderRodadaDinner();
+    document.getElementById('rod-landing').style.display = 'block';
+    document.getElementById('rod-gerenciar').style.display = 'none';
+    renderRodadaHistory();
   }
   if (sec === 'finance') showFinanceTab('receber');
   if (sec === 'results') { renderResults(); }
@@ -3012,12 +3017,21 @@ let rodState = {
   motm: null,
 };
 
-function showRodadaTab(tab) {
-  ['gerenciar','historico'].forEach(t => {
-    document.getElementById(`rod-${t}`).style.display = t === tab ? 'block' : 'none';
-    document.getElementById(`rodtab-${t}`).classList.toggle('active', t === tab);
-  });
-  if (tab === 'historico') renderRodadaHistory();
+function openNovaRodada() {
+  document.getElementById('rod-landing').style.display = 'none';
+  document.getElementById('rod-gerenciar').style.display = 'block';
+  const title = document.getElementById('rod-form-title');
+  if (title) title.textContent = 'Nova Rodada';
+  const rd = document.getElementById('rod-date');
+  if (rd && !rd.value) rd.value = new Date().toISOString().split('T')[0];
+  renderRodadaPresenca();
+  renderRodadaDinner();
+}
+
+function voltarRodadaLanding() {
+  document.getElementById('rod-gerenciar').style.display = 'none';
+  document.getElementById('rod-landing').style.display = 'block';
+  renderRodadaHistory();
 }
 
 function loadRodadaDate() {
@@ -4267,7 +4281,13 @@ function renderRodadaHistory() {
 
 function openRodadaDate(date) {
   showSection('rodada');
-  showRodadaTab('gerenciar');
+  document.getElementById('rod-landing').style.display = 'none';
+  document.getElementById('rod-gerenciar').style.display = 'block';
+  const title = document.getElementById('rod-form-title');
+  if (title) {
+    const d = new Date(date+'T12:00:00');
+    title.textContent = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  }
   const dateEl = document.getElementById('rod-date');
   if (dateEl) { dateEl.value = date; loadRodadaDate(); }
 }
