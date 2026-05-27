@@ -1045,8 +1045,7 @@
   <!-- Rotação de louça -->
   <div class="card" id="card-louça-rotation" style="margin-top:18px">
     <div class="card-title"><div class="card-title-bar"></div>🧹 Rotação de Louça</div>
-    <div style="font-size:.74rem;color:#475569;margin-bottom:12px">Defina a ordem de quem lava a louça a cada semana. A lista é seguida automaticamente ao abrir uma nova rodada.</div>
-    <div id="louça-rotation-list" style="margin-bottom:12px"></div>
+    <div id="louça-main-panel" style="margin-bottom:12px"></div>
     <div style="display:flex;gap:8px">
       <select id="louça-add-select" class="input-field" style="flex:1;font-size:.83rem">
         <option value="">+ Adicionar jogador à rotação…</option>
@@ -1142,6 +1141,7 @@ const App = {
   recurringExpenses: [],
   lockedRodadas: [],
   loucaRotation: [],
+  loucaCycleStart: null,
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
   dataLoaded: false,
 };
@@ -4889,20 +4889,26 @@ function renderConfigSection() {
 }
 
 // ── ROTAÇÃO DE LOUÇA ──────────────────────────────────────
+function _loucaWashedMapInCycle(excludeDate) {
+  const cycleStart = App.loucaCycleStart || '0000-00-00';
+  const washedMap = new Map();
+  App.dinnerHistory
+    .filter(d => d.loucaResponsavel && d.date > cycleStart && d.date !== excludeDate)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(d => { if (!washedMap.has(d.loucaResponsavel)) washedMap.set(d.loucaResponsavel, d); });
+  return washedMap;
+}
+
 function getNextLoucaResponsavel(currentDate) {
   const rot = App.loucaRotation || [];
   if (!rot.length) return null;
-  const lastEntry = [...App.dinnerHistory]
-    .filter(d => d.loucaResponsavel && d.date !== currentDate)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  if (!lastEntry) return rot[0];
-  const idx = rot.indexOf(lastEntry.loucaResponsavel);
-  if (idx === -1) return rot[0];
-  return rot[(idx + 1) % rot.length];
+  const washedMap = _loucaWashedMapInCycle(currentDate);
+  const next = rot.find(id => !washedMap.has(id));
+  return next !== undefined ? next : rot[0];
 }
 
 function renderLoucaRotation() {
-  const el = document.getElementById('louça-rotation-list');
+  const el = document.getElementById('louça-main-panel');
   const sel = document.getElementById('louça-add-select');
   if (!el) return;
   const rot = App.loucaRotation || [];
@@ -4916,35 +4922,73 @@ function renderLoucaRotation() {
   }
 
   if (!rot.length) {
-    el.innerHTML = '<div style="color:#334155;font-size:.76rem;padding:6px 2px">Nenhum jogador na rotação ainda.</div>';
+    el.innerHTML = '<div style="color:#334155;font-size:.76rem;padding:6px 0 4px">Nenhum jogador na rotação. Adicione abaixo para começar a controlar.</div>';
     return;
   }
 
-  // Compute who is next
-  const lastEntry = [...App.dinnerHistory]
-    .filter(d => d.loucaResponsavel)
-    .sort((a, b) => b.date.localeCompare(a.date))[0];
-  const lastId = lastEntry?.loucaResponsavel;
-  const lastIdx = lastId !== undefined ? rot.indexOf(lastId) : -1;
-  const nextId = rot[(lastIdx + 1) % rot.length];
+  const washedMap = _loucaWashedMapInCycle(null);
+  const washedCount = rot.filter(id => washedMap.has(id)).length;
+  const allWashed = washedCount === rot.length;
+  const nextId = rot.find(id => !washedMap.has(id)) ?? rot[0];
 
-  el.innerHTML = rot.map((id, i) => {
+  const fmtDate = ds => new Date(ds + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'short'});
+
+  const btnStyle = 'background:none;border:none;color:#475569;cursor:pointer;padding:3px 5px;border-radius:6px;font-size:.78rem;font-family:inherit;line-height:1';
+
+  const rows = rot.map((id, i) => {
     const p = findPlayerById(id);
     if (!p) return '';
-    const isNext = id === nextId;
-    const isLast = id === lastId;
-    const btnStyle = 'background:none;border:none;color:#475569;cursor:pointer;padding:3px 6px;border-radius:6px;font-size:.8rem;font-family:inherit;transition:color .15s';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;background:${isNext?'rgba(34,197,94,0.07)':'rgba(255,255,255,0.025)'};border:1px solid ${isNext?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.06)'};margin-bottom:4px">
-      <span style="font-size:.62rem;font-weight:700;color:#334155;min-width:16px;text-align:center">${i+1}</span>
-      <span style="flex:1;font-size:.84rem;color:${isNext?'#f1f5f9':'#94a3b8'};font-weight:${isNext?700:400}">${p.name}
-        ${isNext?'<span style="font-size:.6rem;color:#4ade80;margin-left:4px">← próxima vez</span>':''}
-        ${isLast&&!isNext?'<span style="font-size:.6rem;color:#334155;margin-left:4px">(última vez)</span>':''}
-      </span>
-      <button onclick="moveLoucaUp(${i})" style="${btnStyle}" title="Subir" ${i===0?'disabled':''}><span style="opacity:${i===0?.3:1}">▲</span></button>
-      <button onclick="moveLoucaDown(${i})" style="${btnStyle}" title="Descer" ${i===rot.length-1?'disabled':''}><span style="opacity:${i===rot.length-1?.3:1}">▼</span></button>
+    const washed = washedMap.get(id);
+    const isNext = !washed && id === nextId;
+    let bg, border, nameColor, badge;
+    if (washed) {
+      bg = 'rgba(74,222,128,0.05)'; border = 'rgba(74,222,128,0.13)'; nameColor = '#64748b';
+      badge = `<span style="font-size:.7rem;color:#4ade80;white-space:nowrap">✅ ${fmtDate(washed.date)}</span>`;
+    } else if (isNext) {
+      bg = 'rgba(234,179,8,0.07)'; border = 'rgba(234,179,8,0.22)'; nameColor = '#f1f5f9';
+      badge = `<span style="font-size:.68rem;color:#eab308;font-weight:700;white-space:nowrap">🔜 próxima vez</span>`;
+    } else {
+      bg = 'rgba(255,255,255,0.02)'; border = 'rgba(255,255,255,0.05)'; nameColor = '#475569';
+      badge = `<span style="font-size:.68rem;color:#334155;white-space:nowrap">⬜ aguardando</span>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;background:${bg};border:1px solid ${border};margin-bottom:4px">
+      <span style="font-size:.6rem;font-weight:700;color:#334155;min-width:14px;text-align:center;flex-shrink:0">${i+1}</span>
+      <span style="flex:1;font-size:.84rem;color:${nameColor};font-weight:${isNext?700:400};min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+      ${badge}
+      <button onclick="moveLoucaUp(${i})" style="${btnStyle}" title="Subir" ${i===0?'disabled':''}><span style="opacity:${i===0?.25:1}">▲</span></button>
+      <button onclick="moveLoucaDown(${i})" style="${btnStyle}" title="Descer" ${i===rot.length-1?'disabled':''}><span style="opacity:${i===rot.length-1?.25:1}">▼</span></button>
       <button onclick="removeLoucaRotation(${i})" style="${btnStyle};color:#f87171" title="Remover">✕</button>
     </div>`;
   }).join('');
+
+  const pct = Math.round(washedCount / rot.length * 100);
+  const progressBar = `<div style="height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin:8px 0 12px">
+    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#4ade80,#22c55e);border-radius:2px;transition:width .4s"></div>
+  </div>`;
+
+  const resetBtnColor = allWashed ? '#4ade80' : '#475569';
+  const resetBtnBg    = allWashed ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)';
+  const resetBtnBorder= allWashed ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.1)';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+      <div style="font-size:.75rem;color:#94a3b8">
+        ${allWashed
+          ? '<strong style="color:#4ade80">✅ Todos lavaram</strong> — pronto para reiniciar'
+          : `Ciclo: <strong style="color:#f1f5f9">${washedCount}</strong> de <strong style="color:#f1f5f9">${rot.length}</strong> lavaram`}
+      </div>
+      <button onclick="resetLoucaCycle()" style="background:${resetBtnBg};border:1px solid ${resetBtnBorder};color:${resetBtnColor};cursor:pointer;font-size:.7rem;padding:4px 10px;border-radius:8px;font-family:inherit;white-space:nowrap;font-weight:${allWashed?700:400}">↺ Reiniciar</button>
+    </div>
+    ${progressBar}
+    ${rows}
+  `;
+}
+
+function resetLoucaCycle() {
+  if (!confirm('Reiniciar o ciclo de louça? A contagem de quem lavou recomeça do zero. O histórico anterior é mantido.')) return;
+  App.loucaCycleStart = new Date().toISOString().split('T')[0];
+  renderLoucaRotation();
+  scheduleSync();
 }
 
 function addToLoucaRotation() {
@@ -5591,6 +5635,7 @@ function getAppSnapshot() {
     recurringExpenses: App.recurringExpenses,
     lockedRodadas:     App.lockedRodadas,
     loucaRotation:     App.loucaRotation,
+    loucaCycleStart:   App.loucaCycleStart,
     config:            App.config,
   });
 }
@@ -5608,6 +5653,7 @@ function restoreAppSnapshot(data) {
   if (data.recurringExpenses) App.recurringExpenses = data.recurringExpenses;
   if (data.lockedRodadas)     App.lockedRodadas     = data.lockedRodadas;
   if (data.loucaRotation)     App.loucaRotation     = data.loucaRotation;
+  if (data.loucaCycleStart !== undefined) App.loucaCycleStart = data.loucaCycleStart;
   if (data.config)            App.config            = data.config;
 }
 
