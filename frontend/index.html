@@ -587,7 +587,14 @@
       <span style="font-size:.75rem;color:#475569">até</span>
       <input type="date" id="lanc-date-to" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
     </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.66rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;margin-right:2px">Status:</span>
+      <button class="hist-filter-btn lanc-status-btn active" data-status="pendente" onclick="setLancStatus('pendente')">⏳ Pendentes</button>
+      <button class="hist-filter-btn lanc-status-btn"        data-status="pago"     onclick="setLancStatus('pago')">✓ Pagos / Recebidos</button>
+      <button class="hist-filter-btn lanc-status-btn"        data-status="all"      onclick="setLancStatus('all')">Todos</button>
+    </div>
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:.66rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;margin-right:2px">Tipo:</span>
       <button class="hist-filter-btn lanc-badge-btn active" data-badge="all"         onclick="setLancBadge('all')">Todos</button>
       <button class="hist-filter-btn lanc-badge-btn"        data-badge="mensalidade" onclick="setLancBadge('mensalidade')">📆 Mensal</button>
       <button class="hist-filter-btn lanc-badge-btn"        data-badge="avulso"      onclick="setLancBadge('avulso')">💵 Avulso</button>
@@ -692,7 +699,7 @@
     <!-- Recebimentos pendentes -->
     <div id="section-receber-wrap" style="margin-bottom:20px">
       <div style="font-size:.66rem;font-weight:700;color:#4ade80;letter-spacing:.08em;text-transform:uppercase;padding:0 0 8px;border-bottom:1px solid rgba(34,197,94,0.15);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-        <span>📥 Recebimentos Pendentes</span>
+        <span id="receber-title">📥 Recebimentos Pendentes</span>
         <span style="color:#475569;font-weight:600;text-transform:none;letter-spacing:0"><span id="receber-count">0</span> título(s) · <strong style="color:#fbbf24" id="receber-total">R$ 0,00</strong></span>
       </div>
       <div id="list-receber-pend"></div>
@@ -701,7 +708,7 @@
     <!-- A pagar pendentes -->
     <div id="section-pagar-wrap" style="margin-bottom:20px">
       <div style="font-size:.66rem;font-weight:700;color:#f87171;letter-spacing:.08em;text-transform:uppercase;padding:0 0 8px;border-bottom:1px solid rgba(248,113,113,0.15);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
-        <span>📤 A Pagar Pendentes</span>
+        <span id="pagar-title">📤 A Pagar Pendentes</span>
         <span style="color:#475569;font-weight:600;text-transform:none;letter-spacing:0"><span id="pagar-count">0</span> título(s) · <strong style="color:#f87171" id="pagar-total">R$ 0,00</strong></span>
       </div>
       <div id="list-pagar-pend"></div>
@@ -2774,7 +2781,7 @@ const LANC_BADGE_HTML = {
   contribuicao:'<span class="badge" style="background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.28);color:#4ade80">💚 Contribuição</span>',
   despesa:     '<span class="badge" style="background:rgba(96,165,250,0.13);border:1px solid rgba(96,165,250,0.28);color:#60a5fa">📋 Despesa</span>',
 };
-let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all' };
+let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all', status:'pendente' };
 let lancSel = new Map();      // key -> amount
 let _lancItemMap = {};        // key -> item (rebuilt each render)
 
@@ -2818,32 +2825,38 @@ function buildReceberItems() {
         if (rem >= c.amount) { pend = 0; rem -= c.amount; } else { pend = c.amount - rem; rem = 0; }
         if (pend > 0.001) {
           items.push({
-            key:`fee-${p.id}-${i}`, group:'receber', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
+            key:`fee-${p.id}-${i}`, group:'receber', status:'pendente', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
             name:p.name, apelido:p.apelido, desc:`${c.label} · ${c.sub}`, date:c.date, amount:pend,
             settle:{ type:'fee', playerId:p.id, ptype:p.isRegular?'Mensalidade':'Jogo Avulso' }
+          });
+        } else {
+          items.push({
+            key:`feepg-${p.id}-${i}`, group:'receber', status:'pago', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
+            name:p.name, apelido:p.apelido, desc:`${c.label} · ${c.sub}`, date:c.date, amount:c.amount
           });
         }
       });
     }
-    // Tira gosto — 1 linha por evento não pago
+    // Tira gosto — 1 linha por evento (pendente ou recebido)
     (App.dinnerHistory || []).forEach((ev, idx) => {
-      if (ev.participants.includes(p.id) && !ev.paidBy.includes(p.id) && ev.share > 0) {
+      if (ev.participants.includes(p.id) && ev.share > 0) {
+        const pago = ev.paidBy.includes(p.id);
         items.push({
-          key:`din-${p.id}-${idx}`, group:'receber', badge:'tiragosto', icon:'🍽️',
+          key:`${pago?'dinpg':'din'}-${p.id}-${idx}`, group:'receber', status:pago?'pago':'pendente', badge:'tiragosto', icon:'🍽️',
           name:p.name, apelido:p.apelido, desc:`Tira Gosto · ${fmtBR(ev.date)}${ev.opponent?' · vs '+ev.opponent:''}`, date:ev.date, amount:ev.share,
-          settle:{ type:'dinner', playerId:p.id, eventIdx:idx }
+          settle: pago ? undefined : { type:'dinner', playerId:p.id, eventIdx:idx }
         });
       }
     });
   });
   // Lançamentos manuais (jogador cadastrado ou convidado)
-  (App.lancamentos || []).filter(l => !l.paid).forEach(l => {
+  (App.lancamentos || []).forEach(l => {
     const badge = l.type==='Mensalidade'?'mensalidade':l.type==='Jogo Avulso'?'avulso':l.type==='Tira Gosto'?'tiragosto':'contribuicao';
     const icon  = badge==='mensalidade'?'📆':badge==='avulso'?'💵':badge==='tiragosto'?'🍽️':'💚';
     items.push({
-      key:`lan-${l.id}`, group:'receber', badge, icon,
+      key:`lan-${l.id}`, group:'receber', status:l.paid?'pago':'pendente', badge, icon,
       name:l.name, apelido:(l.playerId==null?'convidado':''), desc:`${l.type} · ${fmtBR(l.date)}${l.notes?' · '+l.notes:''}`, date:l.date, amount:l.amount,
-      settle:{ type:'manual', lancId:l.id }
+      paidDate:l.paidDate, settle: l.paid ? undefined : { type:'manual', lancId:l.id }
     });
   });
   return items;
@@ -2853,16 +2866,16 @@ function buildReceberItems() {
 function buildPagarItems() {
   const items = [];
   const curMonth = new Date().toISOString().slice(0,7);
-  (App.expenses || []).filter(e => !e.paid).forEach(e => {
+  (App.expenses || []).forEach(e => {
     items.push({
-      key:`exp-${e.id}`, group:'pagar', badge:'despesa', icon:LANC_CAT_ICON[e.category]||'📌',
-      name:e.description, apelido:'', desc:`${e.category} · ${e.date?fmtBR(e.date):'sem data'}${e.notes?' · '+e.notes:''}`, date:e.date||'', amount:e.amount,
-      settle:{ type:'expense', expId:e.id }
+      key:`exp-${e.id}`, group:'pagar', status:e.paid?'pago':'pendente', badge:'despesa', icon:LANC_CAT_ICON[e.category]||'📌',
+      name:e.description, apelido:e.recurringRef?'recorrente':'', desc:`${e.category} · ${e.date?fmtBR(e.date):'sem data'}${e.notes?' · '+e.notes:''}`, date:e.date||'', amount:e.amount,
+      paidDate:e.paidDate, settle: e.paid ? undefined : { type:'expense', expId:e.id }
     });
   });
   (App.recurringExpenses || []).filter(r => r.active && r.lastPaidMonth !== curMonth).forEach(r => {
     items.push({
-      key:`rec-${r.id}`, group:'pagar', badge:'despesa', icon:LANC_CAT_ICON[r.category]||'📌',
+      key:`rec-${r.id}`, group:'pagar', status:'pendente', badge:'despesa', icon:LANC_CAT_ICON[r.category]||'📌',
       name:r.description, apelido:'recorrente', desc:`${r.category} · 🔁 Recorrente · ${monthLabelBR(curMonth)}`, date:curMonth+'-01', amount:r.amount,
       settle:{ type:'recurring', recId:r.id }
     });
@@ -2879,16 +2892,37 @@ function lancPasses(it) {
   if (f.dateFrom && it.date && it.date < f.dateFrom) return false;
   if (f.dateTo && it.date && it.date > f.dateTo) return false;
   if (f.badge && f.badge !== 'all' && it.badge !== f.badge) return false;
+  if (f.status && f.status !== 'all' && it.status !== f.status) return false;
   return true;
 }
 
 function lancItemRow(it) {
-  const checked = lancSel.has(it.key);
   const displayName = it.apelido
     ? `${it.name} <span style="color:#64748b;font-weight:400;font-size:.72rem">(${it.apelido})</span>`
     : it.name;
   const accent = it.group === 'receber' ? '#4ade80' : '#f87171';
   const sign   = it.group === 'receber' ? '' : '−';
+
+  if (it.status === 'pago') {
+    const pillTxt = it.group === 'receber' ? '✓ Recebido' : '✓ Pago';
+    const pillDate = it.paidDate ? ' · ' + fmtBR(it.paidDate) : '';
+    return `<div class="lanc-row" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:6px;border-radius:11px;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.05);opacity:.78">
+      <div style="font-size:1.25rem;line-height:1;flex-shrink:0;filter:grayscale(.3)">${it.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <span style="font-weight:700;font-size:.84rem;color:#cbd5e1">${displayName}</span>
+          ${LANC_BADGE_HTML[it.badge]||''}
+        </div>
+        <div style="font-size:.68rem;color:#475569;margin-top:2px">${it.desc}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+        <span style="font-weight:800;font-size:.92rem;color:${accent}">${sign}R$ ${it.amount.toFixed(2)}</span>
+        <span style="padding:3px 9px;font-size:.66rem;border-radius:7px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.22);color:#4ade80;font-weight:600;white-space:nowrap">${pillTxt}${pillDate}</span>
+      </div>
+    </div>`;
+  }
+
+  const checked = lancSel.has(it.key);
   return `<div class="lanc-row" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:6px;border-radius:11px;background:${checked?'rgba(34,197,94,0.07)':'rgba(255,255,255,0.025)'};border:1px solid ${checked?'rgba(34,197,94,0.3)':'rgba(255,255,255,0.06)'};transition:.12s">
     <input type="checkbox" ${checked?'checked':''} onchange="toggleItemSel('${it.key}')" style="width:17px;height:17px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
     <div style="font-size:1.25rem;line-height:1;flex-shrink:0">${it.icon}</div>
@@ -2911,34 +2945,46 @@ function renderLancamentos() {
   if (!recList) return; // aba não montada
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
-  const receber = buildReceberItems().filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
-  const pagar   = buildPagarItems().filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const allReceber = buildReceberItems();
+  const allPagar   = buildPagarItems();
+  const receber = allReceber.filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const pagar   = allPagar.filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
 
-  // mapa para seleção / quitação
+  // mapa para seleção / quitação (somente itens exibidos e pendentes têm settle)
   _lancItemMap = {};
   [...receber, ...pagar].forEach(it => { _lancItemMap[it.key] = it; });
-  // limpa seleções de itens que não existem mais
+  // limpa seleções de itens que não existem mais na lista atual
   [...lancSel.keys()].forEach(k => { if (!_lancItemMap[k]) lancSel.delete(k); });
 
+  // Cards de pendência refletem SEMPRE o total em aberto (independe do filtro de status)
+  const totPendReceber = allReceber.filter(it => it.status === 'pendente').reduce((s,it) => s + it.amount, 0);
+  const totPendPagar   = allPagar.filter(it => it.status === 'pendente').reduce((s,it) => s + it.amount, 0);
+  const caixa = getCaixaTotal();
+  set('fin-caixa',        `R$ ${caixa.toFixed(2)}`);
+  set('fin-pend-receber', `R$ ${totPendReceber.toFixed(2)}`);
+  set('fin-pend-pagar',   `R$ ${totPendPagar.toFixed(2)}`);
+  set('fin-projetado',    `R$ ${(caixa + totPendReceber - totPendPagar).toFixed(2)}`);
+
+  // Cabeçalhos das seções refletem a lista exibida (após filtros)
   const totReceber = receber.reduce((s,it) => s + it.amount, 0);
   const totPagar   = pagar.reduce((s,it) => s + it.amount, 0);
-  const caixa      = getCaixaTotal();
-  set('fin-caixa',        `R$ ${caixa.toFixed(2)}`);
-  set('fin-pend-receber', `R$ ${totReceber.toFixed(2)}`);
-  set('fin-pend-pagar',   `R$ ${totPagar.toFixed(2)}`);
-  set('fin-projetado',    `R$ ${(caixa + totReceber - totPagar).toFixed(2)}`);
   set('receber-count', receber.length);
   set('receber-total', `R$ ${totReceber.toFixed(2)}`);
   set('pagar-count', pagar.length);
   set('pagar-total', `R$ ${totPagar.toFixed(2)}`);
+  const recSuf = lancFilter.status === 'pago' ? 'Recebidos' : lancFilter.status === 'all' ? '(todos)' : 'Pendentes';
+  const pagSuf = lancFilter.status === 'pago' ? 'Pagos' : lancFilter.status === 'all' ? '(todos)' : 'Pendentes';
+  set('receber-title', `📥 Recebimentos ${recSuf}`);
+  set('pagar-title',   `📤 A Pagar ${pagSuf}`);
 
+  const emptyTxt = lancFilter.status === 'pago' ? 'Nenhum registro' : lancFilter.status === 'all' ? 'Nenhum registro' : 'Nenhum pendente';
   recList.innerHTML = receber.length
     ? receber.map(lancItemRow).join('')
-    : '<div class="empty-state" style="padding:26px;font-size:.8rem">Nenhum recebimento pendente 🎉</div>';
+    : `<div class="empty-state" style="padding:26px;font-size:.8rem">${emptyTxt} 🎉</div>`;
   const pagList = document.getElementById('list-pagar-pend');
   if (pagList) pagList.innerHTML = pagar.length
     ? pagar.map(lancItemRow).join('')
-    : '<div class="empty-state" style="padding:26px;font-size:.8rem">Nenhuma conta a pagar pendente 🎉</div>';
+    : `<div class="empty-state" style="padding:26px;font-size:.8rem">${emptyTxt} 🎉</div>`;
 
   updateBulkBar();
   updateFinHeaderBalance();
@@ -3051,6 +3097,12 @@ function setLancBadge(b) {
   document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === b));
   renderLancamentos();
 }
+function setLancStatus(s) {
+  lancFilter.status = s;
+  document.querySelectorAll('.lanc-status-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.status === s));
+  lancSel.clear();
+  renderLancamentos();
+}
 function applyLancFilter() {
   const g = id => (document.getElementById(id)?.value || '').trim();
   lancFilter.search   = g('lanc-search');
@@ -3059,9 +3111,10 @@ function applyLancFilter() {
   renderLancamentos();
 }
 function clearLancFilter() {
-  lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all' };
+  lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all', status: 'pendente' };
   ['lanc-search','lanc-date-from','lanc-date-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === 'all'));
+  document.querySelectorAll('.lanc-status-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.status === 'pendente'));
   renderLancamentos();
 }
 
