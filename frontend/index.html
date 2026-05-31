@@ -278,6 +278,10 @@
     .field-group{display:flex;flex-direction:column;gap:5px}
     .hidden{display:none!important}
     .empty-state{color:#334155;font-size:.83rem;text-align:center;padding:22px}
+    .drag-chip{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;cursor:grab}
+    .drag-chip:active{cursor:grabbing}
+    .team-drop-zone{transition:background .15s,border-color .15s}
+    .team-drop-zone.zone-hot{background:rgba(74,222,128,0.12)!important;border-color:#4ade80!important;border-style:solid!important}
 
     /* ─ LOGIN SCREEN ─ */
     #login-screen{position:fixed;inset:0;z-index:200;background:var(--bg);background-image:radial-gradient(ellipse 90% 55% at 50% -5%,rgba(22,163,74,0.13) 0%,transparent 65%),radial-gradient(ellipse 55% 40% at 90% 90%,rgba(59,130,246,0.07) 0%,transparent 60%);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:14px 14px 40px}
@@ -3920,57 +3924,125 @@ function rodMovePlayer(playerId, target) {
   autoSaveTeams();
 }
 
+// Drag-and-drop por toque (press-and-hold) para mover jogadores entre times.
+function _initTeamDrag() {
+  const wrap = document.getElementById('rod-drag-wrap');
+  if (!wrap) return;
+  const HOLD_MS = 180, MOVE_CANCEL = 12;
+
+  const zoneAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const z = el && el.closest('.team-drop-zone');
+    return z ? z.getAttribute('data-zone') : null;
+  };
+  const clearHot = () => wrap.querySelectorAll('.team-drop-zone').forEach(z => z.classList.remove('zone-hot'));
+  const highlight = (x, y) => {
+    clearHot();
+    const zn = zoneAt(x, y);
+    if (zn) { const z = wrap.querySelector('.team-drop-zone[data-zone="' + zn + '"]'); if (z) z.classList.add('zone-hot'); }
+  };
+
+  wrap.querySelectorAll('.drag-chip').forEach(chip => {
+    chip.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const startX = e.clientX, startY = e.clientY;
+      let drag = null;
+      let holdTimer = setTimeout(begin, HOLD_MS);
+
+      function begin() {
+        holdTimer = null;
+        const rect = chip.getBoundingClientRect();
+        const clone = chip.cloneNode(true);
+        Object.assign(clone.style, {
+          position: 'fixed', left: rect.left + 'px', top: rect.top + 'px',
+          width: rect.width + 'px', margin: '0', zIndex: '9999', pointerEvents: 'none',
+          opacity: '0.96', transform: 'scale(1.05)', boxShadow: '0 10px 28px rgba(0,0,0,0.55)'
+        });
+        document.body.appendChild(clone);
+        chip.style.opacity = '0.25';
+        drag = { pid: parseInt(chip.getAttribute('data-pid')), clone, dx: startX - rect.left, dy: startY - rect.top };
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (_) {} }
+      }
+      function move(ev) {
+        if (!drag) {
+          if (holdTimer && (Math.abs(ev.clientX - startX) > MOVE_CANCEL || Math.abs(ev.clientY - startY) > MOVE_CANCEL)) {
+            clearTimeout(holdTimer); holdTimer = null; cleanup();
+          }
+          return;
+        }
+        ev.preventDefault();
+        drag.clone.style.left = (ev.clientX - drag.dx) + 'px';
+        drag.clone.style.top  = (ev.clientY - drag.dy) + 'px';
+        highlight(ev.clientX, ev.clientY);
+      }
+      function up(ev) {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+        const wasDragging = !!drag;
+        let zone = null, pid = null;
+        if (drag) {
+          zone = zoneAt(ev.clientX, ev.clientY);
+          pid = drag.pid;
+          drag.clone.remove();
+          chip.style.opacity = '';
+          clearHot();
+          drag = null;
+        }
+        cleanup();
+        if (wasDragging && zone) rodMovePlayer(pid, zone);
+      }
+      function cleanup() {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', up);
+      }
+      document.addEventListener('pointermove', move, { passive: false });
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+    });
+  });
+}
+
 function renderRodadaTeams() {
   const el = document.getElementById('rod-teams-output'); if (!el) return;
   const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
 
-  // ── MODO EDIÇÃO MANUAL ──────────────────────────────────────
+  // ── MODO EDIÇÃO MANUAL (arrastar e soltar) ──────────────────
   if (rodState.teamsEditMode) {
-    const allConfirmed = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    // No modo de arraste não há slot fixo de reserva: quem não está em um
+    // time fica na coluna de confirmados (banco).
+    if (rodState.rodTeams.homeReserve || rodState.rodTeams.awayReserve) {
+      rodState.rodTeams.homeReserve = null;
+      rodState.rodTeams.awayReserve = null;
+    }
     const homeSet = new Set(home.map(p => p.id));
     const awaySet = new Set(away.map(p => p.id));
-    const resSet  = new Set([homeReserve?.id, awayReserve?.id].filter(Boolean));
-    const getAsgn = id => homeSet.has(id) ? 'home' : awaySet.has(id) ? 'away' : resSet.has(id) ? 'res' : 'none';
+    const pool = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean)
+      .filter(p => !homeSet.has(p.id) && !awaySet.has(p.id));
+    const byPos = arr => [...arr].sort((a,b) =>
+      (POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4) || a.name.localeCompare(b.name,'pt-BR'));
 
-    const aBtn = (label, playerId, target, active, color, bg) =>
-      `<button onclick="rodMovePlayer(${playerId},'${target}')" style="padding:5px 11px;border-radius:7px;cursor:pointer;font-size:.73rem;font-family:inherit;font-weight:${active?700:400};background:${active?bg:'rgba(255,255,255,0.04)'};border:1px solid ${active?color:'rgba(255,255,255,0.08)'};color:${active?color:'#475569'}">${label}</button>`;
-
-    const noneBtn = (id, active) =>
-      `<button onclick="rodMovePlayer(${id},'none')" title="Remover dos times" style="padding:5px 8px;border-radius:7px;cursor:pointer;font-size:.7rem;font-family:inherit;background:${active?'rgba(248,113,113,0.1)':'rgba(255,255,255,0.04)'};border:1px solid ${active?'rgba(248,113,113,0.3)':'rgba(255,255,255,0.08)'};color:${active?'#f87171':'#334155'}">—</button>`;
-
-    const rows = allConfirmed.map(p => {
-      const asgn = getAsgn(p.id);
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-        <div style="flex:1;min-width:0">
-          <span style="font-size:.86rem;color:#e2e8f0;font-weight:500">${p.name}</span>
-          <span style="font-size:.6rem;color:#475569;margin-left:5px">${p.overall}</span>
-        </div>
-        <div style="display:flex;gap:4px;flex-shrink:0">
-          ${aBtn('⬛🟡', p.id, 'home', asgn==='home', '#eab308', 'rgba(234,179,8,0.15)')}
-          ${aBtn('🔵',   p.id, 'away', asgn==='away', '#60a5fa', 'rgba(96,165,250,0.15)')}
-          ${aBtn('Res',  p.id, 'res',  asgn==='res',  '#94a3b8', 'rgba(148,163,184,0.12)')}
-          ${noneBtn(p.id, asgn==='none')}
-        </div>
+    const chip = p => `<div class="drag-chip" data-pid="${p.id}" style="display:flex;align-items:center;gap:5px;padding:8px 7px;margin-bottom:5px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:9px">
+        <span style="font-size:.52rem;font-weight:800;color:${POS_COLOR[p.position]};flex-shrink:0;width:24px">${p.position.slice(0,3).toUpperCase()}</span>
+        <span style="font-size:.74rem;color:#e2e8f0;font-weight:500;flex:1;min-width:0;line-height:1.15;word-break:break-word">${p.name}</span>
+        <span style="font-size:.58rem;color:#64748b;font-weight:700;flex-shrink:0">${p.overall}</span>
       </div>`;
-    }).join('');
 
-    const resInfo = [homeReserve ? `Res.P: ${homeReserve.name}` : '', awayReserve ? `Res.A: ${awayReserve.name}` : ''].filter(Boolean).join(' · ');
+    const zone = (key, title, color, players) => `<div class="team-drop-zone" data-zone="${key}" style="background:rgba(255,255,255,0.02);border:1.5px dashed ${color}66;border-radius:12px;padding:8px 6px;min-height:120px">
+        <div style="font-size:.6rem;font-weight:800;color:${color};text-transform:uppercase;letter-spacing:.02em;text-align:center;margin-bottom:8px;line-height:1.2">${title}<div style="font-size:.9rem;margin-top:1px">${players.length}</div></div>
+        ${players.map(chip).join('') || '<div style="text-align:center;color:#334155;font-size:.6rem;padding:14px 2px">solte aqui</div>'}
+      </div>`;
+
     el.innerHTML = `
-      <div style="font-size:.7rem;color:#60a5fa;margin-bottom:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
-        <span>✏️ Toque para mover cada jogador de time</span>
+      <div style="font-size:.7rem;color:#60a5fa;margin-bottom:10px;font-weight:600;text-align:center">✋ Segure um jogador e arraste para o time desejado</div>
+      <div id="rod-drag-wrap" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;align-items:start">
+        ${zone('home', '⬛🟡 Preto/Amarelo', '#eab308', byPos(home))}
+        ${zone('away', '🔵 Azul', '#60a5fa', byPos(away))}
+        ${zone('none', '👥 Confirmados', '#94a3b8', byPos(pool))}
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;font-size:.63rem;color:#475569;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">
-        <span style="width:46px;text-align:center">⬛🟡</span>
-        <span style="width:36px;text-align:center">🔵</span>
-        <span style="width:36px;text-align:center">Res</span>
-        <span style="width:28px;text-align:center">—</span>
-      </div>
-      ${rows}
       <div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border-radius:9px;font-size:.69rem;color:#64748b">
-        T. Preto: <strong style="color:#eab308">${home.length}</strong> · T. Azul: <strong style="color:#60a5fa">${away.length}</strong>${resInfo ? ` · ${resInfo}` : ''}
-        ${allConfirmed.filter(p=>getAsgn(p.id)==='none').length ? ` · <span style="color:#f87171">Sem time: ${allConfirmed.filter(p=>getAsgn(p.id)==='none').length}</span>` : ''}
+        Preto: <strong style="color:#eab308">${home.length}</strong> · Azul: <strong style="color:#60a5fa">${away.length}</strong>${pool.length?` · <span style="color:#94a3b8">Banco: ${pool.length}</span>`:''}
       </div>`;
+    _initTeamDrag();
     return;
   }
   // ── FIM MODO EDIÇÃO ─────────────────────────────────────────
