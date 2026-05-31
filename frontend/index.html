@@ -2286,7 +2286,10 @@ function showFinanceTab(tab) {
     if (btn) btn.classList.toggle('active', t === tab);
   });
   updateFinHeaderBalance();
-  if (tab === 'lancamentos') renderLancamentos();
+  if (tab === 'lancamentos') {
+    if (!_lancDatesInit) { applyDefaultLancDates(); _lancDatesInit = true; }
+    renderLancamentos();
+  }
   if (tab === 'fechamento') renderFechamentoMensal();
   if (tab === 'config') {
     renderFinancialStatus(); renderPaymentSelect();
@@ -2782,6 +2785,19 @@ const LANC_BADGE_HTML = {
   despesa:     '<span class="badge" style="background:rgba(96,165,250,0.13);border:1px solid rgba(96,165,250,0.28);color:#60a5fa">📋 Despesa</span>',
 };
 let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all', status:'pendente' };
+let _lancDatesInit = false;
+// Período padrão do filtro: do dia de hoje ao último dia do mês vigente.
+function _defaultLancDates() {
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const now = new Date();
+  return { from: fmt(now), to: fmt(new Date(now.getFullYear(), now.getMonth()+1, 0)) };
+}
+function applyDefaultLancDates() {
+  const { from, to } = _defaultLancDates();
+  lancFilter.dateFrom = from; lancFilter.dateTo = to;
+  const f = document.getElementById('lanc-date-from'); if (f) f.value = from;
+  const t = document.getElementById('lanc-date-to');   if (t) t.value = to;
+}
 let lancSel = new Map();      // key -> amount
 let _lancItemMap = {};        // key -> item (rebuilt each render)
 
@@ -3126,7 +3142,8 @@ function applyLancFilter() {
 }
 function clearLancFilter() {
   lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all', status: 'pendente' };
-  ['lanc-search','lanc-date-from','lanc-date-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const s = document.getElementById('lanc-search'); if (s) s.value = '';
+  applyDefaultLancDates();
   document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === 'all'));
   document.querySelectorAll('.lanc-status-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.status === 'pendente'));
   renderLancamentos();
@@ -3277,12 +3294,22 @@ function confirmMensalistas() {
 // ═══════════════════════════════════════════════════════
 //  QUICK PAY
 // ═══════════════════════════════════════════════════════
+// Marca todas as mensalidades em aberto de um mensalista como pagas.
+function _markRegularChargesPaid(p, today) {
+  if (!p.isRegular) return;
+  App.chargeHistory.forEach(ch => {
+    const c = ch.charges.find(x => x.playerId === p.id);
+    if (c && !c.paid) { c.paid = true; c.paidDate = today; }
+  });
+}
+
 function quickPayFee(playerId) {
   const p = findPlayerById(playerId); if (!p) return;
   const fp = getFeePending(p); if (fp <= 0) return;
   const today = new Date().toISOString().split('T')[0];
   p.payments.push({ type: p.isRegular ? 'Mensalidade' : 'Jogo Avulso', amount: fp, date: today });
   p.balance += fp;
+  _markRegularChargesPaid(p, today);
   _afterPay();
 }
 
@@ -3306,7 +3333,7 @@ function quickPayAll(playerId) {
   const today = new Date().toISOString().split('T')[0];
   const fp = getFeePending(p);
   const dp = getDinnerPending(p);
-  if (fp > 0) { p.payments.push({ type: p.isRegular ? 'Mensalidade' : 'Jogo Avulso', amount: fp, date: today }); p.balance += fp; }
+  if (fp > 0) { p.payments.push({ type: p.isRegular ? 'Mensalidade' : 'Jogo Avulso', amount: fp, date: today }); p.balance += fp; _markRegularChargesPaid(p, today); }
   if (dp > 0) {
     App.dinnerHistory.filter(ev => ev.participants.includes(playerId) && !ev.paidBy.includes(playerId)).forEach(ev => ev.paidBy.push(playerId));
     p.payments.push({ type: 'Tira Gosto', amount: dp, date: today });
