@@ -604,8 +604,9 @@
       <button onclick="clearLancFilter()" style="padding:6px 11px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);color:#475569;cursor:pointer;font-family:inherit;font-size:.79rem">✕ Limpar</button>
     </div>
 
-    <!-- Botão novo lançamento -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <!-- Botões de ação -->
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button onclick="openMensalistasModal()" class="btn-secondary" id="lanc-mensalistas-btn" style="padding:7px 18px;font-size:.83rem">👥 Mensalistas</button>
       <button onclick="toggleLancForm()" class="btn-primary" id="lanc-toggle-btn" style="padding:7px 18px;font-size:.83rem">➕ Novo Lançamento</button>
     </div>
 
@@ -749,7 +750,7 @@
       <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px">
         <div style="font-size:.75rem;font-weight:700;color:#94a3b8;margin-bottom:8px">📋 Histórico de Cobranças Mensais</div>
         <div id="charge-history-list" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
-        <button onclick="autoGenerateMonthlyCharges();renderChargeHistory();scheduleSync()" class="btn-secondary" style="margin-top:10px;font-size:.75rem">🔄 Gerar Cobrança do Mês Atual</button>
+        <div style="margin-top:10px;font-size:.7rem;color:#475569">Para gerar mensalidades use o botão <strong style="color:#94a3b8">👥 Mensalistas</strong> na aba Lançamentos.</div>
       </div>
     </div>
     <div class="grid-2">
@@ -1238,16 +1239,15 @@ function playerTypeBadges(p, small) {
 function getAttendanceCount(id) { return App.attendances.filter(a => a.players.includes(id)).length; }
 function getFeePending(p) {
   if (p.isIsento || p.position === 'Goleiro') return 0;
-  const paid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s, x) => s + x.amount, 0);
-  let owed;
   if (p.isRegular) {
-    owed = App.chargeHistory.reduce((s, ch) => {
+    // mensalidades: soma das cobranças ainda não quitadas (status por cobrança)
+    return App.chargeHistory.reduce((s, ch) => {
       const c = ch.charges.find(x => x.playerId === p.id);
-      return s + (c ? c.amount : 0);
+      return s + (c && !c.paid ? c.amount : 0);
     }, 0);
-  } else {
-    owed = getAttendanceCount(p.id) * p.monthlyFee;
   }
+  const paid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s, x) => s + x.amount, 0);
+  const owed = getAttendanceCount(p.id) * p.monthlyFee;
   return Math.max(0, owed - paid);
 }
 
@@ -1270,7 +1270,7 @@ function autoGenerateMonthlyCharges() {
   if (App.chargeHistory.find(c => c.month === monthStr)) return;
   const mensalistas = App.players.filter(p => p.isRegular && !p.isIsento && p.position !== 'Goleiro');
   if (!mensalistas.length) return;
-  const charges = mensalistas.map(p => ({ playerId: p.id, amount: p.monthlyFee }));
+  const charges = mensalistas.map(p => ({ playerId: p.id, amount: p.monthlyFee, paid: false, paidDate: null }));
   App.chargeHistory.push({ month: monthStr, date: today.toISOString().split('T')[0], charges });
   scheduleSync();
   console.log(`[mensalidade] Cobranças geradas para ${charges.length} mensalistas — ${monthStr}`);
@@ -2806,36 +2806,43 @@ function buildReceberItems() {
   App.players.forEach(p => {
     const skipFee = p.isIsento || p.position === 'Goleiro';
     if (!skipFee) {
-      const feePaid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s,x) => s + x.amount, 0);
-      let charges = [];
       if (p.isRegular) {
+        // Mensalidades: cada cobrança tem seu próprio status (paid)
         App.chargeHistory.forEach(ch => {
           const c = ch.charges.find(x => x.playerId === p.id);
-          if (c) charges.push({ badge:'mensalidade', label:'Mensalidade', sub:monthLabelBR(ch.month), date:ch.date || (ch.month + '-01'), amount:c.amount });
+          if (!c) return;
+          const date = ch.date || (ch.month + '-01');
+          const pago = !!c.paid;
+          items.push({
+            key:`feem-${p.id}-${ch.month}`, group:'receber', status:pago?'pago':'pendente', badge:'mensalidade', icon:'📆',
+            name:p.name, apelido:p.apelido, desc:`Mensalidade · ${monthLabelBR(ch.month)}`, date, amount:c.amount,
+            paidDate:c.paidDate, settle: pago ? undefined : { type:'feecharge', playerId:p.id, month:ch.month }
+          });
         });
       } else {
-        App.attendances.filter(a => a.players.includes(p.id)).forEach(a => {
-          charges.push({ badge:'avulso', label:'Jogo Avulso', sub:fmtBR(a.date), date:a.date, amount:p.monthlyFee });
+        // Avulso: 1 linha por jogo (alocação FIFO dos pagamentos)
+        const feePaid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s,x) => s + x.amount, 0);
+        const charges = App.attendances.filter(a => a.players.includes(p.id))
+          .map(a => ({ sub:fmtBR(a.date), date:a.date, amount:p.monthlyFee }))
+          .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+        let rem = feePaid;
+        charges.forEach((c, i) => {
+          let pend = c.amount;
+          if (rem >= c.amount) { pend = 0; rem -= c.amount; } else { pend = c.amount - rem; rem = 0; }
+          if (pend > 0.001) {
+            items.push({
+              key:`fee-${p.id}-${i}`, group:'receber', status:'pendente', badge:'avulso', icon:'💵',
+              name:p.name, apelido:p.apelido, desc:`Jogo Avulso · ${c.sub}`, date:c.date, amount:pend,
+              settle:{ type:'fee', playerId:p.id, ptype:'Jogo Avulso' }
+            });
+          } else {
+            items.push({
+              key:`feepg-${p.id}-${i}`, group:'receber', status:'pago', badge:'avulso', icon:'💵',
+              name:p.name, apelido:p.apelido, desc:`Jogo Avulso · ${c.sub}`, date:c.date, amount:c.amount
+            });
+          }
         });
       }
-      charges.sort((a,b) => (a.date||'').localeCompare(b.date||''));
-      let rem = feePaid;
-      charges.forEach((c, i) => {
-        let pend = c.amount;
-        if (rem >= c.amount) { pend = 0; rem -= c.amount; } else { pend = c.amount - rem; rem = 0; }
-        if (pend > 0.001) {
-          items.push({
-            key:`fee-${p.id}-${i}`, group:'receber', status:'pendente', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
-            name:p.name, apelido:p.apelido, desc:`${c.label} · ${c.sub}`, date:c.date, amount:pend,
-            settle:{ type:'fee', playerId:p.id, ptype:p.isRegular?'Mensalidade':'Jogo Avulso' }
-          });
-        } else {
-          items.push({
-            key:`feepg-${p.id}-${i}`, group:'receber', status:'pago', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
-            name:p.name, apelido:p.apelido, desc:`${c.label} · ${c.sub}`, date:c.date, amount:c.amount
-          });
-        }
-      });
     }
     // Tira gosto — 1 linha por evento (pendente ou recebido)
     (App.dinnerHistory || []).forEach((ev, idx) => {
@@ -3044,6 +3051,13 @@ function settleItem(it) {
     const p = findPlayerById(s.playerId); if (!p) return;
     p.payments.push({ type: s.ptype, amount: it.amount, date: today });
     p.balance += it.amount;
+  } else if (s.type === 'feecharge') {
+    const p = findPlayerById(s.playerId); if (!p) return;
+    const ch = App.chargeHistory.find(c => c.month === s.month); if (!ch) return;
+    const c = ch.charges.find(x => x.playerId === p.id); if (!c) return;
+    c.paid = true; c.paidDate = today;
+    p.payments.push({ type: 'Mensalidade', amount: c.amount, date: today });
+    p.balance += c.amount;
   } else if (s.type === 'dinner') {
     const p = findPlayerById(s.playerId); if (!p) return;
     const ev = App.dinnerHistory[s.eventIdx];
@@ -3202,6 +3216,62 @@ function saveLancamento() {
   }
   toggleLancForm();
   renderLancamentos(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
+// ── Geração de mensalidades (modal) ──
+function _mensalistasDoMes() {
+  return App.players.filter(p => p.isRegular && !p.isIsento && p.position !== 'Goleiro');
+}
+function openMensalistasModal() {
+  const modal = document.getElementById('mensalistas-modal');
+  if (!modal) return;
+  const monthStr = new Date().toISOString().slice(0, 7);
+  const jaGerado = !!App.chargeHistory.find(c => c.month === monthStr);
+  const lista = _mensalistasDoMes();
+  const total = lista.reduce((s, p) => s + p.monthlyFee, 0);
+
+  document.getElementById('mensalistas-sub').textContent = `Referência: ${monthLabelBR(monthStr)} · todos os títulos entram como pendentes`;
+  const listEl = document.getElementById('mensalistas-list');
+  listEl.innerHTML = lista.length
+    ? lista.slice().sort((a,b) => a.name.localeCompare(b.name)).map(p => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 11px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
+        <span style="font-size:.82rem;color:#e2e8f0;font-weight:600">📆 ${p.name}${p.apelido?` <span style="color:#64748b;font-weight:400;font-size:.72rem">(${p.apelido})</span>`:''}</span>
+        <span style="font-size:.82rem;color:#4ade80;font-weight:700">R$ ${p.monthlyFee.toFixed(2)}</span>
+      </div>`).join('')
+    : '<div class="empty-state" style="padding:20px;font-size:.8rem">Nenhum mensalista cadastrado.</div>';
+  document.getElementById('mensalistas-count').textContent = lista.length;
+  document.getElementById('mensalistas-total').textContent = `R$ ${total.toFixed(2)}`;
+
+  const warn = document.getElementById('mensalistas-warn');
+  const btn = document.getElementById('mensalistas-confirm-btn');
+  if (jaGerado) {
+    warn.style.display = 'block';
+    warn.textContent = `⚠️ As mensalidades de ${monthLabelBR(monthStr)} já foram geradas. Não é possível gerar novamente.`;
+    btn.disabled = true; btn.style.opacity = '0.45'; btn.style.cursor = 'not-allowed';
+  } else if (!lista.length) {
+    warn.style.display = 'none';
+    btn.disabled = true; btn.style.opacity = '0.45'; btn.style.cursor = 'not-allowed';
+  } else {
+    warn.style.display = 'none';
+    btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer';
+  }
+  modal.style.display = 'flex';
+}
+function closeMensalistasModal() {
+  const modal = document.getElementById('mensalistas-modal');
+  if (modal) modal.style.display = 'none';
+}
+function confirmMensalistas() {
+  const monthStr = new Date().toISOString().slice(0, 7);
+  if (App.chargeHistory.find(c => c.month === monthStr)) { showToast('Mensalidades deste mês já geradas', false); return; }
+  const lista = _mensalistasDoMes();
+  if (!lista.length) { showToast('Nenhum mensalista cadastrado', false); return; }
+  const charges = lista.map(p => ({ playerId: p.id, amount: p.monthlyFee, paid: false, paidDate: null }));
+  const total = charges.reduce((s, c) => s + c.amount, 0);
+  App.chargeHistory.push({ month: monthStr, date: new Date().toISOString().split('T')[0], charges });
+  closeMensalistasModal();
+  renderChargeHistory();
+  renderLancamentos(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+  showToast(`✅ ${charges.length} mensalidade(s) lançada(s) como pendente · R$ ${total.toFixed(2)}`);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -6231,6 +6301,23 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="closeDeleteRodModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
       <button onclick="confirmDeleteRodada()" id="delete-rod-btn" style="flex:1;padding:10px;border-radius:10px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.35);color:#f87171;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem">🗑️ Excluir</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL MENSALISTAS ══ -->
+<div id="mensalistas-modal" onclick="if(event.target===this)closeMensalistasModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:600;align-items:center;justify-content:center;padding:16px">
+  <div class="modal-content" onclick="event.stopPropagation()" style="max-width:460px;width:100%">
+    <div style="font-size:1.05rem;font-weight:700;color:#4ade80;margin-bottom:2px">👥 Gerar Mensalidades</div>
+    <div id="mensalistas-sub" style="font-size:.8rem;color:#64748b;margin-bottom:14px"></div>
+    <div id="mensalistas-list" style="display:flex;flex-direction:column;gap:5px;max-height:46vh;overflow-y:auto;margin-bottom:12px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:10px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.18);margin-bottom:14px">
+      <span style="font-size:.82rem;font-weight:700;color:#94a3b8">Total (<span id="mensalistas-count">0</span> mensalistas)</span>
+      <span style="font-size:1.05rem;font-weight:800;color:#4ade80" id="mensalistas-total">R$ 0,00</span>
+    </div>
+    <div id="mensalistas-warn" style="display:none;font-size:.78rem;color:#fbbf24;padding:8px 11px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.22);border-radius:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeMensalistasModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
+      <button onclick="confirmMensalistas()" id="mensalistas-confirm-btn" class="btn-primary" style="flex:2;padding:10px;font-size:.85rem">✓ Confirmar Lançamento</button>
     </div>
   </div>
 </div>
