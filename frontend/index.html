@@ -2786,11 +2786,11 @@ const LANC_BADGE_HTML = {
 };
 let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all', status:'pendente' };
 let _lancDatesInit = false;
-// Período padrão do filtro: do dia de hoje ao último dia do mês vigente.
+// Período padrão do filtro: do primeiro ao último dia do mês vigente.
 function _defaultLancDates() {
   const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const now = new Date();
-  return { from: fmt(now), to: fmt(new Date(now.getFullYear(), now.getMonth()+1, 0)) };
+  return { from: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), to: fmt(new Date(now.getFullYear(), now.getMonth()+1, 0)) };
 }
 function applyDefaultLancDates() {
   const { from, to } = _defaultLancDates();
