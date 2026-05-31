@@ -753,16 +753,7 @@
         <div style="margin-top:10px;font-size:.7rem;color:#475569">Para gerar mensalidades use o botão <strong style="color:#94a3b8">👥 Mensalistas</strong> na aba Lançamentos.</div>
       </div>
     </div>
-    <div class="grid-2">
-      <div class="card">
-        <div class="card-title"><div class="card-title-bar"></div>Lançamento Manual</div>
-        <div class="space-y">
-          <div class="field-group"><label class="form-label">Jogador</label><select id="payment-player" class="input-field"><option value="">Selecione o jogador</option></select></div>
-          <div class="field-group"><label class="form-label">Valor (R$)</label><input type="number" id="payment-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
-          <div class="field-group"><label class="form-label">Tipo</label><select id="payment-type" class="input-field"><option value="Mensalidade">Mensalidade</option><option value="Jogo Avulso">Jogo Avulso</option><option value="Tira Gosto">Tira Gosto</option><option value="Contribuição">Contribuição</option></select></div>
-          <button onclick="registerPayment()" class="btn-primary" style="width:100%">💳 Registrar Pagamento</button>
-        </div>
-      </div>
+    <div>
       <div class="card">
         <div class="card-title"><div class="card-title-bar"></div>Resumo Geral</div>
         <div id="financial-status" style="display:flex;flex-direction:column;gap:5px;max-height:260px;overflow-y:auto"></div>
@@ -884,11 +875,14 @@
     <div class="card" style="margin-bottom:14px">
       <div class="card-title"><div class="card-title-bar"></div>📅 Dados da Rodada</div>
       <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <div class="field-group" style="flex:1;min-width:130px"><label class="form-label">Data</label><input type="date" id="rod-date" class="input-field" onchange="loadRodadaDate()"></div>
-        <button onclick="loadRodadaDate()" class="btn-secondary" style="padding:8px 18px;font-size:.82rem;white-space:nowrap;flex-shrink:0">↺ Carregar</button>
+        <div class="field-group" style="flex:1;min-width:130px"><label class="form-label">Data</label><input type="date" id="rod-date" class="input-field"></div>
+        <button id="rod-create-btn" onclick="criarRodada()" class="btn-primary" style="padding:9px 22px;font-size:.85rem;font-weight:700;white-space:nowrap;flex-shrink:0">✓ Criar Rodada</button>
       </div>
+      <div id="rod-create-hint" style="font-size:.7rem;color:#475569;margin-top:8px">Selecione a data e clique em <strong style="color:#94a3b8">Criar Rodada</strong>. Ela entrará no histórico como <strong style="color:#60a5fa">Em Andamento</strong> e os demais campos serão liberados.</div>
     </div>
 
+    <!-- Gestão da rodada (liberada após criar) -->
+    <div id="rod-management" style="display:none">
     <!-- Presença + Tira Gosto -->
     <div class="grid-2" style="margin-bottom:14px">
       <div class="card">
@@ -978,6 +972,7 @@
     <button id="rod-save-btn" onclick="saveRodada()" class="btn-primary" style="width:100%;padding:13px;font-size:.95rem;font-weight:700">💾 Salvar Rodada Completa</button>
     <div id="rod-save-msg" style="display:none;margin-top:10px;text-align:center;font-size:.82rem;color:#4ade80;padding:10px;background:rgba(74,222,128,0.08);border-radius:10px;border:1px solid rgba(74,222,128,0.2)"></div>
     <div id="rod-lock-area" style="margin-top:8px"></div>
+    </div><!-- /rod-management -->
   </div><!-- /rod-gerenciar -->
 </div>
 
@@ -1306,7 +1301,7 @@ function showSection(sec) {
     document.getElementById('rod-gerenciar').style.display = 'none';
     renderRodadaHistory();
   }
-  if (sec === 'finance') showFinanceTab('receber');
+  if (sec === 'finance') showFinanceTab('lancamentos');
   if (sec === 'results') { renderResults(); }
   if (sec === 'dinner') {
     const dd = document.getElementById('dinner-date');
@@ -3334,6 +3329,7 @@ function applyFees() {
 }
 function renderPaymentSelect() {
   const sel=document.getElementById('payment-player');
+  if (!sel) return;
   sel.innerHTML='<option value="">Selecione o jogador</option>'+App.players.map(p=>`<option value="${p.id}">${p.name} (${p.isRegular?'Mensal':'Avulso'}${p.isIsento?' · Isento':''})</option>`).join('');
 }
 function registerPayment() {
@@ -3568,9 +3564,37 @@ function openNovaRodada() {
   const title = document.getElementById('rod-form-title');
   if (title) title.textContent = 'Nova Rodada';
   const rd = document.getElementById('rod-date');
-  if (rd && !rd.value) rd.value = new Date().toISOString().split('T')[0];
-  renderRodadaPresenca();
-  renderRodadaDinner();
+  if (rd) rd.value = new Date().toISOString().split('T')[0];
+  // estágio 1: só data + criar
+  const mgmt = document.getElementById('rod-management'); if (mgmt) mgmt.style.display = 'none';
+  const cbtn = document.getElementById('rod-create-btn'); if (cbtn) cbtn.style.display = '';
+  const hint = document.getElementById('rod-create-hint'); if (hint) hint.style.display = '';
+  if (rd) rd.disabled = false;
+}
+
+function criarRodada() {
+  const dateEl = document.getElementById('rod-date');
+  const date   = dateEl?.value;
+  if (!date) { showToast('Selecione a data da rodada', false); return; }
+
+  // cria registro de presença (Em Andamento) se ainda não existir
+  let att = App.attendances.find(a => a.date === date);
+  if (!att) {
+    const defaults = App.players.filter(p => p.isRegular && !p.isIsento).map(p => p.id);
+    att = { date, players: defaults };
+    App.attendances.push(att);
+    scheduleSync();
+  }
+
+  // revela gestão da rodada
+  const mgmt = document.getElementById('rod-management'); if (mgmt) mgmt.style.display = 'block';
+  const cbtn = document.getElementById('rod-create-btn'); if (cbtn) cbtn.style.display = 'none';
+  const hint = document.getElementById('rod-create-hint'); if (hint) hint.style.display = 'none';
+  if (dateEl) dateEl.disabled = true;
+
+  loadRodadaDate();
+  renderRodadaHistory();
+  showToast('🔄 Rodada criada — Em Andamento');
 }
 
 function voltarRodadaLanding() {
@@ -4948,7 +4972,7 @@ function renderRodadaHistory() {
           ${opponent?`<div style="font-size:.72rem;color:#475569;margin-top:2px">🆚 <strong style="color:#94a3b8">${opponent}</strong></div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          ${res&&!pending?`<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:4px 14px;font-weight:800;font-size:1rem"><span style="color:${hw?'#eab308':'#f1f5f9'}">${res.homeScore}</span><span style="color:#475569;margin:0 5px">×</span><span style="color:${aw?'#60a5fa':'#f1f5f9'}">${res.awayScore}</span></div>`:`<span style="font-size:.72rem;color:#fbbf24">⏳ ${res?'Pendente':'Sem resultado'}</span>`}
+          ${res&&!pending?`<div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:4px 14px;font-weight:800;font-size:1rem"><span style="color:${hw?'#eab308':'#f1f5f9'}">${res.homeScore}</span><span style="color:#475569;margin:0 5px">×</span><span style="color:${aw?'#60a5fa':'#f1f5f9'}">${res.awayScore}</span></div>`:res?`<span style="font-size:.72rem;color:#fbbf24">⏳ Pendente</span>`:`<span style="font-size:.72rem;font-weight:700;color:#60a5fa;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:8px;padding:3px 10px">🔄 Em Andamento</span>`}
           <button onclick="openRodadaDate('${date}')" style="padding:5px 13px;border-radius:9px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#4ade80;cursor:pointer;font-size:.73rem;font-family:inherit;font-weight:600">✏️ Editar</button>
           ${App.auth.role==='admin'?`<button onclick="openDeleteRodModal('${date}')" title="Excluir rodada" style="padding:5px 10px;border-radius:9px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);color:#f87171;cursor:pointer;font-size:.73rem;font-family:inherit;font-weight:600">🗑️</button>`:''}
 
@@ -4997,8 +5021,12 @@ function openRodadaDate(date) {
     const d = new Date(date+'T12:00:00');
     title.textContent = d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
   }
+  // rodada já existe: gestão visível, sem etapa de criação
+  const mgmt = document.getElementById('rod-management'); if (mgmt) mgmt.style.display = 'block';
+  const cbtn = document.getElementById('rod-create-btn'); if (cbtn) cbtn.style.display = 'none';
+  const hint = document.getElementById('rod-create-hint'); if (hint) hint.style.display = 'none';
   const dateEl = document.getElementById('rod-date');
-  if (dateEl) { dateEl.value = date; loadRodadaDate(); }
+  if (dateEl) { dateEl.value = date; dateEl.disabled = true; loadRodadaDate(); }
 }
 
 function buildRodadaPoll() {
