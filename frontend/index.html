@@ -564,94 +564,148 @@
     </div>
   </div>
   <div class="att-tabs">
-    <button class="att-tab active" id="fintab-receber"    onclick="showFinanceTab('receber')">💰 Contas a Receber</button>
-    <button class="att-tab" id="fintab-pagar"             onclick="showFinanceTab('pagar')">📋 Contas a Pagar</button>
-    <button class="att-tab" id="fintab-fechamento"        onclick="showFinanceTab('fechamento')">📊 Fechamento</button>
-    <button class="att-tab" id="fintab-config"            onclick="showFinanceTab('config')">⚙️ Configurações</button>
+    <button class="att-tab active" id="fintab-lancamentos" onclick="showFinanceTab('lancamentos')">💰 Lançamentos</button>
+    <button class="att-tab" id="fintab-fechamento"         onclick="showFinanceTab('fechamento')">📊 Fechamento</button>
+    <button class="att-tab" id="fintab-config"             onclick="showFinanceTab('config')">⚙️ Configurações</button>
   </div>
 
-  <!-- ── Contas a Receber ── -->
-  <div id="fin-receber">
-    <div class="stats-grid" style="margin-bottom:18px">
-      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val" id="fin-caixa">R$ 0,00</div><div class="stat-lbl">Em Caixa</div></div>
-      <div class="stat-card"><div class="stat-icon">📆</div><div class="stat-val" id="fin-pend-fee" style="color:#fbbf24">R$ 0,00</div><div class="stat-lbl">Pend. Mensalidade</div></div>
-      <div class="stat-card"><div class="stat-icon">🍽️</div><div class="stat-val" id="fin-pend-din" style="color:#f87171">R$ 0,00</div><div class="stat-lbl">Pend. Tira Gosto</div></div>
-      <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-val" id="fin-total-pend" style="color:#f59e0b">R$ 0,00</div><div class="stat-lbl">Total a Receber</div></div>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-      <input type="text" id="fin-search" placeholder="🔍 Buscar jogador…" oninput="finSearch=this.value;renderFinancialPanel()" class="input-field" style="flex:1;min-width:160px">
-      <button class="hist-filter-btn fin-filter-btn active" data-filter="all"     onclick="setFinFilter('all')">Todos</button>
-      <button class="hist-filter-btn fin-filter-btn"        data-filter="pending" onclick="setFinFilter('pending')">⚠ Pendentes</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:.68rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Pagamentos de:</span>
-      <input type="date" id="fin-date-from" onchange="renderFinancialPanel()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
-      <span style="font-size:.75rem;color:#475569">até</span>
-      <input type="date" id="fin-date-to" onchange="renderFinancialPanel()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
-      <button onclick="clearFinDates()" style="font-size:.72rem;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);color:#475569;cursor:pointer;font-family:inherit">✕ Limpar</button>
-    </div>
-    <div id="fin-player-list"></div>
-  </div>
-
-  <!-- ── Contas a Pagar ── -->
-  <div id="fin-pagar" style="display:none">
-    <div class="stats-grid" style="margin-bottom:18px">
-      <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-val" id="exp-total">R$ 0,00</div><div class="stat-lbl">Total Despesas</div></div>
-      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val" id="exp-paid" style="color:#4ade80">R$ 0,00</div><div class="stat-lbl">Pagas</div></div>
-      <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-val" id="exp-pend" style="color:#fbbf24">R$ 0,00</div><div class="stat-lbl">A Pagar</div></div>
-      <div class="stat-card"><div class="stat-icon">💡</div><div class="stat-val" id="exp-saldo" style="color:#60a5fa">R$ 0,00</div><div class="stat-lbl">Saldo Livre</div></div>
-    </div>
-
-    <!-- Botão + formulário inline -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button onclick="toggleExpenseForm()" class="btn-primary" id="exp-toggle-btn" style="padding:6px 16px;font-size:.82rem">➕ Nova Despesa</button>
-    </div>
-    <div class="exp-form-wrap" id="exp-form-wrap" style="display:none">
-      <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em" id="exp-form-title">NOVA DESPESA</div>
-      <div class="form-grid-2" style="margin-bottom:10px">
-        <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="exp-desc" placeholder="Ex: Churrasquinho 24/05" class="input-field"></div>
-        <div class="field-group"><label class="form-label">Valor (R$)</label><input type="number" id="exp-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
-        <div class="field-group"><label class="form-label">Categoria</label>
-          <select id="exp-cat" class="input-field">
-            <option value="Janta">🍖 Janta / Tira Gosto</option>
-            <option value="Campo">⚽ Manutenção do Campo</option>
-            <option value="Equipamento">👕 Equipamento</option>
-            <option value="Aluguel">🏠 Aluguel</option>
-            <option value="Outros">📌 Outros</option>
-          </select>
-        </div>
-        <div class="field-group" id="exp-date-field"><label class="form-label">Data</label><input type="date" id="exp-date" class="input-field"></div>
-      </div>
-      <div class="field-group" style="margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03)">
-          <input type="checkbox" id="exp-is-recurring" onchange="onRecurringToggle()" style="width:16px;height:16px;accent-color:#60a5fa;cursor:pointer">
-          <span style="font-size:.82rem;color:#94a3b8">🔁 <strong style="color:#60a5fa">Despesa Recorrente</strong> — repete todo mês automaticamente</span>
-        </label>
-      </div>
-      <div class="field-group" style="margin-bottom:12px"><label class="form-label">Observação (opcional)</label><input type="text" id="exp-notes" placeholder="Notas adicionais..." class="input-field"></div>
-      <div style="display:flex;gap:8px">
-        <button onclick="addExpense()" class="btn-primary" style="flex:1">💾 Salvar Despesa</button>
-        <button onclick="toggleExpenseForm()" style="padding:7px 18px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;font-family:inherit;font-size:.82rem">Cancelar</button>
-      </div>
+  <!-- ── Lançamentos (unificado: receber + pagar) ── -->
+  <div id="fin-lancamentos">
+    <!-- Saldo / caixa -->
+    <div class="stats-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val" id="fin-caixa" style="color:#4ade80">R$ 0,00</div><div class="stat-lbl">Em Caixa</div></div>
+      <div class="stat-card"><div class="stat-icon">📥</div><div class="stat-val" id="fin-pend-receber" style="color:#fbbf24">R$ 0,00</div><div class="stat-lbl">A Receber</div></div>
+      <div class="stat-card"><div class="stat-icon">📤</div><div class="stat-val" id="fin-pend-pagar" style="color:#f87171">R$ 0,00</div><div class="stat-lbl">A Pagar</div></div>
+      <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-val" id="fin-projetado" style="color:#60a5fa">R$ 0,00</div><div class="stat-lbl">Saldo Projetado</div></div>
     </div>
 
     <!-- Filtros -->
-    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      <button class="hist-filter-btn exp-filter-btn active" data-filter="all"         onclick="setExpenseFilter('all')">Todas</button>
-      <button class="hist-filter-btn exp-filter-btn"        data-filter="pending"     onclick="setExpenseFilter('pending')">⏳ Pendentes</button>
-      <button class="hist-filter-btn exp-filter-btn"        data-filter="paid"        onclick="setExpenseFilter('paid')">✅ Pagas</button>
-      <button class="hist-filter-btn exp-filter-btn"        data-filter="recurring"   onclick="setExpenseFilter('recurring')">🔁 Recorrentes</button>
-      <button class="hist-filter-btn exp-filter-btn"        data-filter="Janta"       onclick="setExpenseFilter('Janta')">🍖 Janta</button>
-      <button class="hist-filter-btn exp-filter-btn"        data-filter="Campo"       onclick="setExpenseFilter('Campo')">⚽ Campo</button>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:.68rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Período:</span>
-      <input type="date" id="exp-date-from" onchange="renderExpenses()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="lanc-search" placeholder="🔍 Buscar nome ou descrição…" class="input-field" style="flex:1;min-width:160px">
+      <span style="font-size:.68rem;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap">Data:</span>
+      <input type="date" id="lanc-date-from" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
       <span style="font-size:.75rem;color:#475569">até</span>
-      <input type="date" id="exp-date-to" onchange="renderExpenses()" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
-      <button onclick="clearExpDates()" style="font-size:.72rem;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);color:#475569;cursor:pointer;font-family:inherit">✕ Limpar</button>
+      <input type="date" id="lanc-date-to" class="input-field" style="width:auto;font-size:.8rem;padding:6px 10px">
     </div>
-    <div id="expense-list"></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <button class="hist-filter-btn lanc-badge-btn active" data-badge="all"         onclick="setLancBadge('all')">Todos</button>
+      <button class="hist-filter-btn lanc-badge-btn"        data-badge="mensalidade" onclick="setLancBadge('mensalidade')">📆 Mensal</button>
+      <button class="hist-filter-btn lanc-badge-btn"        data-badge="avulso"      onclick="setLancBadge('avulso')">💵 Avulso</button>
+      <button class="hist-filter-btn lanc-badge-btn"        data-badge="tiragosto"   onclick="setLancBadge('tiragosto')">🍽️ Tira Gosto</button>
+      <button class="hist-filter-btn lanc-badge-btn"        data-badge="despesa"     onclick="setLancBadge('despesa')">📋 Despesa</button>
+      <button onclick="applyLancFilter()" class="btn-secondary" style="padding:6px 16px;font-size:.79rem;margin-left:auto">🔍 Filtrar</button>
+      <button onclick="clearLancFilter()" style="padding:6px 11px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);color:#475569;cursor:pointer;font-family:inherit;font-size:.79rem">✕ Limpar</button>
+    </div>
+
+    <!-- Botão novo lançamento -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button onclick="toggleLancForm()" class="btn-primary" id="lanc-toggle-btn" style="padding:7px 18px;font-size:.83rem">➕ Novo Lançamento</button>
+    </div>
+
+    <!-- Formulário inline -->
+    <div class="exp-form-wrap" id="lanc-form-wrap" style="display:none;margin-bottom:16px">
+      <div style="font-size:.82rem;font-weight:700;color:#94a3b8;margin-bottom:12px;letter-spacing:.04em">NOVO LANÇAMENTO</div>
+      <div class="field-group" style="margin-bottom:12px">
+        <label class="form-label">Tipo de Lançamento</label>
+        <div style="display:flex;gap:8px">
+          <label class="radio-pill" style="flex:1"><input type="radio" name="lanc-tipo" value="receita" checked onchange="onLancTipoChange()"><span>📥 Receita</span></label>
+          <label class="radio-pill" style="flex:1"><input type="radio" name="lanc-tipo" value="despesa" onchange="onLancTipoChange()"><span>📤 Despesa</span></label>
+        </div>
+      </div>
+
+      <!-- Campos RECEITA -->
+      <div id="lanc-receita-fields">
+        <div class="form-grid-2" style="margin-bottom:10px">
+          <div class="field-group">
+            <label class="form-label">Jogador / Pagante</label>
+            <select id="lanc-player" class="input-field" onchange="onLancPlayerChange()">
+              <option value="">Selecione…</option>
+              <option value="convidado">👤 Convidado (não cadastrado)</option>
+            </select>
+          </div>
+          <div class="field-group" id="lanc-guest-name-field" style="display:none">
+            <label class="form-label">Nome do Convidado</label>
+            <input type="text" id="lanc-guest-name" placeholder="Ex: João (amigo do Pedro)" class="input-field">
+          </div>
+          <div class="field-group">
+            <label class="form-label">Tipo de Recebimento</label>
+            <select id="lanc-rec-type" class="input-field">
+              <option value="Mensalidade">📆 Mensalidade</option>
+              <option value="Jogo Avulso">💵 Jogo Avulso</option>
+              <option value="Tira Gosto">🍽️ Tira Gosto</option>
+              <option value="Contribuição">💚 Contribuição</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="form-label">Valor (R$)</label>
+            <input type="number" id="lanc-amount" placeholder="0,00" min="0" step="0.01" class="input-field">
+          </div>
+          <div class="field-group">
+            <label class="form-label">Data do Jogo / Referência</label>
+            <input type="date" id="lanc-date" class="input-field">
+          </div>
+        </div>
+        <div class="field-group" style="margin-bottom:12px"><label class="form-label">Observação (opcional)</label><input type="text" id="lanc-notes" placeholder="Notas adicionais…" class="input-field"></div>
+      </div>
+
+      <!-- Campos DESPESA -->
+      <div id="lanc-despesa-fields" style="display:none">
+        <div class="form-grid-2" style="margin-bottom:10px">
+          <div class="field-group"><label class="form-label">Descrição</label><input type="text" id="lanc-desp-desc" placeholder="Ex: Aluguel do campo Maio" class="input-field"></div>
+          <div class="field-group"><label class="form-label">Categoria</label>
+            <select id="lanc-desp-cat" class="input-field">
+              <option value="Janta">🍖 Janta / Tira Gosto</option>
+              <option value="Campo">⚽ Manutenção do Campo</option>
+              <option value="Equipamento">👕 Equipamento</option>
+              <option value="Aluguel">🏠 Aluguel</option>
+              <option value="Outros">📌 Outros</option>
+            </select>
+          </div>
+          <div class="field-group"><label class="form-label">Valor (R$)</label><input type="number" id="lanc-desp-amount" placeholder="0,00" min="0" step="0.01" class="input-field"></div>
+          <div class="field-group" id="lanc-desp-date-field"><label class="form-label">Data</label><input type="date" id="lanc-desp-date" class="input-field"></div>
+        </div>
+        <div class="field-group" style="margin-bottom:10px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:8px 12px;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03)">
+            <input type="checkbox" id="lanc-desp-recurring" onchange="onLancRecurringToggle()" style="width:16px;height:16px;accent-color:#60a5fa;cursor:pointer">
+            <span style="font-size:.82rem;color:#94a3b8">🔁 <strong style="color:#60a5fa">Despesa Recorrente</strong> — repete todo mês automaticamente</span>
+          </label>
+        </div>
+        <div class="field-group" style="margin-bottom:12px"><label class="form-label">Observação (opcional)</label><input type="text" id="lanc-desp-notes" placeholder="Notas adicionais…" class="input-field"></div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="saveLancamento()" class="btn-primary" style="flex:1">💾 Salvar como Pendente</button>
+        <button onclick="toggleLancForm()" style="padding:7px 18px;border-radius:9px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;font-family:inherit;font-size:.82rem">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Barra de quitação em massa -->
+    <div id="bulk-settle-bar" style="display:none;position:sticky;top:8px;z-index:50;background:rgba(15,23,42,0.96);backdrop-filter:blur(10px);border:1px solid rgba(34,197,94,0.32);border-radius:12px;padding:10px 16px;margin-bottom:14px;flex-wrap:wrap;gap:10px;align-items:center">
+      <span style="font-size:.82rem;color:#94a3b8"><strong id="bulk-count-label" style="color:#e2e8f0">0</strong> título(s) selecionado(s)</span>
+      <span style="font-size:1rem;font-weight:800;color:#4ade80" id="bulk-sum-label">R$ 0,00</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button onclick="bulkSettle()" class="btn-primary" style="padding:6px 16px;font-size:.8rem">⚡ Quitar Selecionados</button>
+        <button onclick="clearLancSelection()" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#64748b;cursor:pointer;font-family:inherit;font-size:.8rem">✕ Limpar</button>
+      </div>
+    </div>
+
+    <!-- Recebimentos pendentes -->
+    <div id="section-receber-wrap" style="margin-bottom:20px">
+      <div style="font-size:.66rem;font-weight:700;color:#4ade80;letter-spacing:.08em;text-transform:uppercase;padding:0 0 8px;border-bottom:1px solid rgba(34,197,94,0.15);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <span>📥 Recebimentos Pendentes</span>
+        <span style="color:#475569;font-weight:600;text-transform:none;letter-spacing:0"><span id="receber-count">0</span> título(s) · <strong style="color:#fbbf24" id="receber-total">R$ 0,00</strong></span>
+      </div>
+      <div id="list-receber-pend"></div>
+    </div>
+
+    <!-- A pagar pendentes -->
+    <div id="section-pagar-wrap" style="margin-bottom:20px">
+      <div style="font-size:.66rem;font-weight:700;color:#f87171;letter-spacing:.08em;text-transform:uppercase;padding:0 0 8px;border-bottom:1px solid rgba(248,113,113,0.15);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <span>📤 A Pagar Pendentes</span>
+        <span style="color:#475569;font-weight:600;text-transform:none;letter-spacing:0"><span id="pagar-count">0</span> título(s) · <strong style="color:#f87171" id="pagar-total">R$ 0,00</strong></span>
+      </div>
+      <div id="list-pagar-pend"></div>
+    </div>
   </div>
 
   <!-- ── Fechamento Mensal ── -->
@@ -1145,6 +1199,7 @@ const App = {
   expenses: [],
   recurringExpenses: [],
   chargeHistory: [],
+  lancamentos: [],
   lockedRodadas: [],
   loucaRotation: [],
   loucaCycleStart: null,
@@ -2100,8 +2155,8 @@ function confirmAttendance() {
 
   updateFooter(); renderDashboard(); renderFinancialStatus();
   if (document.getElementById('att-historico').style.display !== 'none') { renderAttendanceCalendar(); renderAttendanceMatrix(); }
-  const recEl = document.getElementById('fin-receber');
-  if (recEl && recEl.style.display !== 'none') renderFinancialPanel();
+  const lancEl = document.getElementById('fin-lancamentos');
+  if (lancEl && lancEl.style.display !== 'none') renderLancamentos();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2217,13 +2272,14 @@ function renderTeams() {
 //  FINANCE SUB-TABS
 // ═══════════════════════════════════════════════════════
 function showFinanceTab(tab) {
-  ['receber','pagar','fechamento','config'].forEach(t => {
-    document.getElementById(`fin-${t}`).style.display = t === tab ? 'block' : 'none';
-    document.getElementById(`fintab-${t}`).classList.toggle('active', t === tab);
+  ['lancamentos','fechamento','config'].forEach(t => {
+    const sec = document.getElementById(`fin-${t}`);
+    const btn = document.getElementById(`fintab-${t}`);
+    if (sec) sec.style.display = t === tab ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', t === tab);
   });
   updateFinHeaderBalance();
-  if (tab === 'receber')    renderFinancialPanel();
-  if (tab === 'pagar')      renderExpenses();
+  if (tab === 'lancamentos') renderLancamentos();
   if (tab === 'fechamento') renderFechamentoMensal();
   if (tab === 'config') {
     renderFinancialStatus(); renderPaymentSelect();
@@ -2449,7 +2505,8 @@ function saveEditPayment() {
   closeExpModal(); renderFinancialPanel(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
 }
 
-function renderExpenses() {
+function renderExpenses() { renderLancamentos(); }
+function _renderExpenses_legacy_unused() {
   const catClass = { Janta:'cat-janta', Campo:'cat-campo', Equipamento:'cat-equipamento', Outros:'cat-outros', Aluguel:'cat-aluguel' };
   const catIcon  = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Outros:'📌', Aluguel:'🏠' };
   const currentMonth = new Date().toISOString().slice(0, 7);
@@ -2707,92 +2764,391 @@ function renderFechamentoMensal() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  CONTAS A RECEBER
+//  LANÇAMENTOS (unificado: receber + pagar)
 // ═══════════════════════════════════════════════════════
-function renderFinancialPanel() {
-  const totalCaixa   = (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0);
-  const totalFeePend = App.players.reduce((s,p) => s + getFeePending(p), 0);
-  const totalDinPend = App.players.reduce((s,p) => s + getDinnerPending(p), 0);
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('fin-caixa',     `R$ ${totalCaixa.toFixed(2)}`);
-  set('fin-pend-fee',  `R$ ${totalFeePend.toFixed(2)}`);
-  set('fin-pend-din',  `R$ ${totalDinPend.toFixed(2)}`);
-  set('fin-total-pend',`R$ ${(totalFeePend + totalDinPend).toFixed(2)}`);
+const LANC_CAT_ICON = { Janta:'🍖', Campo:'⚽', Equipamento:'👕', Aluguel:'🏠', Outros:'📌' };
+const LANC_BADGE_HTML = {
+  mensalidade: '<span class="badge badge-mensal">📆 Mensalidade</span>',
+  avulso:      '<span class="badge badge-avulso">💵 Avulso</span>',
+  tiragosto:   '<span class="badge" style="background:rgba(239,68,68,0.13);border:1px solid rgba(239,68,68,0.28);color:#f87171">🍽️ Tira Gosto</span>',
+  contribuicao:'<span class="badge" style="background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.28);color:#4ade80">💚 Contribuição</span>',
+  despesa:     '<span class="badge" style="background:rgba(96,165,250,0.13);border:1px solid rgba(96,165,250,0.28);color:#60a5fa">📋 Despesa</span>',
+};
+let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all' };
+let lancSel = new Map();      // key -> amount
+let _lancItemMap = {};        // key -> item (rebuilt each render)
 
-  const list = document.getElementById('fin-player-list');
-  if (!list) return;
-  const dateFrom = document.getElementById('fin-date-from')?.value || '';
-  const dateTo   = document.getElementById('fin-date-to')?.value   || '';
-  const hasDateFilter = dateFrom || dateTo;
+function fmtBR(d) { return d ? d.split('-').reverse().join('/') : '—'; }
+function monthLabelBR(m) {
+  if (!m) return '';
+  const [y, mm] = m.split('-');
+  const names = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  return `${names[parseInt(mm,10)-1]}/${y}`;
+}
+function getGuestCashIn() {
+  return (App.lancamentos || []).filter(l => l.paid && l.playerId == null).reduce((s,l) => s + l.amount, 0);
+}
+function getCaixaTotal() {
+  const paidExp = (App.expenses || []).filter(e => e.paid).reduce((s,e) => s + e.amount, 0);
+  return (App.config.initialBalance || 0) + App.players.reduce((s,p) => s + p.balance, 0) + getGuestCashIn() - paidExp;
+}
 
-  let players = [...App.players];
-  const s = (finSearch || '').toLowerCase();
-  if (s) players = players.filter(p => p.name.toLowerCase().includes(s) || (p.apelido||'').toLowerCase().includes(s));
-  if (finFilter === 'pending') players = players.filter(p => getFeePending(p) > 0 || getDinnerPending(p) > 0);
-  players.sort((a, b) => {
-    const pa = getFeePending(a) + getDinnerPending(a);
-    const pb = getFeePending(b) + getDinnerPending(b);
-    return pb !== pa ? pb - pa : a.name.localeCompare(b.name);
-  });
-  if (!players.length) { list.innerHTML = '<div class="empty-state" style="padding:32px">Nenhum jogador encontrado</div>'; return; }
-
-  list.innerHTML = players.map(p => {
-    const fp   = getFeePending(p);
-    const dp   = getDinnerPending(p);
-    const tot  = fp + dp;
-    const ok   = tot === 0;
-    const paid = p.payments.reduce((s,x) => s + x.amount, 0);
-    let logs = p.payments.map((x, i) => ({...x, _idx: i})).reverse();
-    if (hasDateFilter) {
-      logs = logs.filter(x => (!dateFrom || x.date >= dateFrom) && (!dateTo || x.date <= dateTo));
-    } else {
-      logs = logs.slice(0, 5);
+// Gera itens individuais de recebimento pendente (1 linha por cobrança)
+function buildReceberItems() {
+  const items = [];
+  App.players.forEach(p => {
+    const skipFee = p.isIsento || p.position === 'Goleiro';
+    if (!skipFee) {
+      const feePaid = p.payments.filter(x => x.type !== 'Tira Gosto').reduce((s,x) => s + x.amount, 0);
+      let charges = [];
+      if (p.isRegular) {
+        App.chargeHistory.forEach(ch => {
+          const c = ch.charges.find(x => x.playerId === p.id);
+          if (c) charges.push({ badge:'mensalidade', label:'Mensalidade', sub:monthLabelBR(ch.month), date:ch.date || (ch.month + '-01'), amount:c.amount });
+        });
+      } else {
+        App.attendances.filter(a => a.players.includes(p.id)).forEach(a => {
+          charges.push({ badge:'avulso', label:'Jogo Avulso', sub:fmtBR(a.date), date:a.date, amount:p.monthlyFee });
+        });
+      }
+      charges.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+      let rem = feePaid;
+      charges.forEach((c, i) => {
+        let pend = c.amount;
+        if (rem >= c.amount) { pend = 0; rem -= c.amount; } else { pend = c.amount - rem; rem = 0; }
+        if (pend > 0.001) {
+          items.push({
+            key:`fee-${p.id}-${i}`, group:'receber', badge:c.badge, icon:c.badge==='mensalidade'?'📆':'💵',
+            name:p.name, apelido:p.apelido, desc:`${c.label} · ${c.sub}`, date:c.date, amount:pend,
+            settle:{ type:'fee', playerId:p.id, ptype:p.isRegular?'Mensalidade':'Jogo Avulso' }
+          });
+        }
+      });
     }
-    const displayName = p.apelido ? `${p.name} <span style="color:#64748b;font-weight:400;font-size:.78rem">(${p.apelido})</span>` : p.name;
-    const waHref = p.whatsapp ? `https://wa.me/55${p.whatsapp.replace(/\D/g,'')}` : '';
-    return `<div class="card" style="margin-bottom:8px;padding:14px 16px">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <div class="overall-ring ring-lg ${getOverallColor(p.overall)}" style="box-shadow:0 0 12px ${getOverallGlow(p.overall)};flex-shrink:0">${p.overall}</div>
-        <div style="flex:1;min-width:130px">
-          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
-            <span style="font-weight:700;font-size:.88rem">${displayName}</span>
-            ${playerTypeBadges(p)}
-            ${waHref ? `<a href="${waHref}" target="_blank" style="font-size:.63rem;color:#25d366;text-decoration:none;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.2);padding:2px 7px;border-radius:6px">📱 WA</a>` : ''}
-          </div>
-          <div style="font-size:.66rem;margin-top:3px;display:flex;gap:9px;flex-wrap:wrap">
-            <span style="color:${POS_COLOR[p.position]||'#94a3b8'};font-weight:600;text-transform:uppercase">${p.position}</span>
-            <span style="color:#334155">${p.isIsento ? (p.isRegular ? 'Mensal · isento' : 'Avulso · isento') : p.position === 'Goleiro' ? 'Goleiro · isento de mensalidade' : (p.isRegular ? `Mensal R$ ${p.monthlyFee}` : `${getAttendanceCount(p.id)} jogo(s) × R$ ${p.monthlyFee}`)}</span>
-            <span style="color:#475569">Recebido: <strong style="color:#4ade80">R$ ${paid.toFixed(2)}</strong></span>
-          </div>
-        </div>
-        ${ok
-          ? `<span class="badge-ok" style="font-size:.75rem;padding:5px 12px">✓ Em dia</span>`
-          : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-              <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
-                ${fp > 0 ? `<span style="font-size:.7rem;color:#fbbf24;font-weight:700;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);padding:3px 9px;border-radius:7px">📆 R$ ${fp.toFixed(2)}</span>` : ''}
-                ${dp > 0 ? `<span style="font-size:.7rem;color:#f87171;font-weight:700;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);padding:3px 9px;border-radius:7px">🍽️ R$ ${dp.toFixed(2)}</span>` : ''}
-                <span style="font-size:.7rem;color:#94a3b8;font-weight:800;background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:7px">= R$ ${tot.toFixed(2)}</span>
-              </div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end">
-                ${fp > 0 ? `<button class="link-tag link-tag-yellow" onclick="quickPayFee(${p.id})" style="padding:5px 13px;font-size:.72rem">💳 ${p.isRegular ? 'Mensalidade' : 'Jogo Avulso'} R$ ${fp.toFixed(2)}</button>` : ''}
-                ${dp > 0 ? `<button class="link-tag" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#f87171;padding:5px 13px;font-size:.72rem" onclick="quickPayDinner(${p.id})">🍽️ Janta R$ ${dp.toFixed(2)}</button>` : ''}
-                ${fp > 0 && dp > 0 ? `<button class="link-tag link-tag-green" onclick="quickPayAll(${p.id})" style="padding:5px 13px;font-size:.72rem;font-weight:700">⚡ Quitar Tudo R$ ${tot.toFixed(2)}</button>` : ''}
-              </div>
-            </div>`}
+    // Tira gosto — 1 linha por evento não pago
+    (App.dinnerHistory || []).forEach((ev, idx) => {
+      if (ev.participants.includes(p.id) && !ev.paidBy.includes(p.id) && ev.share > 0) {
+        items.push({
+          key:`din-${p.id}-${idx}`, group:'receber', badge:'tiragosto', icon:'🍽️',
+          name:p.name, apelido:p.apelido, desc:`Tira Gosto · ${fmtBR(ev.date)}${ev.opponent?' · vs '+ev.opponent:''}`, date:ev.date, amount:ev.share,
+          settle:{ type:'dinner', playerId:p.id, eventIdx:idx }
+        });
+      }
+    });
+  });
+  // Lançamentos manuais (jogador cadastrado ou convidado)
+  (App.lancamentos || []).filter(l => !l.paid).forEach(l => {
+    const badge = l.type==='Mensalidade'?'mensalidade':l.type==='Jogo Avulso'?'avulso':l.type==='Tira Gosto'?'tiragosto':'contribuicao';
+    const icon  = badge==='mensalidade'?'📆':badge==='avulso'?'💵':badge==='tiragosto'?'🍽️':'💚';
+    items.push({
+      key:`lan-${l.id}`, group:'receber', badge, icon,
+      name:l.name, apelido:(l.playerId==null?'convidado':''), desc:`${l.type} · ${fmtBR(l.date)}${l.notes?' · '+l.notes:''}`, date:l.date, amount:l.amount,
+      settle:{ type:'manual', lancId:l.id }
+    });
+  });
+  return items;
+}
+
+// Gera itens individuais a pagar pendentes (despesas + recorrentes do mês)
+function buildPagarItems() {
+  const items = [];
+  const curMonth = new Date().toISOString().slice(0,7);
+  (App.expenses || []).filter(e => !e.paid).forEach(e => {
+    items.push({
+      key:`exp-${e.id}`, group:'pagar', badge:'despesa', icon:LANC_CAT_ICON[e.category]||'📌',
+      name:e.description, apelido:'', desc:`${e.category} · ${e.date?fmtBR(e.date):'sem data'}${e.notes?' · '+e.notes:''}`, date:e.date||'', amount:e.amount,
+      settle:{ type:'expense', expId:e.id }
+    });
+  });
+  (App.recurringExpenses || []).filter(r => r.active && r.lastPaidMonth !== curMonth).forEach(r => {
+    items.push({
+      key:`rec-${r.id}`, group:'pagar', badge:'despesa', icon:LANC_CAT_ICON[r.category]||'📌',
+      name:r.description, apelido:'recorrente', desc:`${r.category} · 🔁 Recorrente · ${monthLabelBR(curMonth)}`, date:curMonth+'-01', amount:r.amount,
+      settle:{ type:'recurring', recId:r.id }
+    });
+  });
+  return items;
+}
+
+function lancPasses(it) {
+  const f = lancFilter;
+  if (f.search) {
+    const s = f.search.toLowerCase();
+    if (!(it.name.toLowerCase().includes(s) || it.desc.toLowerCase().includes(s))) return false;
+  }
+  if (f.dateFrom && it.date && it.date < f.dateFrom) return false;
+  if (f.dateTo && it.date && it.date > f.dateTo) return false;
+  if (f.badge && f.badge !== 'all' && it.badge !== f.badge) return false;
+  return true;
+}
+
+function lancItemRow(it) {
+  const checked = lancSel.has(it.key);
+  const displayName = it.apelido
+    ? `${it.name} <span style="color:#64748b;font-weight:400;font-size:.72rem">(${it.apelido})</span>`
+    : it.name;
+  const accent = it.group === 'receber' ? '#4ade80' : '#f87171';
+  const sign   = it.group === 'receber' ? '' : '−';
+  return `<div class="lanc-row" style="display:flex;align-items:center;gap:11px;padding:11px 13px;margin-bottom:6px;border-radius:11px;background:${checked?'rgba(34,197,94,0.07)':'rgba(255,255,255,0.025)'};border:1px solid ${checked?'rgba(34,197,94,0.3)':'rgba(255,255,255,0.06)'};transition:.12s">
+    <input type="checkbox" ${checked?'checked':''} onchange="toggleItemSel('${it.key}')" style="width:17px;height:17px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
+    <div style="font-size:1.25rem;line-height:1;flex-shrink:0">${it.icon}</div>
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span style="font-weight:700;font-size:.84rem;color:#e2e8f0">${displayName}</span>
+        ${LANC_BADGE_HTML[it.badge]||''}
       </div>
-      ${logs.length ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)">
-        ${hasDateFilter ? `<div style="font-size:.64rem;color:#475569;margin-bottom:5px">Pagamentos de ${dateFrom||'—'} até ${dateTo||'hoje'}</div>` : ''}
-        ${logs.map(x => `<div style="display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:2px;align-items:center">
-          <span style="color:#334155">${x.date} · <span style="color:#475569">${x.type}</span></span>
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="color:#4ade80;font-weight:600">+ R$ ${x.amount.toFixed(2)}</span>
-            ${App.auth.role==='admin' ? `<button onclick="openEditPayment(${p.id},${x._idx})" title="Editar" style="padding:1px 6px;border-radius:5px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);color:#60a5fa;cursor:pointer;font-size:.65rem;font-family:inherit;line-height:1.6">✏️</button>` : ''}
-          </div>
-        </div>`).join('')}
-        ${!hasDateFilter && p.payments.length > 5 ? `<div style="font-size:.66rem;color:#334155;text-align:right;margin-top:1px">+ ${p.payments.length - 5} lançamentos anteriores</div>` : ''}
-      </div>` : (hasDateFilter ? `<div style="margin-top:8px;font-size:.7rem;color:#334155;padding-top:6px;border-top:1px solid rgba(255,255,255,0.05)">Nenhum pagamento no período</div>` : '')}
-    </div>`;
-  }).join('');
+      <div style="font-size:.68rem;color:#475569;margin-top:2px">${it.desc}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
+      <span style="font-weight:800;font-size:.92rem;color:${accent}">${sign}R$ ${it.amount.toFixed(2)}</span>
+      <button onclick="settleOne('${it.key}')" class="link-tag" style="padding:4px 11px;font-size:.7rem;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);color:#4ade80;font-weight:600">✓ Quitar</button>
+    </div>
+  </div>`;
+}
+
+function renderLancamentos() {
+  const recList = document.getElementById('list-receber-pend');
+  if (!recList) return; // aba não montada
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+  const receber = buildReceberItems().filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const pagar   = buildPagarItems().filter(lancPasses).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+
+  // mapa para seleção / quitação
+  _lancItemMap = {};
+  [...receber, ...pagar].forEach(it => { _lancItemMap[it.key] = it; });
+  // limpa seleções de itens que não existem mais
+  [...lancSel.keys()].forEach(k => { if (!_lancItemMap[k]) lancSel.delete(k); });
+
+  const totReceber = receber.reduce((s,it) => s + it.amount, 0);
+  const totPagar   = pagar.reduce((s,it) => s + it.amount, 0);
+  const caixa      = getCaixaTotal();
+  set('fin-caixa',        `R$ ${caixa.toFixed(2)}`);
+  set('fin-pend-receber', `R$ ${totReceber.toFixed(2)}`);
+  set('fin-pend-pagar',   `R$ ${totPagar.toFixed(2)}`);
+  set('fin-projetado',    `R$ ${(caixa + totReceber - totPagar).toFixed(2)}`);
+  set('receber-count', receber.length);
+  set('receber-total', `R$ ${totReceber.toFixed(2)}`);
+  set('pagar-count', pagar.length);
+  set('pagar-total', `R$ ${totPagar.toFixed(2)}`);
+
+  recList.innerHTML = receber.length
+    ? receber.map(lancItemRow).join('')
+    : '<div class="empty-state" style="padding:26px;font-size:.8rem">Nenhum recebimento pendente 🎉</div>';
+  const pagList = document.getElementById('list-pagar-pend');
+  if (pagList) pagList.innerHTML = pagar.length
+    ? pagar.map(lancItemRow).join('')
+    : '<div class="empty-state" style="padding:26px;font-size:.8rem">Nenhuma conta a pagar pendente 🎉</div>';
+
+  updateBulkBar();
+  updateFinHeaderBalance();
+}
+
+// retrocompat: chamadas antigas redirecionam para a view unificada
+function renderFinancialPanel() { renderLancamentos(); }
+
+// ── Toast / notificação ──
+function showToast(msg, ok = true) {
+  let el = document.getElementById('global-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'global-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:9999;padding:12px 22px;border-radius:12px;font-family:inherit;font-size:.86rem;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,0.4);transition:opacity .25s, transform .25s;opacity:0;pointer-events:none;max-width:90vw;text-align:center';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = ok ? 'rgba(22,101,52,0.96)' : 'rgba(127,29,29,0.96)';
+  el.style.border = ok ? '1px solid rgba(34,197,94,0.5)' : '1px solid rgba(248,113,113,0.5)';
+  el.style.color = ok ? '#bbf7d0' : '#fecaca';
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(-50%) translateY(0)'; });
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, 3200);
+}
+
+// ── Seleção / quitação ──
+function _afterSettle() {
+  renderLancamentos(); renderFinancialStatus(); renderDashboard(); updateFooter(); updateFinHeaderBalance(); scheduleSync();
+  const dh = document.getElementById('histtab-jantar');
+  if (dh && dh.classList.contains('active')) renderDinnerHistory();
+}
+
+function toggleItemSel(key) {
+  if (lancSel.has(key)) lancSel.delete(key);
+  else { const it = _lancItemMap[key]; if (it) lancSel.set(key, it.amount); }
+  renderLancamentos();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-settle-bar');
+  if (!bar) return;
+  const n = lancSel.size;
+  const sum = [...lancSel.values()].reduce((s, v) => s + v, 0);
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  const cl = document.getElementById('bulk-count-label'); if (cl) cl.textContent = n;
+  const sl = document.getElementById('bulk-sum-label');   if (sl) sl.textContent = `R$ ${sum.toFixed(2)}`;
+}
+
+function clearLancSelection() { lancSel.clear(); renderLancamentos(); }
+
+// Aplica a baixa de UM item (não re-renderiza — quem chama faz isso)
+function settleItem(it) {
+  const today = new Date().toISOString().split('T')[0];
+  const s = it.settle || {};
+  if (s.type === 'fee') {
+    const p = findPlayerById(s.playerId); if (!p) return;
+    p.payments.push({ type: s.ptype, amount: it.amount, date: today });
+    p.balance += it.amount;
+  } else if (s.type === 'dinner') {
+    const p = findPlayerById(s.playerId); if (!p) return;
+    const ev = App.dinnerHistory[s.eventIdx];
+    if (ev && !ev.paidBy.includes(p.id)) ev.paidBy.push(p.id);
+    p.payments.push({ type: 'Tira Gosto', amount: it.amount, date: today });
+    p.balance += it.amount;
+    p.dinnerDebt = Math.max(0, (p.dinnerDebt || 0) - it.amount);
+  } else if (s.type === 'manual') {
+    const l = (App.lancamentos || []).find(x => x.id === s.lancId); if (!l) return;
+    l.paid = true; l.paidDate = today;
+    if (l.playerId != null) {
+      const p = findPlayerById(l.playerId);
+      if (p) { p.payments.push({ type: l.type, amount: l.amount, date: today }); p.balance += l.amount; }
+    }
+  } else if (s.type === 'expense') {
+    const e = App.expenses.find(x => x.id === s.expId); if (!e) return;
+    e.paid = true; e.paidDate = today;
+  } else if (s.type === 'recurring') {
+    const r = App.recurringExpenses.find(x => x.id === s.recId); if (!r) return;
+    const monthStr = today.slice(0, 7);
+    App.expenses.push({ id: App.nextId(), date: today, description: r.description, category: r.category, amount: r.amount, paid: true, paidDate: today, notes: '', recurringRef: r.id });
+    r.lastPaidMonth = monthStr;
+  }
+}
+
+function settleOne(key) {
+  const it = _lancItemMap[key]; if (!it) return;
+  const verbo = it.group === 'receber' ? 'Confirmar recebimento de' : 'Confirmar pagamento de';
+  if (!confirm(`${verbo} R$ ${it.amount.toFixed(2)}\n\n${it.name} · ${it.desc}`)) return;
+  settleItem(it);
+  lancSel.delete(key);
+  _afterSettle();
+  showToast(`✅ Quitado: ${it.name} · R$ ${it.amount.toFixed(2)}`);
+}
+
+function bulkSettle() {
+  if (lancSel.size === 0) { showToast('Nenhum título selecionado', false); return; }
+  const items = [...lancSel.keys()].map(k => _lancItemMap[k]).filter(Boolean);
+  if (!items.length) return;
+  const sum = items.reduce((s, it) => s + it.amount, 0);
+  if (!confirm(`Quitar ${items.length} título(s) selecionado(s)?\n\nValor total: R$ ${sum.toFixed(2)}`)) return;
+  items.forEach(settleItem);
+  lancSel.clear();
+  _afterSettle();
+  showToast(`✅ ${items.length} título(s) quitado(s) · R$ ${sum.toFixed(2)}`);
+}
+
+// ── Filtros ──
+function setLancBadge(b) {
+  lancFilter.badge = b;
+  document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === b));
+  renderLancamentos();
+}
+function applyLancFilter() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  lancFilter.search   = g('lanc-search');
+  lancFilter.dateFrom = g('lanc-date-from');
+  lancFilter.dateTo   = g('lanc-date-to');
+  renderLancamentos();
+}
+function clearLancFilter() {
+  lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all' };
+  ['lanc-search','lanc-date-from','lanc-date-to'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === 'all'));
+  renderLancamentos();
+}
+
+// ── Formulário de novo lançamento ──
+function toggleLancForm() {
+  const wrap = document.getElementById('lanc-form-wrap');
+  if (!wrap) return;
+  const opening = wrap.style.display === 'none' || !wrap.style.display;
+  wrap.style.display = opening ? 'block' : 'none';
+  if (opening) {
+    const today = new Date().toISOString().split('T')[0];
+    const ld = document.getElementById('lanc-date');      if (ld && !ld.value) ld.value = today;
+    const dd = document.getElementById('lanc-desp-date'); if (dd && !dd.value) dd.value = today;
+    const sel = document.getElementById('lanc-player');
+    if (sel) {
+      sel.innerHTML = '<option value="">Selecione…</option><option value="convidado">👤 Convidado (não cadastrado)</option>'
+        + App.players.slice().sort((a,b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}">${p.name}${p.apelido?' ('+p.apelido+')':''}</option>`).join('');
+    }
+    onLancTipoChange();
+  }
+}
+function onLancTipoChange() {
+  const tipo = document.querySelector('input[name="lanc-tipo"]:checked')?.value || 'receita';
+  const rec = document.getElementById('lanc-receita-fields');
+  const desp = document.getElementById('lanc-despesa-fields');
+  if (rec)  rec.style.display  = tipo === 'receita' ? 'block' : 'none';
+  if (desp) desp.style.display = tipo === 'despesa' ? 'block' : 'none';
+}
+function onLancPlayerChange() {
+  const v = document.getElementById('lanc-player')?.value;
+  const f = document.getElementById('lanc-guest-name-field');
+  if (f) f.style.display = v === 'convidado' ? 'block' : 'none';
+}
+function onLancRecurringToggle() {
+  const on = document.getElementById('lanc-desp-recurring')?.checked;
+  const df = document.getElementById('lanc-desp-date-field');
+  if (df) df.style.display = on ? 'none' : '';
+}
+function saveLancamento() {
+  const tipo = document.querySelector('input[name="lanc-tipo"]:checked')?.value || 'receita';
+  if (tipo === 'receita') {
+    const pv = document.getElementById('lanc-player').value;
+    if (!pv) { alert('Selecione o jogador ou convidado.'); return; }
+    const amount = parseFloat(document.getElementById('lanc-amount').value);
+    if (!amount || amount <= 0) { alert('Informe um valor válido.'); return; }
+    const recType = document.getElementById('lanc-rec-type').value;
+    const date = document.getElementById('lanc-date').value;
+    const notes = document.getElementById('lanc-notes').value.trim();
+    let playerId = null, name = '';
+    if (pv === 'convidado') {
+      name = document.getElementById('lanc-guest-name').value.trim();
+      if (!name) { alert('Informe o nome do convidado.'); return; }
+    } else {
+      const p = findPlayerById(pv);
+      if (!p) { alert('Jogador inválido.'); return; }
+      playerId = p.id; name = p.name;
+    }
+    App.lancamentos.push({ id: App.nextId(), playerId, name, type: recType, amount, date, notes, paid: false, paidDate: null });
+    document.getElementById('lanc-amount').value = '';
+    document.getElementById('lanc-notes').value = '';
+    document.getElementById('lanc-guest-name').value = '';
+    showToast(`📥 Recebimento pendente criado · R$ ${amount.toFixed(2)}`);
+  } else {
+    const desc = document.getElementById('lanc-desp-desc').value.trim();
+    if (!desc) { alert('Informe a descrição da despesa.'); return; }
+    const cat = document.getElementById('lanc-desp-cat').value;
+    const amount = parseFloat(document.getElementById('lanc-desp-amount').value);
+    if (!amount || amount <= 0) { alert('Informe um valor válido.'); return; }
+    const recurring = document.getElementById('lanc-desp-recurring').checked;
+    const notes = document.getElementById('lanc-desp-notes').value.trim();
+    if (recurring) {
+      App.recurringExpenses.push({ id: App.nextId(), description: desc, category: cat, amount, active: true, lastPaidMonth: null });
+      showToast(`🔁 Despesa recorrente criada · R$ ${amount.toFixed(2)}/mês`);
+    } else {
+      const date = document.getElementById('lanc-desp-date').value;
+      if (!date) { alert('Informe a data.'); return; }
+      App.expenses.push({ id: App.nextId(), date, description: desc, category: cat, amount, paid: false, paidDate: null, notes });
+      showToast(`📤 Despesa pendente criada · R$ ${amount.toFixed(2)}`);
+    }
+    document.getElementById('lanc-desp-desc').value = '';
+    document.getElementById('lanc-desp-amount').value = '';
+    document.getElementById('lanc-desp-notes').value = '';
+    document.getElementById('lanc-desp-recurring').checked = false;
+    onLancRecurringToggle();
+  }
+  toggleLancForm();
+  renderLancamentos(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2869,8 +3225,8 @@ function registerPayment() {
 function renderFinancialStatus() {
   const div=document.getElementById('financial-status'); let tr=0,tf=0,td=0;
   if (!div) {
-    const recEl = document.getElementById('fin-receber');
-    if (recEl && recEl.style.display !== 'none') renderFinancialPanel();
+    const lancEl = document.getElementById('fin-lancamentos');
+    if (lancEl && lancEl.style.display !== 'none') renderLancamentos();
     return;
   }
   if (!App.players.length) { div.innerHTML='<div class="empty-state">Nenhum jogador cadastrado</div>'; return; }
@@ -2884,8 +3240,8 @@ function renderFinancialStatus() {
   const trEl=document.getElementById('total-received'); if(trEl) trEl.textContent=`R$ ${tr.toFixed(2)}`;
   const tfEl=document.getElementById('total-pending');  if(tfEl) tfEl.textContent=`R$ ${tf.toFixed(2)}`;
   const tdEl=document.getElementById('total-dinner-pending'); if(tdEl) tdEl.textContent=`R$ ${td.toFixed(2)}`;
-  const recEl = document.getElementById('fin-receber');
-  if (recEl && recEl.style.display !== 'none') renderFinancialPanel();
+  const lancEl = document.getElementById('fin-lancamentos');
+  if (lancEl && lancEl.style.display !== 'none') renderLancamentos();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -4709,8 +5065,8 @@ function syncDinnerExpense(ev) {
   } else {
     App.expenses.push({ id: App.nextId(), date: ev.date, description: desc, category: 'Janta', amount: ev.total, paid: false, paidDate: null, notes: '', dinnerRef: ev.id });
   }
-  const pagarEl = document.getElementById('fin-pagar');
-  if (pagarEl && pagarEl.style.display !== 'none') renderExpenses();
+  const lancEl = document.getElementById('fin-lancamentos');
+  if (lancEl && lancEl.style.display !== 'none') renderLancamentos();
 }
 
 function setDinnerTotal(evId) {
@@ -5689,6 +6045,7 @@ function getAppSnapshot() {
     loucaCycleStart:   App.loucaCycleStart,
     config:            App.config,
     chargeHistory:     App.chargeHistory,
+    lancamentos:       App.lancamentos,
   });
 }
 
@@ -5708,6 +6065,7 @@ function restoreAppSnapshot(data) {
   if (data.loucaCycleStart !== undefined) App.loucaCycleStart = data.loucaCycleStart;
   if (data.config)            App.config            = data.config;
   if (data.chargeHistory)     App.chargeHistory     = data.chargeHistory;
+  if (data.lancamentos)       App.lancamentos       = data.lancamentos;
 }
 
 async function syncToServer() {
