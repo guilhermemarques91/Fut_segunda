@@ -1293,6 +1293,7 @@ function showSection(sec) {
   document.querySelectorAll('.mnav-btn').forEach(b => b.classList.remove('active'));
   const mb = document.getElementById(`mnav-${sec}`);
   if (mb) mb.classList.add('active');
+  if (sec !== 'rodada') stopConfirmationsPolling();
   App.currentSection = sec;
   if (sec === 'dashboard') renderDashboard();
   if (sec === 'historico') showHistTab('presencas');
@@ -3598,6 +3599,7 @@ function criarRodada() {
 }
 
 function voltarRodadaLanding() {
+  stopConfirmationsPolling();
   document.getElementById('rod-gerenciar').style.display = 'none';
   document.getElementById('rod-landing').style.display = 'block';
   renderRodadaHistory();
@@ -3670,6 +3672,7 @@ function loadRodadaDate() {
   renderRodadaLockArea();
   renderRodadaDinnerStatus();
   loadConfirmations(date);
+  startConfirmationsPolling(date);
 }
 
 function getAttCount(playerId) {
@@ -5114,9 +5117,59 @@ async function loadConfirmations(date) {
     if (!res.ok) { if (panel) panel.style.display = 'none'; return; }
     const rows = await res.json();
     _renderConfirmations(rows, date);
+    // importação automática: aplica as respostas assim que chegam
+    if (App.auth.role === 'admin' && _applyConfirmations(rows)) {
+      renderRodadaPresenca();
+      renderRodadaDinner();
+      autoSavePresenca();
+      autoSaveDinnerData();
+    }
   } catch {
     if (panel) panel.style.display = 'none';
   }
+}
+
+// Aplica respostas do questionário ao estado da rodada (merge não-destrutivo).
+// Só mexe em quem respondeu; pendentes preservam o estado atual.
+// Retorna true se algo mudou.
+function _applyConfirmations(rows) {
+  if (!rows || !rows.length || rodState.locked) return false;
+  let changed = false;
+  const setMember = (arr, id, want) => {
+    const has = arr.includes(id);
+    if (want && !has) { arr.push(id); return true; }
+    if (!want && has) { arr.splice(arr.indexOf(id), 1); return true; }
+    return false;
+  };
+  rows.forEach(r => {
+    if (r.status === 'pending') return;
+    const id = Number(r.player_id);
+    if (!id || !App.players.find(p => p.id === id)) return;
+    const wantFootball = r.status === 'football' || r.status === 'football_dinner';
+    const wantDinner   = r.status === 'football_dinner' || r.status === 'dinner_only';
+    if (setMember(rodState.confirmedIds, id, wantFootball)) changed = true;
+    if (setMember(rodState.dinnerIds, id, wantDinner)) changed = true;
+  });
+  return changed;
+}
+
+// Polling: re-checa confirmações enquanto a rodada está aberta para importar
+// automaticamente novas respostas.
+let _confPollTimer = null;
+function startConfirmationsPolling(date) {
+  stopConfirmationsPolling();
+  if (!date || !App.auth?.token || App.auth.role !== 'admin') return;
+  _confPollTimer = setInterval(() => {
+    const mgmt = document.getElementById('rod-management');
+    const sec  = document.getElementById('section-rodada');
+    const visible = mgmt && mgmt.style.display !== 'none' && sec && !sec.classList.contains('hidden');
+    if (!visible || rodState.locked) { stopConfirmationsPolling(); return; }
+    const d = document.getElementById('rod-date')?.value;
+    if (d) loadConfirmations(d);
+  }, 20000);
+}
+function stopConfirmationsPolling() {
+  if (_confPollTimer) { clearInterval(_confPollTimer); _confPollTimer = null; }
 }
 
 function _renderConfirmations(rows, date) {
@@ -5709,6 +5762,7 @@ function updateFinHeaderBalance() {
 function refreshAll() {
   renderPlayerList(); renderAttendanceList(); renderAvailablePlayers();
   renderPaymentSelect(); renderDinnerParticipants(); renderFinancialStatus(); renderDashboard(); updateFooter(); renderChargeHistory();
+  renderRodadaHistory();
   scheduleSync();
 }
 
