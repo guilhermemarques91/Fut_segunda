@@ -3597,6 +3597,7 @@ function loadDinnerFromAttendance() {
 let rodState = {
   confirmedIds: [],
   dinnerIds: [],
+  noShowIds: [],
   rodTeams: { home: [], away: [], homeReserve: null, awayReserve: null },
   teamsGenerated: false,
   teamsEditMode: false,
@@ -3663,8 +3664,10 @@ function loadRodadaDate() {
 
   if (att) {
     rodState.confirmedIds = [...att.players];
+    rodState.noShowIds = Array.isArray(att.noShow) ? [...att.noShow] : [];
   } else {
     rodState.confirmedIds = App.players.filter(p => p.isRegular && !p.isIsento).map(p => p.id);
+    rodState.noShowIds = [];
   }
 
   if (th) {
@@ -3763,6 +3766,7 @@ function _orderedRodadaPlayers() {
 // Linhas do questionário (quando houver) distinguem "não vai" de "aguardando".
 let _confRowsByPlayer = {};
 function _confStatusFor(id) {
+  if (rodState.noShowIds.includes(id)) return 'no';
   const f   = rodState.confirmedIds.includes(id);
   const din = rodState.dinnerIds.includes(id);
   if (f && din) return 'football_dinner';
@@ -3779,8 +3783,9 @@ function renderRodadaPresenca() {
   const mensCount = mensalistas.length;
   if (!all.length) { el.innerHTML = '<div class="empty-state" style="padding:12px">Nenhum jogador cadastrado</div>'; return; }
 
-  let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">⚽</span><span style="font-size:.6rem;color:#475569;width:38px;text-align:center">🍽️</span></div>';
+  let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:38px;text-align:center">🍽️</span><span style="font-size:.6rem;color:#475569;width:38px;text-align:center">❌</span></div>';
   all.forEach((p, idx) => {
+    const isNo       = rodState.noShowIds.includes(p.id);
     const checked    = rodState.confirmedIds.includes(p.id);
     const dinChecked = rodState.dinnerIds.includes(p.id);
     if (idx === mensCount && mensCount > 0) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
@@ -3792,19 +3797,24 @@ function renderRodadaPresenca() {
       : `<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(245,158,11,0.1);color:#f59e0b">${ac}× pres.</span>`;
     const _isentoSpan = p.isIsento ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(148,163,184,0.12);color:#94a3b8">Isento</span>' : '';
     const typeBadge = _typeSpan + _isentoSpan;
-    html += `<div style="display:flex;align-items:center;gap:4px;padding:5px 4px;border-radius:9px;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.12)':'transparent'}">
+    const rowBg = isNo ? 'rgba(248,113,113,0.06)' : (checked ? 'rgba(34,197,94,0.07)' : 'transparent');
+    const rowBd = isNo ? 'rgba(248,113,113,0.18)' : (checked ? 'rgba(34,197,94,0.12)' : 'transparent');
+    const nameColor = isNo ? '#64748b' : (checked ? '#f1f5f9' : '#94a3b8');
+    const nameDeco  = isNo ? 'text-decoration:line-through;' : '';
+    html += `<div style="display:flex;align-items:center;gap:4px;padding:5px 4px;border-radius:9px;background:${rowBg};border:1px solid ${rowBd}">
       <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;padding:2px 4px">
         ${numSpan}
         <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:22px;height:22px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-size:.92rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
+          <span style="font-size:.92rem;font-weight:600;color:${nameColor};${nameDeco}">${p.name}</span>
           <span style="font-size:.62rem;color:${POS_COLOR[p.position]||'#94a3b8'}">${p.position}</span>
           ${typeBadge}
         </div>
       </label>
-      <label style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;cursor:pointer;border-radius:9px;background:${dinChecked?'rgba(245,158,11,0.1)':'transparent'};border:1px solid ${dinChecked?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)'}">
+      <label title="Vai na janta" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;cursor:pointer;border-radius:9px;background:${dinChecked?'rgba(245,158,11,0.1)':'transparent'};border:1px solid ${dinChecked?'rgba(245,158,11,0.3)':'rgba(255,255,255,0.05)'}">
         <input type="checkbox" ${dinChecked?'checked':''} onchange="rodToggleDinner(${p.id},this.checked)" style="width:20px;height:20px;accent-color:#f59e0b;cursor:pointer">
       </label>
+      <button type="button" title="Não vai (nem pelada nem janta)" onclick="rodToggleNoShow(${p.id})" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;cursor:pointer;border-radius:9px;font-size:1rem;font-family:inherit;background:${isNo?'rgba(248,113,113,0.18)':'transparent'};border:1px solid ${isNo?'rgba(248,113,113,0.5)':'rgba(255,255,255,0.05)'};filter:${isNo?'none':'grayscale(1) opacity(0.45)'}">❌</button>
     </div>`;
   });
   el.innerHTML = html;
@@ -3814,6 +3824,7 @@ function renderRodadaPresenca() {
 function rodTogglePlayer(id, checked) {
   if (rodState.locked) return;
   if (checked) {
+    rodState.noShowIds = rodState.noShowIds.filter(x => x !== id); // confirmar limpa o "não vai"
     if (!rodState.confirmedIds.includes(id)) rodState.confirmedIds.push(id);
     if (!rodState.dinnerIds.includes(id))    rodState.dinnerIds.push(id); // auto-marca janta
   } else {
@@ -3823,9 +3834,29 @@ function rodTogglePlayer(id, checked) {
   renderRodadaPresenca();
   renderRodadaDinner();
   autoSavePresenca();
+  autoSaveDinnerData();
+}
+
+// Marca/desmarca manualmente que o jogador NÃO vai (nem pelada nem janta),
+// igual à resposta "não vai" do link de confirmação.
+function rodToggleNoShow(id) {
+  if (rodState.locked) return;
+  const isNo = rodState.noShowIds.includes(id);
+  if (isNo) {
+    rodState.noShowIds = rodState.noShowIds.filter(x => x !== id);
+  } else {
+    rodState.noShowIds.push(id);
+    rodState.confirmedIds = rodState.confirmedIds.filter(x => x !== id);
+    rodState.dinnerIds    = rodState.dinnerIds.filter(x => x !== id);
+  }
+  renderRodadaPresenca();
+  renderRodadaDinner();
+  autoSavePresenca();
+  autoSaveDinnerData();
 }
 
 function rodSelectAll() {
+  rodState.noShowIds = [];
   App.players.forEach(p => {
     if (!rodState.confirmedIds.includes(p.id)) rodState.confirmedIds.push(p.id);
     if (!rodState.dinnerIds.includes(p.id))    rodState.dinnerIds.push(p.id);
@@ -3833,7 +3864,7 @@ function rodSelectAll() {
   renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 function rodClearAll() {
-  rodState.confirmedIds = []; rodState.dinnerIds = [];
+  rodState.confirmedIds = []; rodState.dinnerIds = []; rodState.noShowIds = [];
   renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 
@@ -3860,11 +3891,17 @@ function renderRodadaDinner() {
 
 function rodToggleDinner(id, checked) {
   if (rodState.locked) return;
-  if (checked && !rodState.dinnerIds.includes(id)) rodState.dinnerIds.push(id);
-  else if (!checked) rodState.dinnerIds = rodState.dinnerIds.filter(x => x !== id);
+  if (checked) {
+    rodState.noShowIds = rodState.noShowIds.filter(x => x !== id); // marcar janta limpa o "não vai"
+    if (!rodState.dinnerIds.includes(id)) rodState.dinnerIds.push(id);
+  } else {
+    rodState.dinnerIds = rodState.dinnerIds.filter(x => x !== id);
+  }
+  renderRodadaPresenca();
   renderRodadaDinner();
   updateRodBadges();
   updateRodDinnerSplit();
+  autoSavePresenca();
   autoSaveDinnerData();
 }
 
@@ -3885,7 +3922,9 @@ function updateRodDinnerSplit() {
 function updateRodBadges() {
   const pB = document.getElementById('rod-presenca-badge');
   const dB = document.getElementById('rod-dinner-badge');
-  if (pB) pB.textContent = `${rodState.confirmedIds.length} confirmados`;
+  if (pB) pB.textContent = rodState.noShowIds.length
+    ? `${rodState.confirmedIds.length} confirmados · ${rodState.noShowIds.length} fora`
+    : `${rodState.confirmedIds.length} confirmados`;
   if (dB) dB.textContent = `${rodState.dinnerIds.length} participantes`;
 }
 
@@ -4228,8 +4267,9 @@ function autoSavePresenca() {
   const existAtt = App.attendances.find(a => a.date === date);
   if (existAtt) {
     existAtt.players = [...rodState.confirmedIds];
-  } else if (rodState.confirmedIds.length > 0) {
-    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds] });
+    existAtt.noShow  = [...rodState.noShowIds];
+  } else if (rodState.confirmedIds.length > 0 || rodState.noShowIds.length > 0) {
+    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds], noShow: [...rodState.noShowIds] });
   }
   scheduleSync();
   rodAutoSaveIndicator();
@@ -5221,14 +5261,14 @@ function buildConfirmadosMsg() {
   ];
   mensalistas.forEach((p, i) => {
     const gk = p.position === 'Goleiro' ? ' 🧤' : '';
-    lines.push(`${i + 1}. ${EMOJI[_confStatusFor(p.id)]} ${p.name}${gk}`);
+    lines.push(`${i + 1}. ${p.name}${gk} ${EMOJI[_confStatusFor(p.id)]}`);
   });
 
   lines.push('', '💵 *AVULSOS*', '');
   RODADA_AVULSO_ORDER.forEach((name, i) => {
     const p  = _findByName(name);
     const st = p ? _confStatusFor(p.id) : 'pending';
-    lines.push(`${i + 1}. ${EMOJI[st]} ${name}`);
+    lines.push(`${i + 1}. ${name} ${EMOJI[st]}`);
   });
 
   lines.push('', '_⚽ joga · 🍴 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
@@ -5352,6 +5392,8 @@ function _applyConfirmations(rows) {
     const wantDinner   = r.status === 'football_dinner' || r.status === 'dinner_only';
     if (setMember(rodState.confirmedIds, id, wantFootball)) changed = true;
     if (setMember(rodState.dinnerIds, id, wantDinner)) changed = true;
+    // "não vai" do questionário marca o no-show; qualquer outra resposta o limpa
+    if (setMember(rodState.noShowIds, id, r.status === 'no')) changed = true;
   });
   return changed;
 }
@@ -5430,13 +5472,18 @@ async function importConfirmations(date) {
       .filter(r => r.status === 'football_dinner' || r.status === 'dinner_only')
       .map(r => Number(r.player_id))
       .filter(id => id && App.players.find(p => p.id === id));
+    const noShowIds = rows
+      .filter(r => r.status === 'no')
+      .map(r => Number(r.player_id))
+      .filter(id => id && App.players.find(p => p.id === id));
 
     rodState.confirmedIds = footballIds;
     rodState.dinnerIds    = dinnerIds;
+    rodState.noShowIds    = noShowIds;
     renderRodadaPresenca();
     renderRodadaDinner();
     autoSavePresenca();
-    alert(`✅ Importado: ${footballIds.length} jogam, ${dinnerIds.length} jantam.`);
+    alert(`✅ Importado: ${footballIds.length} jogam, ${dinnerIds.length} jantam, ${noShowIds.length} não vão.`);
   } catch (e) {
     alert('Erro ao importar: ' + e.message);
   }
