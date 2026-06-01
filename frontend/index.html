@@ -3600,6 +3600,7 @@ let rodState = {
   confirmedIds: [],
   dinnerIds: [],
   noShowIds: [],
+  manualIds: [], // jogadores ajustados manualmente pelo admin — auto-import não sobrescreve
   rodTeams: { home: [], away: [], homeReserve: null, awayReserve: null },
   teamsGenerated: false,
   teamsEditMode: false,
@@ -3667,9 +3668,11 @@ function loadRodadaDate() {
   if (att) {
     rodState.confirmedIds = [...att.players];
     rodState.noShowIds = Array.isArray(att.noShow) ? [...att.noShow] : [];
+    rodState.manualIds = Array.isArray(att.manual) ? [...att.manual] : [];
   } else {
     rodState.confirmedIds = App.players.filter(p => p.isRegular && !p.isIsento).map(p => p.id);
     rodState.noShowIds = [];
+    rodState.manualIds = [];
   }
 
   if (th) {
@@ -3834,8 +3837,14 @@ function renderRodadaPresenca() {
   updateRodBadges();
 }
 
+// Marca que o admin ajustou este jogador na mão — o auto-import não sobrescreve.
+function _markManual(id) {
+  if (!rodState.manualIds.includes(id)) rodState.manualIds.push(id);
+}
+
 function rodTogglePlayer(id, checked) {
   if (rodState.locked) return;
+  _markManual(id);
   if (checked) {
     rodState.noShowIds = rodState.noShowIds.filter(x => x !== id); // confirmar limpa o "não vai"
     if (!rodState.confirmedIds.includes(id)) rodState.confirmedIds.push(id);
@@ -3854,6 +3863,7 @@ function rodTogglePlayer(id, checked) {
 // igual à resposta "não vai" do link de confirmação.
 function rodToggleNoShow(id) {
   if (rodState.locked) return;
+  _markManual(id);
   const isNo = rodState.noShowIds.includes(id);
   if (isNo) {
     rodState.noShowIds = rodState.noShowIds.filter(x => x !== id);
@@ -3878,6 +3888,7 @@ function rodSelectAll() {
 }
 function rodClearAll() {
   rodState.confirmedIds = []; rodState.dinnerIds = []; rodState.noShowIds = [];
+  App.players.forEach(p => _markManual(p.id)); // limpar é decisão manual — não deixa o poll repovoar
   renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 
@@ -3904,6 +3915,7 @@ function renderRodadaDinner() {
 
 function rodToggleDinner(id, checked) {
   if (rodState.locked) return;
+  _markManual(id);
   if (checked) {
     rodState.noShowIds = rodState.noShowIds.filter(x => x !== id); // marcar janta limpa o "não vai"
     if (!rodState.dinnerIds.includes(id)) rodState.dinnerIds.push(id);
@@ -4281,8 +4293,9 @@ function autoSavePresenca() {
   if (existAtt) {
     existAtt.players = [...rodState.confirmedIds];
     existAtt.noShow  = [...rodState.noShowIds];
+    existAtt.manual  = [...rodState.manualIds];
   } else if (rodState.confirmedIds.length > 0 || rodState.noShowIds.length > 0) {
-    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds], noShow: [...rodState.noShowIds] });
+    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds], noShow: [...rodState.noShowIds], manual: [...rodState.manualIds] });
   }
   scheduleSync();
   rodAutoSaveIndicator();
@@ -5455,6 +5468,7 @@ function _applyConfirmations(rows) {
     if (r.status === 'pending') return;
     const id = Number(r.player_id);
     if (!id || !App.players.find(p => p.id === id)) return;
+    if (rodState.manualIds.includes(id)) return; // admin ajustou na mão — não sobrescreve
     const wantFootball = r.status === 'football' || r.status === 'football_dinner';
     const wantDinner   = r.status === 'football_dinner' || r.status === 'dinner_only';
     if (setMember(rodState.confirmedIds, id, wantFootball)) changed = true;
@@ -5547,6 +5561,7 @@ async function importConfirmations(date) {
     rodState.confirmedIds = footballIds;
     rodState.dinnerIds    = dinnerIds;
     rodState.noShowIds    = noShowIds;
+    rodState.manualIds    = []; // re-sincroniza tudo do questionário (descarta ajustes manuais)
     renderRodadaPresenca();
     renderRodadaDinner();
     autoSavePresenca();
