@@ -1807,9 +1807,12 @@ function addResultForDate(date, opponent) {
 // ═══════════════════════════════════════════════════════
 function renderDashboard() {
   const totalCaixa   = (App.config.initialBalance || 0) + App.players.reduce((s, p) => s + p.balance, 0);
-  const totalFeePend = App.players.reduce((s, p) => s + getFeePending(p), 0);
-  const totalDinPend = App.players.reduce((s, p) => s + getDinnerPending(p), 0);
-  const pendCount    = App.players.filter(p => getFeePending(p) > 0 || getDinnerPending(p) > 0).length;
+  // Pendências derivadas da MESMA fonte dos Lançamentos (evita pendências fantasma)
+  const pendItems = buildReceberItems().filter(it => it.status === 'pendente');
+  const totalFeePend = pendItems.filter(it => it.badge !== 'tiragosto').reduce((s, it) => s + it.amount, 0);
+  const totalDinPend = pendItems.filter(it => it.badge === 'tiragosto').reduce((s, it) => s + it.amount, 0);
+  const pendKeys     = new Set(pendItems.map(it => it.name));
+  const pendCount    = pendKeys.size;
   const pendingResults = App.results.filter(r => r.pending || r.homeScore === null).length;
 
   document.getElementById('dash-caixa').textContent      = `R$ ${totalCaixa.toFixed(2)}`;
@@ -1821,28 +1824,40 @@ function renderDashboard() {
   document.getElementById('dash-dinner-pend').textContent= `R$ ${totalDinPend.toFixed(2)}`;
   document.getElementById('dash-total-pend').textContent = `R$ ${(totalFeePend+totalDinPend).toFixed(2)}`;
 
-  // Compact pending list
+  // Compact pending list — agrupa por jogador, mostrando cada pendência com data
   const pendList  = document.getElementById('dash-pending-list');
   const pendEmpty = document.getElementById('dash-pending-empty');
-  const debtors = [...App.players]
-    .filter(p => getFeePending(p) > 0 || getDinnerPending(p) > 0)
-    .sort((a, b) => (getFeePending(b)+getDinnerPending(b)) - (getFeePending(a)+getDinnerPending(a)));
+  const groups = {};
+  pendItems.forEach(it => {
+    const k = it.name;
+    if (!groups[k]) groups[k] = { name: it.name, player: App.players.find(pl => pl.name === it.name) || null, total: 0, items: [] };
+    groups[k].total += it.amount;
+    groups[k].items.push(it);
+  });
+  const debtors = Object.values(groups).sort((a, b) => b.total - a.total);
   if (debtors.length === 0) {
     pendList.innerHTML = '';
     pendEmpty.style.display = 'block';
   } else {
     pendEmpty.style.display = 'none';
-    pendList.innerHTML = debtors.map(p => {
-      const fp = getFeePending(p), dp = getDinnerPending(p);
-      const tags = [];
-      if (fp > 0) tags.push(`<span style="font-size:.63rem;color:#fbbf24;font-weight:600">mens. R$ ${fp.toFixed(2)}</span>`);
-      if (dp > 0) tags.push(`<span style="font-size:.63rem;color:#f87171;font-weight:600">janta R$ ${dp.toFixed(2)}</span>`);
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.035)" onclick="showSection('finance')" style="cursor:pointer">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div class="overall-ring ring-sm ${getOverallColor(p.overall)}" style="box-shadow:0 0 6px ${getOverallGlow(p.overall)}">${p.overall}</div>
-          <span style="font-size:.84rem;font-weight:600">${p.name}</span>
+    pendList.innerHTML = debtors.map(g => {
+      const p = g.player;
+      const ring = p
+        ? `<div class="overall-ring ring-sm ${getOverallColor(p.overall)}" style="box-shadow:0 0 6px ${getOverallGlow(p.overall)}">${p.overall}</div>`
+        : `<div class="overall-ring ring-sm" style="opacity:.5">👤</div>`;
+      const lines = g.items
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+        .map(it => {
+          const col = it.badge === 'tiragosto' ? '#f87171' : '#fbbf24';
+          // it.desc já vem como "Mensalidade · maio" / "Tira Gosto · 01/05" / "Jogo Avulso · 01/05"
+          return `<span style="font-size:.63rem;color:${col};font-weight:600">${it.desc} · R$ ${it.amount.toFixed(2)}</span>`;
+        }).join('');
+      return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.035);cursor:pointer" onclick="showSection('finance')">
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+          ${ring}
+          <span style="font-size:.84rem;font-weight:600">${g.name}</span>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">${tags.join('')}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right">${lines}</div>
       </div>`;
     }).join('');
   }
