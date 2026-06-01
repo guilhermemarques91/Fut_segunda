@@ -898,7 +898,8 @@
         <div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)">
           <button onclick="rodSelectAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Todos</button>
           <button onclick="rodClearAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Limpar</button>
-          <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit;margin-left:auto">📋 WA</button>
+          <button onclick="buildConfirmadosMsg()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.16);border:1px solid rgba(37,211,102,0.32);color:#25d366;cursor:pointer;font-family:inherit;font-weight:700;margin-left:auto">✅ Confirmados</button>
+          <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit">📋 WA</button>
           <button id="btn-gen-links" onclick="gerarLinksRodada()" style="display:none;font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.28);color:#60a5fa;cursor:pointer;font-family:inherit">🔗 Links</button>
         </div>
         <div id="rod-confirm-panel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)"></div>
@@ -3725,21 +3726,66 @@ function getAttCount(playerId) {
   return App.attendances.filter(a => a.players.includes(playerId)).length;
 }
 
+// ── Ordem fixa dos avulsos para convocação / mensagem de confirmados ──
+const RODADA_AVULSO_ORDER = ['Samuel', 'Danishow', 'Leo Balada', 'Lincoln', 'Kizo'];
+
+function _normName(s) {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+function _findByName(name) {
+  const n = _normName(name);
+  return App.players.find(p => _normName(p.name) === n || _normName(p.apelido) === n)
+      || App.players.find(p => _normName(p.name).includes(n) || _normName(p.apelido).includes(n))
+      || null;
+}
+
+// Ordem lógica da rodada: goleiros mensalistas → demais mensalistas (inclui isentos)
+// → avulsos na ordem fixa → demais avulsos por nº de presenças.
+function _orderedRodadaPlayers() {
+  const mensAll = App.players.filter(p => p.isRegular);
+  const gks  = mensAll.filter(p => p.position === 'Goleiro').sort((a, b) => a.name.localeCompare(b.name));
+  const linha = mensAll.filter(p => p.position !== 'Goleiro').sort((a, b) => a.name.localeCompare(b.name));
+  const mensalistas = [...gks, ...linha];
+
+  const avulsosAll = App.players.filter(p => !p.isRegular);
+  const fixed = [];
+  RODADA_AVULSO_ORDER.forEach(name => {
+    const p = avulsosAll.find(x => _normName(x.name) === _normName(name) || _normName(x.apelido) === _normName(name));
+    if (p && !fixed.includes(p)) fixed.push(p);
+  });
+  const rest = avulsosAll.filter(p => !fixed.includes(p)).sort((a, b) => getAttCount(b.id) - getAttCount(a.id));
+  const avulsos = [...fixed, ...rest];
+
+  return { mensalistas, avulsos };
+}
+
+// Estado de confirmação por jogador, derivado do que o admin vê na rodada.
+// Linhas do questionário (quando houver) distinguem "não vai" de "aguardando".
+let _confRowsByPlayer = {};
+function _confStatusFor(id) {
+  const f   = rodState.confirmedIds.includes(id);
+  const din = rodState.dinnerIds.includes(id);
+  if (f && din) return 'football_dinner';
+  if (f)        return 'football';
+  if (din)      return 'dinner_only';
+  const row = _confRowsByPlayer[id];
+  return (row && row.status === 'no') ? 'no' : 'pending';
+}
+
 function renderRodadaPresenca() {
   const el = document.getElementById('rod-player-list'); if (!el) return;
-  const regulars = App.players.filter(p => p.isRegular && !p.isIsento).sort((a,b) => a.name.localeCompare(b.name));
-  const subs     = App.players.filter(p => !p.isRegular && !p.isIsento).sort((a,b) => getAttCount(b.id) - getAttCount(a.id));
-  const exempt   = App.players.filter(p => p.isIsento).sort((a,b) => a.name.localeCompare(b.name));
-  const all      = [...regulars, ...subs, ...exempt];
+  const { mensalistas, avulsos } = _orderedRodadaPlayers();
+  const all = [...mensalistas, ...avulsos];
+  const mensCount = mensalistas.length;
   if (!all.length) { el.innerHTML = '<div class="empty-state" style="padding:12px">Nenhum jogador cadastrado</div>'; return; }
 
   let html = '<div style="display:flex;justify-content:flex-end;gap:4px;padding:0 8px 4px;border-bottom:1px solid rgba(255,255,255,0.05);margin-bottom:4px"><span style="font-size:.6rem;color:#475569;width:28px;text-align:center">⚽</span><span style="font-size:.6rem;color:#475569;width:38px;text-align:center">🍽️</span></div>';
   all.forEach((p, idx) => {
     const checked    = rodState.confirmedIds.includes(p.id);
     const dinChecked = rodState.dinnerIds.includes(p.id);
-    const isFirstSub = !p.isRegular && !p.isIsento && idx > 0 && all[idx-1].isRegular;
-    const isFirstExempt = p.isIsento && idx > 0 && !all[idx-1].isIsento;
-    if (isFirstSub || isFirstExempt) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
+    if (idx === mensCount && mensCount > 0) html += '<div style="height:1px;background:rgba(255,255,255,0.05);margin:5px 0"></div>';
+    const num = idx < mensCount ? idx + 1 : idx - mensCount + 1;
+    const numSpan = `<span style="font-size:.66rem;color:#475569;font-weight:700;width:18px;text-align:right;flex-shrink:0">${num}.</span>`;
     const ac = getAttCount(p.id);
     const _typeSpan = p.isRegular
       ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(34,197,94,0.12);color:#4ade80">Mensal</span>'
@@ -3747,7 +3793,8 @@ function renderRodadaPresenca() {
     const _isentoSpan = p.isIsento ? '<span style="font-size:.58rem;padding:1px 6px;border-radius:8px;background:rgba(148,163,184,0.12);color:#94a3b8">Isento</span>' : '';
     const typeBadge = _typeSpan + _isentoSpan;
     html += `<div style="display:flex;align-items:center;gap:4px;padding:5px 4px;border-radius:9px;background:${checked?'rgba(34,197,94,0.07)':'transparent'};border:1px solid ${checked?'rgba(34,197,94,0.12)':'transparent'}">
-      <label style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;padding:2px 4px">
+      <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;padding:2px 4px">
+        ${numSpan}
         <input type="checkbox" ${checked?'checked':''} onchange="rodTogglePlayer(${p.id},this.checked)" style="width:22px;height:22px;accent-color:#22c55e;cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           <span style="font-size:.92rem;font-weight:600;color:${checked?'#f1f5f9':'#94a3b8'}">${p.name}</span>
@@ -5156,6 +5203,38 @@ function buildRodadaPoll() {
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
 }
 
+// Mensagem de CONFIRMADOS na ordem lógica da pelada:
+// goleiros mensalistas → demais mensalistas (1..N) → avulsos na ordem fixa.
+// Cada nome leva o emoji da resposta de confirmação.
+function buildConfirmadosMsg() {
+  const date = document.getElementById('rod-date')?.value || new Date().toISOString().split('T')[0];
+  const d    = new Date(date + 'T12:00:00');
+  let ds     = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  ds = ds.charAt(0).toUpperCase() + ds.slice(1);
+
+  const EMOJI = { football: '⚽', football_dinner: '⚽🍴', dinner_only: '🍴', no: '❌', pending: '⏳' };
+  const { mensalistas } = _orderedRodadaPlayers();
+
+  const lines = [
+    '⚽ *PELADA DE SEGUNDA*', `📅 ${ds}`, '',
+    '━━━━━━━━━━━━━━━━━━━━', '📋 *MENSALISTAS*', '',
+  ];
+  mensalistas.forEach((p, i) => {
+    const gk = p.position === 'Goleiro' ? ' 🧤' : '';
+    lines.push(`${i + 1}. ${EMOJI[_confStatusFor(p.id)]} ${p.name}${gk}`);
+  });
+
+  lines.push('', '💵 *AVULSOS*', '');
+  RODADA_AVULSO_ORDER.forEach((name, i) => {
+    const p  = _findByName(name);
+    const st = p ? _confStatusFor(p.id) : 'pending';
+    lines.push(`${i + 1}. ${EMOJI[st]} ${name}`);
+  });
+
+  lines.push('', '_⚽ joga · 🍴 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
+  window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+}
+
 // ═══════════════════════════════════════════════════════
 //  CONFIRMAÇÕES DE PRESENÇA VIA LINK
 // ═══════════════════════════════════════════════════════
@@ -5230,6 +5309,8 @@ async function loadConfirmations(date) {
     });
     if (!res.ok) { if (panel) panel.style.display = 'none'; return; }
     const rows = await res.json();
+    _confRowsByPlayer = {};
+    (rows || []).forEach(r => { _confRowsByPlayer[Number(r.player_id)] = r; });
     _renderConfirmations(rows, date);
     // importação automática: aplica as respostas assim que chegam
     if (App.auth.role === 'admin' && _applyConfirmations(rows)) {
