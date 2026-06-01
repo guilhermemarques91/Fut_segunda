@@ -5232,7 +5232,15 @@ function buildConfirmadosMsg() {
   });
 
   lines.push('', '_⚽ joga · 🍴 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
-  window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  const msg = lines.join('\n');
+  // Copia pra área de transferência (emojis perfeitos) — útil quando o preview
+  // do WhatsApp Web desktop renderiza mal; é só colar no grupo.
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(msg)
+      .then(() => showToast('✅ Mensagem copiada — cole no grupo'))
+      .catch(() => {});
+  }
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
 }
 
 // ═══════════════════════════════════════════════════════
