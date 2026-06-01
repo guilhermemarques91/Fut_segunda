@@ -898,6 +898,7 @@
         <div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)">
           <button onclick="rodSelectAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Todos</button>
           <button onclick="rodClearAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Limpar</button>
+          <button onclick="openAvulsoOrderModal()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px" title="Ordenar avulsos">↕️ Avulsos</button>
           <button onclick="buildConfirmadosMsg()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.16);border:1px solid rgba(37,211,102,0.32);color:#25d366;cursor:pointer;font-family:inherit;font-weight:700;margin-left:auto">✅ Confirmados</button>
           <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit">📋 WA</button>
           <button id="btn-gen-links" onclick="gerarLinksRodada()" style="display:none;font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.28);color:#60a5fa;cursor:pointer;font-family:inherit">🔗 Links</button>
@@ -1211,6 +1212,7 @@ const App = {
   lockedRodadas: [],
   loucaRotation: [],
   loucaCycleStart: null,
+  avulsoOrder: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
   dataLoaded: false,
 };
@@ -3729,7 +3731,7 @@ function getAttCount(playerId) {
   return App.attendances.filter(a => a.players.includes(playerId)).length;
 }
 
-// ── Ordem fixa dos avulsos para convocação / mensagem de confirmados ──
+// ── Ordem default dos avulsos (usada só pra semear App.avulsoOrder na 1ª vez) ──
 const RODADA_AVULSO_ORDER = ['Samuel', 'Danishow', 'Leo Balada', 'Lincoln', 'Kizo'];
 
 function _normName(s) {
@@ -3742,24 +3744,35 @@ function _findByName(name) {
       || null;
 }
 
+// Semeia App.avulsoOrder a partir da ordem default (nomes → ids) só na 1ª vez.
+function _seedAvulsoOrder() {
+  if (Array.isArray(App.avulsoOrder) && App.avulsoOrder.length) return;
+  const ids = [];
+  RODADA_AVULSO_ORDER.forEach(name => {
+    const p = _findByName(name);
+    if (p && !p.isRegular && !ids.includes(p.id)) ids.push(p.id);
+  });
+  App.avulsoOrder = ids;
+}
+
+// Lista de avulsos já na ordem configurada pelo admin (App.avulsoOrder = ids).
+// IDs salvos vêm primeiro (na ordem); avulsos novos/não ordenados vão ao fim por presença.
+function _orderedAvulsos() {
+  const avulsosAll = App.players.filter(p => !p.isRegular);
+  const order = Array.isArray(App.avulsoOrder) ? App.avulsoOrder : [];
+  const inOrder = order.map(id => avulsosAll.find(p => p.id === id)).filter(Boolean);
+  const rest = avulsosAll.filter(p => !inOrder.includes(p)).sort((a, b) => getAttCount(b.id) - getAttCount(a.id));
+  return [...inOrder, ...rest];
+}
+
 // Ordem lógica da rodada: goleiros mensalistas → demais mensalistas (inclui isentos)
-// → avulsos na ordem fixa → demais avulsos por nº de presenças.
+// → avulsos na ordem configurada → demais avulsos por nº de presenças.
 function _orderedRodadaPlayers() {
   const mensAll = App.players.filter(p => p.isRegular);
   const gks  = mensAll.filter(p => p.position === 'Goleiro').sort((a, b) => a.name.localeCompare(b.name));
   const linha = mensAll.filter(p => p.position !== 'Goleiro').sort((a, b) => a.name.localeCompare(b.name));
   const mensalistas = [...gks, ...linha];
-
-  const avulsosAll = App.players.filter(p => !p.isRegular);
-  const fixed = [];
-  RODADA_AVULSO_ORDER.forEach(name => {
-    const p = avulsosAll.find(x => _normName(x.name) === _normName(name) || _normName(x.apelido) === _normName(name));
-    if (p && !fixed.includes(p)) fixed.push(p);
-  });
-  const rest = avulsosAll.filter(p => !fixed.includes(p)).sort((a, b) => getAttCount(b.id) - getAttCount(a.id));
-  const avulsos = [...fixed, ...rest];
-
-  return { mensalistas, avulsos };
+  return { mensalistas, avulsos: _orderedAvulsos() };
 }
 
 // Estado de confirmação por jogador, derivado do que o admin vê na rodada.
@@ -5253,7 +5266,19 @@ function buildConfirmadosMsg() {
   ds = ds.charAt(0).toUpperCase() + ds.slice(1);
 
   const EMOJI = { football: '⚽', football_dinner: '⚽🍴', dinner_only: '🍴', no: '❌', pending: '⏳' };
-  const { mensalistas } = _orderedRodadaPlayers();
+  const { mensalistas, avulsos } = _orderedRodadaPlayers();
+
+  // Avulsos confirmados (responderam presença), na ordem configurada.
+  const isPlaying   = st => st === 'football' || st === 'football_dinner';
+  const isConfirmed = st => isPlaying(st) || st === 'dinner_only';
+  const confirmedAvulsos = avulsos
+    .map(p => ({ p, st: _confStatusFor(p.id) }))
+    .filter(x => isConfirmed(x.st));
+
+  // Fila de substitutos: avulsos confirmados que jogam, consumidos em ordem
+  // para cobrir mensalistas que não vão. Quem é usado sai da lista de avulsos.
+  const subPool = confirmedAvulsos.filter(x => isPlaying(x.st)).map(x => x.p);
+  const usedSubs = new Set();
 
   const lines = [
     '⚽ *PELADA DE SEGUNDA*', `📅 ${ds}`, '',
@@ -5261,15 +5286,22 @@ function buildConfirmadosMsg() {
   ];
   mensalistas.forEach((p, i) => {
     const gk = p.position === 'Goleiro' ? ' 🧤' : '';
-    lines.push(`${i + 1}. ${p.name}${gk} ${EMOJI[_confStatusFor(p.id)]}`);
+    const st = _confStatusFor(p.id);
+    if (st === 'no') {
+      const sub = subPool.find(s => !usedSubs.has(s.id));
+      if (sub) { usedSubs.add(sub.id); lines.push(`${i + 1}. ${p.name}${gk} ❌ → ${sub.name} ⚽`); }
+      else      lines.push(`${i + 1}. ${p.name}${gk} ❌`);
+    } else {
+      lines.push(`${i + 1}. ${p.name}${gk} ${EMOJI[st]}`);
+    }
   });
 
-  lines.push('', '💵 *AVULSOS*', '');
-  RODADA_AVULSO_ORDER.forEach((name, i) => {
-    const p  = _findByName(name);
-    const st = p ? _confStatusFor(p.id) : 'pending';
-    lines.push(`${i + 1}. ${name} ${EMOJI[st]}`);
-  });
+  // Avulsos confirmados que NÃO entraram como substitutos (reservas/janta).
+  const extraAvulsos = confirmedAvulsos.filter(x => !usedSubs.has(x.p.id));
+  if (extraAvulsos.length) {
+    lines.push('', '💵 *AVULSOS*', '');
+    extraAvulsos.forEach((x, i) => lines.push(`${i + 1}. ${x.p.name} ${EMOJI[x.st]}`));
+  }
 
   lines.push('', '_⚽ joga · 🍴 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
   const msg = lines.join('\n');
@@ -5281,6 +5313,41 @@ function buildConfirmadosMsg() {
       .catch(() => {});
   }
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ── Modal de ordenação dos avulsos ──
+function openAvulsoOrderModal() {
+  _seedAvulsoOrder();
+  // garante que todos os avulsos atuais estejam na ordem (novos vão ao fim)
+  App.avulsoOrder = _orderedAvulsos().map(p => p.id);
+  renderAvulsoOrderList();
+  document.getElementById('avulso-order-modal').style.display = 'flex';
+}
+function closeAvulsoOrderModal() {
+  document.getElementById('avulso-order-modal').style.display = 'none';
+}
+function renderAvulsoOrderList() {
+  const el = document.getElementById('avulso-order-list'); if (!el) return;
+  const list = _orderedAvulsos();
+  if (!list.length) { el.innerHTML = '<div class="empty-state" style="padding:16px">Nenhum avulso cadastrado</div>'; return; }
+  el.innerHTML = list.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)">
+      <span style="font-size:.72rem;color:#fbbf24;font-weight:800;width:20px;text-align:right">${i + 1}.</span>
+      <span style="flex:1;font-size:.88rem;font-weight:600;color:#e2e8f0">${p.name}</span>
+      <button type="button" onclick="moveAvulso(${p.id},-1)" ${i === 0 ? 'disabled' : ''} style="width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:#94a3b8;${i === 0 ? 'opacity:.3;cursor:default' : ''}">▲</button>
+      <button type="button" onclick="moveAvulso(${p.id},1)" ${i === list.length - 1 ? 'disabled' : ''} style="width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:#94a3b8;${i === list.length - 1 ? 'opacity:.3;cursor:default' : ''}">▼</button>
+    </div>`).join('');
+}
+function moveAvulso(id, dir) {
+  const order = _orderedAvulsos().map(p => p.id);
+  const idx = order.indexOf(id);
+  const target = idx + dir;
+  if (idx < 0 || target < 0 || target >= order.length) return;
+  [order[idx], order[target]] = [order[target], order[idx]];
+  App.avulsoOrder = order;
+  renderAvulsoOrderList();
+  renderRodadaPresenca();
+  scheduleSync();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -6498,6 +6565,7 @@ function getAppSnapshot() {
     lockedRodadas:     App.lockedRodadas,
     loucaRotation:     App.loucaRotation,
     loucaCycleStart:   App.loucaCycleStart,
+    avulsoOrder:       App.avulsoOrder,
     config:            App.config,
     chargeHistory:     App.chargeHistory,
     lancamentos:       App.lancamentos,
@@ -6518,6 +6586,7 @@ function restoreAppSnapshot(data) {
   if (data.lockedRodadas)     App.lockedRodadas     = data.lockedRodadas;
   if (data.loucaRotation)     App.loucaRotation     = data.loucaRotation;
   if (data.loucaCycleStart !== undefined) App.loucaCycleStart = data.loucaCycleStart;
+  if (Array.isArray(data.avulsoOrder)) App.avulsoOrder = data.avulsoOrder;
   if (data.config)            App.config            = data.config;
   if (data.chargeHistory)     App.chargeHistory     = data.chargeHistory;
   if (data.lancamentos)       App.lancamentos       = data.lancamentos;
@@ -6550,6 +6619,7 @@ async function loadFromServer() {
     const data = await res.json();
     if (data && Object.keys(data).length > 0) {
       restoreAppSnapshot(data);
+      _seedAvulsoOrder();
       refreshAll(); renderResults(); updateRatingLive();
       applyBranding();
     }
@@ -6650,6 +6720,17 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;gap:8px">
       <button onclick="closeMensalistasModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
       <button onclick="confirmMensalistas()" id="mensalistas-confirm-btn" class="btn-primary" style="flex:2;padding:10px;font-size:.85rem">✓ Confirmar Lançamento</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL ORDENAR AVULSOS ══ -->
+<div id="avulso-order-modal" onclick="if(event.target===this)closeAvulsoOrderModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:600;align-items:center;justify-content:center;padding:16px">
+  <div class="modal-content" onclick="event.stopPropagation()" style="max-width:420px;width:100%">
+    <div style="font-size:1.05rem;font-weight:700;color:#fbbf24;margin-bottom:2px">↕️ Ordenar Avulsos</div>
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:14px">Define a ordem de chamada dos avulsos. Use as setas para reordenar.</div>
+    <div id="avulso-order-list" style="display:flex;flex-direction:column;gap:5px;max-height:54vh;overflow-y:auto;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="closeAvulsoOrderModal()" class="btn-primary" style="flex:1;padding:10px;font-size:.85rem">✓ Pronto</button>
     </div>
   </div>
 </div>
