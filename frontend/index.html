@@ -1810,7 +1810,7 @@ function addResultForDate(date, opponent) {
 //  DASHBOARD
 // ═══════════════════════════════════════════════════════
 function renderDashboard() {
-  const totalCaixa   = (App.config.initialBalance || 0) + App.players.reduce((s, p) => s + p.balance, 0);
+  const totalCaixa   = getCaixaTotal(); // inclui - despesas pagas e + caixa de convidados
   // Pendências derivadas da MESMA fonte dos Lançamentos (evita pendências fantasma)
   const pendItems = buildReceberItems().filter(it => it.status === 'pendente');
   const totalFeePend = pendItems.filter(it => it.badge !== 'tiragosto').reduce((s, it) => s + it.amount, 0);
@@ -2931,8 +2931,13 @@ function lancPasses(it) {
     const s = f.search.toLowerCase();
     if (!(it.name.toLowerCase().includes(s) || it.desc.toLowerCase().includes(s))) return false;
   }
-  if (f.dateFrom && it.date && it.date < f.dateFrom) return false;
-  if (f.dateTo && it.date && it.date > f.dateTo) return false;
+  // Filtro de data só vale para o histórico (itens pagos/recebidos).
+  // Pendentes (em aberto) sempre aparecem, independente do mês — uma dívida de
+  // mês anterior continua a receber e não deve ser escondida pelo filtro de data.
+  if (it.status === 'pago') {
+    if (f.dateFrom && it.date && it.date < f.dateFrom) return false;
+    if (f.dateTo && it.date && it.date > f.dateTo) return false;
+  }
   if (f.badge && f.badge !== 'all' && it.badge !== f.badge) return false;
   if (f.status && f.status !== 'all' && it.status !== f.status) return false;
   return true;
