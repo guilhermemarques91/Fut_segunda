@@ -4877,7 +4877,8 @@ function _syncLiveTimer() {
     timerElapsed: liveTimer.elapsed,
     timerStartedAt: liveTimer.running ? liveTimer.startedAt : null,
     intervaloStart: liveTimer.intervaloStart,
-    intervaloMs: liveTimer.intervaloMs
+    intervaloMs: liveTimer.intervaloMs,
+    t2ended: !!liveTimer.ended
   });
 }
 
@@ -4901,7 +4902,7 @@ function _goalsKey(arr) {
   return (arr || []).filter(g => g.count > 0).map(g => `${g.playerId}:${g.count}`).sort().join(',');
 }
 function _adoptLiveTimer(s) {
-  const sig = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs]);
+  const sig = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs, liveTimer.ended]);
   liveTimer.periodo        = s.periodo ?? 1;
   liveTimer.t1ms           = (s.t1ms ?? null);
   liveTimer.running        = !!s.timerRunning;
@@ -4909,7 +4910,8 @@ function _adoptLiveTimer(s) {
   liveTimer.startedAt      = s.timerStartedAt || null;
   liveTimer.intervaloStart = s.intervaloStart || null;
   liveTimer.intervaloMs    = (s.intervaloMs ?? null);
-  const after = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs]);
+  liveTimer.ended          = !!s.t2ended;
+  const after = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs, liveTimer.ended]);
   if (sig === after) return false;
   // reabre os intervalos locais conforme o novo estado
   clearInterval(liveTimer._iv); liveTimer._iv = null;
@@ -4966,13 +4968,19 @@ function renderPubLiveTimer() {
     html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">Intervalo: <strong style="color:#64748b">${_fmtMs(s.intervaloMs)} ✓</strong></div>`;
   }
   if (!inIntervalo) {
-    const periodoLabel = s.periodo === 1 ? '1º Tempo' : '2º Tempo';
-    const periodoColor = s.periodo === 1 ? '#4ade80' : '#60a5fa';
-    html += `<div style="font-size:.58rem;font-weight:700;color:${periodoColor};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
-      <div onclick="pubLiveToggleTimer()" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
-        <div id="pub-live-timer-disp" class="pub-live-timer${s.timerRunning?' running':''}">${_fmtMs(_pubElapsed())}</div>
-        <div style="font-size:.62rem;color:#475569;margin-top:3px">${s.timerRunning?'● Toque para pausar':'○ Toque para iniciar'}</div>
-      </div>`;
+    if (in2T && s.t2ended) {
+      html += `<div style="font-size:.58rem;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:4px">🏁 Partida encerrada</div>
+        <div class="pub-live-timer">${_fmtMs(s.timerElapsed||0)}</div>
+        <div style="font-size:.6rem;color:#78716c;margin-top:4px">Placar final · o administrador salva o resultado no app</div>`;
+    } else {
+      const periodoLabel = s.periodo === 1 ? '1º Tempo' : '2º Tempo';
+      const periodoColor = s.periodo === 1 ? '#4ade80' : '#60a5fa';
+      html += `<div style="font-size:.58rem;font-weight:700;color:${periodoColor};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
+        <div onclick="pubLiveToggleTimer()" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
+          <div id="pub-live-timer-disp" class="pub-live-timer${s.timerRunning?' running':''}">${_fmtMs(_pubElapsed())}</div>
+          <div style="font-size:.62rem;color:#475569;margin-top:3px">${s.timerRunning?'● Toque para pausar':'○ Toque para iniciar'}</div>
+        </div>`;
+    }
   }
   let btnHtml = '';
   if (!t1done && !s.timerRunning && !s.timerElapsed) {
@@ -4981,7 +4989,7 @@ function renderPubLiveTimer() {
     btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 1º Tempo</button>`;
   } else if (inIntervalo) {
     btnHtml = `<button onclick="pubLiveIniciar2T()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:700">▶ Iniciar 2º Tempo</button>`;
-  } else if (in2T && (s.timerRunning || s.timerElapsed > 0)) {
+  } else if (in2T && !s.t2ended && (s.timerRunning || s.timerElapsed > 0)) {
     btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 2º Tempo</button>`;
   }
   panel.innerHTML = html + btnHtml + `<button onclick="pubLiveReset()" style="margin-top:6px;width:100%;padding:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#334155;cursor:pointer;font-size:.72rem;font-family:inherit">↺ Zerar tudo</button>`;
@@ -4998,6 +5006,7 @@ function renderPubLiveTimer() {
 
 async function pubLiveToggleTimer() {
   if (!pubLiveSrv) return;
+  if (pubLiveSrv.t2ended) return; // partida encerrada
   if (pubLiveSrv.t1ms !== null && pubLiveSrv.periodo === 1) return;
   if (pubLiveSrv.timerRunning) {
     await _pushLiveState({timerRunning:false, timerElapsed:_pubElapsed(), timerStartedAt:null});
@@ -5016,7 +5025,7 @@ async function pubLiveEncerrar() {
   if (pubLiveSrv.periodo === 1) {
     await _pushLiveState({timerRunning:false, timerElapsed:0, timerStartedAt:null, t1ms:elapsed, periodo:1, intervaloStart:Date.now()});
   } else {
-    await _pushLiveState({timerRunning:false, timerElapsed:elapsed, timerStartedAt:null});
+    await _pushLiveState({timerRunning:false, timerElapsed:elapsed, timerStartedAt:null, t2ended:true});
   }
   renderPubLiveTimer();
 }
@@ -5025,7 +5034,7 @@ async function pubLiveIniciar2T() {
   if (!pubLiveSrv) return;
   const intervMs = pubLiveSrv.intervaloStart ? Date.now() - pubLiveSrv.intervaloStart : null;
   clearInterval(window._pubIntervalIv); window._pubIntervalIv = null;
-  await _pushLiveState({periodo:2, timerElapsed:0, timerRunning:true, timerStartedAt:Date.now(), intervaloStart:null, intervaloMs:intervMs});
+  await _pushLiveState({periodo:2, timerElapsed:0, timerRunning:true, timerStartedAt:Date.now(), intervaloStart:null, intervaloMs:intervMs, t2ended:false});
   _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
   renderPubLiveTimer();
 }
@@ -5034,7 +5043,7 @@ async function pubLiveReset() {
   if (!confirm('Zerar cronômetro?')) return;
   clearInterval(_pubLiveIv); _pubLiveIv = null;
   clearInterval(window._pubIntervalIv); window._pubIntervalIv = null;
-  await _pushLiveState({periodo:1, t1ms:null, timerRunning:false, timerElapsed:0, timerStartedAt:null, intervaloStart:null, intervaloMs:null});
+  await _pushLiveState({periodo:1, t1ms:null, timerRunning:false, timerElapsed:0, timerStartedAt:null, intervaloStart:null, intervaloMs:null, t2ended:false});
   renderPubLiveTimer();
 }
 
