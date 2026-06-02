@@ -4017,10 +4017,38 @@ function renderRodadaLockArea() {
   }
 }
 
-function lockRodada() {
+async function _fetchLiveState() {
+  try {
+    const r = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d?.liveState || null;
+  } catch { return null; }
+}
+
+async function lockRodada() {
   const date = document.getElementById('rod-date')?.value;
   if (!date) return;
   if (!confirm(`Encerrar a rodada de ${new Date(date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}?\n\nAs edições ficarão bloqueadas. Somente um administrador poderá reabrir.`)) return;
+
+  // Se há partida AO VIVO ativa nesta data, reconcilia os gols (inclui os
+  // marcados na tela de login) e encerra a transmissão ao vivo.
+  const live = await _fetchLiveState();
+  if (live && live.active && live.date === date) {
+    const liveGoals = (live.goals || []).filter(g => g.count > 0);
+    if (_goalsKey(liveGoals) !== _goalsKey(rodState.goals)) {
+      const total = liveGoals.reduce((s, g) => s + g.count, 0);
+      if (confirm(`A partida ao vivo registrou ${total} gol(s) (placar da tela Ao Vivo / login).\n\nUsar esse placar nesta rodada?\n\nOK = usar os gols da partida ao vivo · Cancelar = manter os gols atuais da rodada.`)) {
+        rodState.goals = JSON.parse(JSON.stringify(liveGoals));
+      }
+    }
+    pubLiveSrv = live;
+    await _pushLiveState({ active: false }); // encerra o "ao vivo"
+    pubLiveSrv = null;
+    rodState.matchActive = false;
+    stopLiveMatchPoll();
+  }
+
   // Persiste todo o estado atual antes de bloquear
   autoSavePresenca(); autoSaveTeams(); autoSaveGoals(); autoSaveDinnerData();
   App.lockedRodadas = App.lockedRodadas || [];
