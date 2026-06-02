@@ -1301,6 +1301,7 @@ function showSection(sec) {
   const mb = document.getElementById(`mnav-${sec}`);
   if (mb) mb.classList.add('active');
   if (sec !== 'rodada') stopConfirmationsPolling();
+  if (sec !== 'partida') stopLiveMatchPoll();
   App.currentSection = sec;
   if (sec === 'dashboard') renderDashboard();
   if (sec === 'historico') showHistTab('presencas');
@@ -4468,7 +4469,7 @@ function toggleLiveTimer() {
     liveTimer.startedAt = Date.now();
     liveTimer._iv = setInterval(refreshLiveTimer, 500); liveTimer.running = true;
   }
-  refreshLiveTimer();
+  renderLiveTimerPanel(); // re-renderiza os botões (Encerrar 1º Tempo, etc.), não só o display
   _syncLiveTimer();
 }
 
@@ -4600,6 +4601,7 @@ function renderLiveMatch() {
       if (dateEl && dateEl.value !== latest.date) { dateEl.value = latest.date; loadRodadaDate(); }
       setTimeout(() => renderLiveMatch(), 80); return;
     }
+    stopLiveMatchPoll();
     el.innerHTML = `<div class="empty-state" style="padding:60px;text-align:center">
       <div style="font-size:2.5rem;margin-bottom:12px">⚽</div>
       <div style="font-weight:700;margin-bottom:6px">Nenhuma partida ativa</div>
@@ -4619,6 +4621,7 @@ function renderLiveMatch() {
 
   // Histórico read-only (partida encerrada)
   if (!rodState.matchActive) {
+    stopLiveMatchPoll();
     const makeRowReadOnly = (p, color) => {
       const c = cnt(p.id);
       const balls = c > 0 ? ' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`) : '';
@@ -4711,6 +4714,7 @@ function renderLiveMatch() {
     <button onclick="encerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700">🔴 Encerrar e Salvar Partida</button>
   `;
   renderLiveTimerPanel();
+  startLiveMatchPoll(); // mantém o app em sincronia com o liveState (tela de login)
 }
 
 function addLiveGoal(playerId, delta) {
@@ -4790,6 +4794,17 @@ async function confirmEncerrarPartida() {
     btn.disabled = false; btn.textContent = '🔴 Encerrar';
   }
   closeEncerrarPartidaModal();
+  stopLiveMatchPoll();
+  // Reconciliação final: puxa os gols mais recentes do liveState (inclui os
+  // marcados na tela de login nos últimos segundos) antes de salvar na rodada.
+  try {
+    const r = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
+    if (r.ok) {
+      const d = await r.json();
+      const sg = d?.liveState?.goals;
+      if (Array.isArray(sg)) rodState.goals = JSON.parse(JSON.stringify(sg.filter(g => g.count > 0)));
+    }
+  } catch {}
   autoSaveGoals();
   if (pubLiveSrv) await _pushLiveState({active: false});
   pubLiveSrv = null;
@@ -4841,6 +4856,66 @@ function _syncLiveTimer() {
 function _syncLiveGoals() {
   if (!pubLiveSrv?.active) return;
   _pushLiveState({goals: [...(rodState.goals||[])]});
+}
+
+// ── Sincronização in-app ⇄ liveState (placar editável nas duas telas) ──
+// A tela "Ao Vivo" do app faz polling do liveState e mescla gols + cronômetro,
+// para que alterações feitas na tela de login apareçam aqui e entrem na rodada.
+let _liveMatchPoll = null;
+function startLiveMatchPoll() {
+  if (_liveMatchPoll || App.auth?.role !== 'admin') return;
+  _liveMatchPoll = setInterval(_pollLiveMatch, 4000);
+}
+function stopLiveMatchPoll() {
+  if (_liveMatchPoll) { clearInterval(_liveMatchPoll); _liveMatchPoll = null; }
+}
+function _goalsKey(arr) {
+  return (arr || []).filter(g => g.count > 0).map(g => `${g.playerId}:${g.count}`).sort().join(',');
+}
+function _adoptLiveTimer(s) {
+  const sig = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs]);
+  liveTimer.periodo        = s.periodo ?? 1;
+  liveTimer.t1ms           = (s.t1ms ?? null);
+  liveTimer.running        = !!s.timerRunning;
+  liveTimer.elapsed        = s.timerElapsed || 0;
+  liveTimer.startedAt      = s.timerStartedAt || null;
+  liveTimer.intervaloStart = s.intervaloStart || null;
+  liveTimer.intervaloMs    = (s.intervaloMs ?? null);
+  const after = JSON.stringify([liveTimer.periodo, liveTimer.t1ms, liveTimer.running, liveTimer.elapsed, liveTimer.startedAt, liveTimer.intervaloStart, liveTimer.intervaloMs]);
+  if (sig === after) return false;
+  // reabre os intervalos locais conforme o novo estado
+  clearInterval(liveTimer._iv); liveTimer._iv = null;
+  clearInterval(liveTimer._intervaloIv); liveTimer._intervaloIv = null;
+  if (liveTimer.running) liveTimer._iv = setInterval(refreshLiveTimer, 500);
+  if (liveTimer.t1ms !== null && liveTimer.periodo === 1 && liveTimer.intervaloStart) {
+    liveTimer._intervaloIv = setInterval(() => {
+      const el = document.getElementById('live-intervalo-display');
+      if (el && liveTimer.intervaloStart) el.textContent = _fmtMs(Date.now() - liveTimer.intervaloStart);
+    }, 500);
+  }
+  return true;
+}
+async function _pollLiveMatch() {
+  if (!rodState.matchActive || rodState.locked) { stopLiveMatchPoll(); return; }
+  const sec = document.getElementById('section-partida');
+  if (!sec || sec.classList.contains('hidden')) { stopLiveMatchPoll(); return; }
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
+    if (!res.ok) return;
+    const d = await res.json();
+    const s = d?.liveState;
+    if (!s || !s.active) return;
+    pubLiveSrv = s;
+    let changed = false;
+    const newGoals = (s.goals || []).filter(g => g.count > 0);
+    if (_goalsKey(newGoals) !== _goalsKey(rodState.goals)) {
+      rodState.goals = JSON.parse(JSON.stringify(newGoals));
+      autoSaveGoals();
+      changed = true;
+    }
+    if (_adoptLiveTimer(s)) changed = true;
+    if (changed) { renderLiveMatch(); renderRodadaGoals(); }
+  } catch {}
 }
 
 function renderPubLiveTimer() {
