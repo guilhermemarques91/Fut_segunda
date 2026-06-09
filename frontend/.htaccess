@@ -1,4 +1,19 @@
 # Anti-indexação: instrui buscadores via HTTP header em todas as respostas
 <IfModule mod_headers.c>
     Header set X-Robots-Tag "noindex, nofollow"
+
+    # Não cachear o HTML do app — garante que o usuário sempre receba a versão
+    # mais recente sem precisar dar Ctrl+F5 após cada deploy.
+    <FilesMatch "\.(html?|json)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+</IfModule>
+
+# Desliga o cache do LiteSpeed (Hostgator) para o HTML do app
+<IfModule LiteSpeed>
+    CacheDisable public /
+    RewriteEngine On
+    RewriteRule \.html?$ - [E=Cache-Control:no-cache]
 </IfModule>

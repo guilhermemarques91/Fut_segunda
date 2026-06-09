@@ -3,6 +3,13 @@ header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Auth-Token');
+// Nunca cachear respostas da API (evita lista de usuários/dados desatualizados
+// servidos pelo cache do navegador ou do LiteSpeed/Hostgator).
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+// Desliga o cache público do LiteSpeed para as respostas da API
+header('X-LiteSpeed-Cache-Control: no-cache');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 

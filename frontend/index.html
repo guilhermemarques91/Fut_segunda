@@ -6727,7 +6727,7 @@ async function loadUsersList() {
   const el = document.getElementById('users-list');
   if (!el) return;
   try {
-    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=list_users', { headers: _authHeaders() });
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=list_users', { headers: _authHeaders(), cache: 'no-store' });
     const users = await res.json();
     el.innerHTML = users.map(u => `
       <div class="player-item" style="padding:8px 12px">
