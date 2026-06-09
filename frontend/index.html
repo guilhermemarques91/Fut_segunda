@@ -6523,27 +6523,33 @@ function applyRoleRestrictions() {
   if (cardUsers) cardUsers.style.display = isAdmin ? 'block' : 'none';
   const btnLinks = document.getElementById('btn-gen-links');
   if (btnLinks) btnLinks.style.display = isAdmin ? '' : 'none';
-  if (isViewer) {
-    // Desktop nav — esconde tudo exceto histórico
-    ['dashboard','rodada','players','finance'].forEach(s => {
-      const el = document.getElementById(`nav-${s}`);
-      if (el) el.style.display = 'none';
-    });
-    const cfgBtn = document.getElementById('nav-config');
-    if (cfgBtn) cfgBtn.style.display = 'none';
-    // Mobile nav — esconde tudo exceto histórico e sair
-    ['dashboard','rodada','players','finance','config'].forEach(s => {
-      const el = document.getElementById(`mnav-${s}`);
-      if (el) el.style.display = 'none';
-    });
-    showSection('historico');
-  }
-  // Exibe nome do usuário logado no footer (discreto)
+  // Mostra/esconde os itens de navegação conforme o papel. IMPORTANTE: precisa
+  // RESTAURAR (display:'') para admin — senão, se na mesma sessão alguém logou
+  // antes como viewer, o menu fica escondido e o admin entra com cara de viewer.
+  ['dashboard','rodada','players','finance'].forEach(s => {
+    const el = document.getElementById(`nav-${s}`);
+    if (el) el.style.display = isViewer ? 'none' : '';
+  });
+  const cfgBtn = document.getElementById('nav-config');
+  if (cfgBtn) cfgBtn.style.display = isViewer ? 'none' : '';
+  ['dashboard','rodada','players','finance','config'].forEach(s => {
+    const el = document.getElementById(`mnav-${s}`);
+    if (el) el.style.display = isViewer ? 'none' : '';
+  });
+  if (isViewer) showSection('historico');
+  // Exibe nome do usuário logado no footer (discreto) — substitui o anterior
+  // para não acumular rótulos a cada login na mesma sessão.
   const syncEl = document.getElementById('footer-sync');
   if (syncEl && App.auth.username) {
     const label = isViewer ? '👁️ ' + App.auth.username : '🔑 ' + App.auth.username;
-    syncEl.insertAdjacentHTML('beforeend',
-      `<span style="color:#334155;font-size:.68rem;margin-left:8px">${label}</span>`);
+    let lbl = document.getElementById('footer-user-label');
+    if (!lbl) {
+      lbl = document.createElement('span');
+      lbl.id = 'footer-user-label';
+      lbl.style.cssText = 'color:#334155;font-size:.68rem;margin-left:8px';
+      syncEl.appendChild(lbl);
+    }
+    lbl.textContent = label;
   }
 }
 
