@@ -2805,7 +2805,7 @@ const LANC_BADGE_HTML = {
   contribuicao:'<span class="badge" style="background:rgba(34,197,94,0.13);border:1px solid rgba(34,197,94,0.28);color:#4ade80">💚 Contribuição</span>',
   despesa:     '<span class="badge" style="background:rgba(96,165,250,0.13);border:1px solid rgba(96,165,250,0.28);color:#60a5fa">📋 Despesa</span>',
 };
-let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all', status:'pendente' };
+let lancFilter = { search:'', dateFrom:'', dateTo:'', badge:'all', status:'pendente', dateExplicit:false };
 let _lancDatesInit = false;
 // Período padrão do filtro: do primeiro ao último dia do mês vigente.
 function _defaultLancDates() {
@@ -2816,6 +2816,7 @@ function _defaultLancDates() {
 function applyDefaultLancDates() {
   const { from, to } = _defaultLancDates();
   lancFilter.dateFrom = from; lancFilter.dateTo = to;
+  lancFilter.dateExplicit = false; // default automático: não esconde pendentes por data
   const f = document.getElementById('lanc-date-from'); if (f) f.value = from;
   const t = document.getElementById('lanc-date-to');   if (t) t.value = to;
 }
@@ -2933,10 +2934,11 @@ function lancPasses(it) {
     const s = f.search.toLowerCase();
     if (!(it.name.toLowerCase().includes(s) || it.desc.toLowerCase().includes(s))) return false;
   }
-  // Filtro de data só vale para o histórico (itens pagos/recebidos).
-  // Pendentes (em aberto) sempre aparecem, independente do mês — uma dívida de
-  // mês anterior continua a receber e não deve ser escondida pelo filtro de data.
-  if (it.status === 'pago') {
+  // Filtro de data: sempre vale para o histórico (pagos/recebidos). Para os
+  // pendentes (em aberto) só vale quando o usuário aciona o filtro manualmente
+  // (botão "Filtrar") — no carregamento automático do mês uma dívida antiga em
+  // aberto continua aparecendo e não some por causa do filtro de data.
+  if (it.status === 'pago' || f.dateExplicit) {
     if (f.dateFrom && it.date && it.date < f.dateFrom) return false;
     if (f.dateTo && it.date && it.date > f.dateTo) return false;
   }
@@ -3164,10 +3166,12 @@ function applyLancFilter() {
   lancFilter.search   = g('lanc-search');
   lancFilter.dateFrom = g('lanc-date-from');
   lancFilter.dateTo   = g('lanc-date-to');
+  // Filtro acionado manualmente: passa a valer também para pendentes (não só pagos).
+  lancFilter.dateExplicit = !!(lancFilter.dateFrom || lancFilter.dateTo);
   renderLancamentos();
 }
 function clearLancFilter() {
-  lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all', status: 'pendente' };
+  lancFilter = { search: '', dateFrom: '', dateTo: '', badge: 'all', status: 'pendente', dateExplicit: false };
   const s = document.getElementById('lanc-search'); if (s) s.value = '';
   applyDefaultLancDates();
   document.querySelectorAll('.lanc-badge-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.badge === 'all'));
