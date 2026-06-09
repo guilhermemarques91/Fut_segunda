@@ -1212,6 +1212,7 @@ const App = {
   lockedRodadas: [],
   loucaRotation: [],
   loucaCycleStart: null,
+  loucaOverrides: {}, // { playerId: true|false } — marcação manual de "já lavou" no ciclo atual
   avulsoOrder: [],
   config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
   dataLoaded: false,
@@ -6060,11 +6061,19 @@ function _loucaWashedMapInCycle(excludeDate) {
   return washedMap;
 }
 
+// "Já lavou" no ciclo atual. A marcação manual (override) tem prioridade sobre a
+// detecção automática feita pelos registros de tira-gosto.
+function _loucaIsWashed(id, derivedMap) {
+  const ov = App.loucaOverrides || {};
+  if (Object.prototype.hasOwnProperty.call(ov, id)) return !!ov[id];
+  return derivedMap.has(id);
+}
+
 function getNextLoucaResponsavel(currentDate) {
   const rot = App.loucaRotation || [];
   if (!rot.length) return null;
-  const washedMap = _loucaWashedMapInCycle(currentDate);
-  const next = rot.find(id => !washedMap.has(id));
+  const derivedMap = _loucaWashedMapInCycle(currentDate);
+  const next = rot.find(id => !_loucaIsWashed(id, derivedMap));
   return next !== undefined ? next : rot[0];
 }
 
@@ -6087,10 +6096,11 @@ function renderLoucaRotation() {
     return;
   }
 
-  const washedMap = _loucaWashedMapInCycle(null);
-  const washedCount = rot.filter(id => washedMap.has(id)).length;
+  const derivedMap = _loucaWashedMapInCycle(null);
+  const isWashed = id => _loucaIsWashed(id, derivedMap);
+  const washedCount = rot.filter(isWashed).length;
   const allWashed = washedCount === rot.length;
-  const nextId = rot.find(id => !washedMap.has(id)) ?? rot[0];
+  const nextId = rot.find(id => !isWashed(id)) ?? rot[0];
 
   const fmtDate = ds => new Date(ds + 'T12:00:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'short'});
 
@@ -6099,18 +6109,23 @@ function renderLoucaRotation() {
   const rows = rot.map((id, i) => {
     const p = findPlayerById(id);
     if (!p) return '';
-    const washed = washedMap.get(id);
+    const washed = isWashed(id);
+    const rec = derivedMap.get(id);              // registro automático (se houver)
+    const manual = Object.prototype.hasOwnProperty.call(App.loucaOverrides || {}, id);
     const isNext = !washed && id === nextId;
+    // O selo é clicável: alterna manualmente "já lavou" / "ainda não".
+    const badgeBase = 'cursor:pointer;white-space:nowrap;user-select:none;padding:2px 6px;border-radius:7px';
     let bg, border, nameColor, badge;
     if (washed) {
       bg = 'rgba(74,222,128,0.05)'; border = 'rgba(74,222,128,0.13)'; nameColor = '#64748b';
-      badge = `<span style="font-size:.7rem;color:#4ade80;white-space:nowrap">✅ ${fmtDate(washed.date)}</span>`;
+      const when = (!manual && rec) ? ' ' + fmtDate(rec.date) : (manual ? ' ✋' : '');
+      badge = `<span onclick="toggleLoucaWashed(${id})" title="Clique para marcar como AINDA NÃO lavou" style="${badgeBase};font-size:.7rem;color:#4ade80;background:rgba(74,222,128,0.1)">✅ lavou${when}</span>`;
     } else if (isNext) {
       bg = 'rgba(234,179,8,0.07)'; border = 'rgba(234,179,8,0.22)'; nameColor = '#f1f5f9';
-      badge = `<span style="font-size:.68rem;color:#eab308;font-weight:700;white-space:nowrap">🔜 próxima vez</span>`;
+      badge = `<span onclick="toggleLoucaWashed(${id})" title="Clique para marcar como JÁ lavou" style="${badgeBase};font-size:.68rem;color:#eab308;font-weight:700">🔜 próxima vez</span>`;
     } else {
       bg = 'rgba(255,255,255,0.02)'; border = 'rgba(255,255,255,0.05)'; nameColor = '#475569';
-      badge = `<span style="font-size:.68rem;color:#334155;white-space:nowrap">⬜ aguardando</span>`;
+      badge = `<span onclick="toggleLoucaWashed(${id})" title="Clique para marcar como JÁ lavou" style="${badgeBase};font-size:.68rem;color:#475569">⬜ aguardando</span>`;
     }
     return `<div style="display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:9px;background:${bg};border:1px solid ${border};margin-bottom:4px">
       <span style="font-size:.6rem;font-weight:700;color:#334155;min-width:14px;text-align:center;flex-shrink:0">${i+1}</span>
@@ -6142,12 +6157,28 @@ function renderLoucaRotation() {
     </div>
     ${progressBar}
     ${rows}
+    <div style="font-size:.66rem;color:#334155;margin-top:8px;text-align:center">Toque no selo de cada jogador para marcar manualmente quem já lavou ✋</div>
   `;
+}
+
+function toggleLoucaWashed(id) {
+  App.loucaOverrides = App.loucaOverrides || {};
+  const derivedMap = _loucaWashedMapInCycle(null);
+  const target = !_loucaIsWashed(id, derivedMap); // estado desejado após o clique
+  if (target === derivedMap.has(id)) {
+    delete App.loucaOverrides[id]; // volta ao automático quando coincide com a detecção
+  } else {
+    App.loucaOverrides[id] = target;
+  }
+  renderLoucaRotation();
+  updateLoucaSelectInRodada(document.getElementById('rod-date')?.value);
+  scheduleSync();
 }
 
 function resetLoucaCycle() {
   if (!confirm('Reiniciar o ciclo de louça? A contagem de quem lavou recomeça do zero. O histórico anterior é mantido.')) return;
   App.loucaCycleStart = new Date().toISOString().split('T')[0];
+  App.loucaOverrides = {}; // limpa as marcações manuais ao iniciar um novo ciclo
   renderLoucaRotation();
   scheduleSync();
 }
@@ -6196,9 +6227,17 @@ function updateLoucaSelectInRodada(currentDate) {
   const opts = new Map();
   rot.forEach(id => { const p = findPlayerById(id); if (p) opts.set(id, p.name); });
   rodState.dinnerIds.forEach(id => { if (!opts.has(id)) { const p = findPlayerById(id); if (p) opts.set(id, p.name); } });
-  const current = sel.value;
+  // Marca quem já lavou no ciclo (✅), quem é o próximo da fila (🔜) e quem ainda
+  // está aguardando (⬜) — exclui a própria data para não contar o palpite atual.
+  const derivedMap = _loucaWashedMapInCycle(currentDate);
+  const nextId = getNextLoucaResponsavel(currentDate);
   sel.innerHTML = '<option value="">— Não definido —</option>' +
-    [...opts.entries()].map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
+    [...opts.entries()].map(([id, name]) => {
+      const washed = _loucaIsWashed(id, derivedMap);
+      const mark = washed ? '✅' : (id === nextId ? '🔜' : '⬜');
+      const suffix = washed ? ' — já lavou' : '';
+      return `<option value="${id}">${mark} ${name}${suffix}</option>`;
+    }).join('');
   // Set saved value or auto-computed next
   const din = currentDate ? App.dinnerHistory.find(d => d.date === currentDate) : null;
   const saved = din?.loucaResponsavel;
@@ -6798,6 +6837,7 @@ function getAppSnapshot() {
     lockedRodadas:     App.lockedRodadas,
     loucaRotation:     App.loucaRotation,
     loucaCycleStart:   App.loucaCycleStart,
+    loucaOverrides:    App.loucaOverrides,
     avulsoOrder:       App.avulsoOrder,
     config:            App.config,
     chargeHistory:     App.chargeHistory,
@@ -6819,6 +6859,7 @@ function restoreAppSnapshot(data) {
   if (data.lockedRodadas)     App.lockedRodadas     = data.lockedRodadas;
   if (data.loucaRotation)     App.loucaRotation     = data.loucaRotation;
   if (data.loucaCycleStart !== undefined) App.loucaCycleStart = data.loucaCycleStart;
+  if (data.loucaOverrides && typeof data.loucaOverrides === 'object') App.loucaOverrides = data.loucaOverrides;
   if (Array.isArray(data.avulsoOrder)) App.avulsoOrder = data.avulsoOrder;
   if (data.config)            App.config            = data.config;
   if (data.chargeHistory)     App.chargeHistory     = data.chargeHistory;
