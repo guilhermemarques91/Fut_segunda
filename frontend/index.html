@@ -1301,7 +1301,8 @@ function showSection(sec) {
   const mb = document.getElementById(`mnav-${sec}`);
   if (mb) mb.classList.add('active');
   if (sec !== 'rodada') stopConfirmationsPolling();
-  if (sec !== 'partida') stopLiveMatchPoll();
+  // a partida ao vivo sincroniza tanto na aba "Ao Vivo" quanto na Rodada da partida
+  if (sec !== 'partida' && sec !== 'rodada') stopLiveMatchPoll();
   App.currentSection = sec;
   if (sec === 'dashboard') renderDashboard();
   if (sec === 'historico') showHistTab('presencas');
@@ -3722,6 +3723,25 @@ function loadRodadaDate() {
   updateLoucaSelectInRodada(date);
 
   rodState.locked      = (App.lockedRodadas || []).includes(date);
+
+  // Restaura "partida ao vivo": se há transmissão ativa para esta data (persistida
+  // no servidor em liveState), reativa o modo ao vivo e adota gols + cronômetro.
+  // Sem isso, recarregar a página deixava matchActive=false → a aba "Ao Vivo"
+  // mostrava a tela "Encerrada", o polling de sincronia morria e o botão de
+  // encerrar sumia.
+  if (_liveCache && _liveCache.active && _liveCache.date === date && !rodState.locked) {
+    rodState.matchActive = true;
+    pubLiveSrv = _liveCache;
+    const liveGoals = (_liveCache.goals || []).filter(g => g.count > 0);
+    if (_goalsKey(liveGoals) !== _goalsKey(rodState.goals)) {
+      rodState.goals = JSON.parse(JSON.stringify(liveGoals));
+    }
+    _adoptLiveTimer(_liveCache);
+    startLiveMatchPoll(); // sincroniza o placar da Rodada em tempo real (guarda interna decide se segue)
+  } else {
+    rodState.matchActive = false;
+  }
+
   rodState.teamsEditMode = false;
   const editBtn = document.getElementById('rod-edit-teams-btn');
   if (editBtn) editBtn.textContent = '✏️ Editar';
@@ -4309,6 +4329,7 @@ function addRodGoal(playerId, delta) {
   if (g.count === 0) rodState.goals = rodState.goals.filter(g => g.playerId !== playerId);
   renderRodadaGoals();
   autoSaveGoals();
+  if (rodState.matchActive) _syncLiveGoals(); // espelha no placar ao vivo (tela de login / aba)
 }
 
 function rodAutoSaveIndicator() {
@@ -4628,7 +4649,10 @@ function renderLiveMatch() {
   if (!el) return;
 
   if (!rodState.teamsGenerated || (!rodState.rodTeams.home?.length && !rodState.rodTeams.away?.length)) {
-    const latest = [...App.teamHistory].sort((a,b) => b.date.localeCompare(a.date))[0];
+    // Prefere a data da partida ao vivo ativa; caso contrário, a última rodada com times.
+    const liveTh = (_liveCache && _liveCache.active && _liveCache.date)
+      ? App.teamHistory.find(t => t.date === _liveCache.date) : null;
+    const latest = liveTh || [...App.teamHistory].sort((a,b) => b.date.localeCompare(a.date))[0];
     if (latest) {
       const dateEl = document.getElementById('rod-date');
       if (dateEl && dateEl.value !== latest.date) { dateEl.value = latest.date; loadRodadaDate(); }
@@ -4827,6 +4851,13 @@ async function confirmEncerrarPartida() {
     btn.disabled = false; btn.textContent = '🔴 Encerrar';
   }
   closeEncerrarPartidaModal();
+  await _finalizeLiveMatch();
+}
+
+// Finaliza a partida ao vivo: reconcilia os gols mais recentes do liveState,
+// salva o resultado na rodada e encerra a transmissão. Reutilizado tanto pelo
+// fluxo da aba "Ao Vivo" quanto pelo "Encerrar" da tela de login (após login).
+async function _finalizeLiveMatch() {
   stopLiveMatchPoll();
   // Reconciliação final: puxa os gols mais recentes do liveState (inclui os
   // marcados na tela de login nos últimos segundos) antes de salvar na rodada.
@@ -4839,12 +4870,16 @@ async function confirmEncerrarPartida() {
     }
   } catch {}
   autoSaveGoals();
-  if (pubLiveSrv) await _pushLiveState({active: false});
+  await _pushLiveState({active: false});
   pubLiveSrv = null;
+  _liveCache = null;
   clearInterval(liveTimer._iv);
   clearInterval(liveTimer._intervaloIv);
   rodState.matchActive = false;
   renderLiveMatch();
+  renderRodadaGoals();
+  refreshAll();
+  showToast('✅ Partida encerrada e resultado salvo');
 }
 
 // ── PUBLIC LIVE STATE ─────────────────────────────────────
@@ -4852,9 +4887,15 @@ let pubLiveSrv = null;
 let _pubLiveIv  = null;
 let _pubLivePoll = null;
 let _pubPlayerMap = {};
+// Cache de leitura do liveState do servidor — fonte única para decidir se há
+// partida ao vivo ativa e em qual data (usado para restaurar matchActive).
+let _liveCache = null;
+// Quando true, ao logar (a partir da tela de login) o app finaliza a partida.
+let _finalizeLiveAfterLogin = false;
 
 async function _pushLiveState(patch) {
   pubLiveSrv = Object.assign(pubLiveSrv || {}, patch);
+  _liveCache = pubLiveSrv; // mantém o cache de leitura coerente com o que acabamos de enviar
   try {
     await fetch(SERVER_CONFIG.apiUrl + '?action=live_update', {
       method: 'POST',
@@ -4889,7 +4930,10 @@ function _syncLiveTimer() {
 
 function _syncLiveGoals() {
   if (!pubLiveSrv?.active) return;
-  _pushLiveState({goals: [...(rodState.goals||[])]});
+  // Não mistura datas: só empurra se a rodada carregada for a da partida ao vivo.
+  const date = document.getElementById('rod-date')?.value;
+  if (date && pubLiveSrv.date && date !== pubLiveSrv.date) return;
+  _pushLiveState({goals: [...(rodState.goals||[])].filter(g => g.count > 0)});
 }
 
 // ── Sincronização in-app ⇄ liveState (placar editável nas duas telas) ──
@@ -4932,8 +4976,18 @@ function _adoptLiveTimer(s) {
 }
 async function _pollLiveMatch() {
   if (!rodState.matchActive || rodState.locked) { stopLiveMatchPoll(); return; }
-  const sec = document.getElementById('section-partida');
-  if (!sec || sec.classList.contains('hidden')) { stopLiveMatchPoll(); return; }
+  // Mantém a sincronia enquanto o usuário estiver na aba "Ao Vivo" OU gerenciando
+  // a rodada da partida ao vivo (placar dentro da Rodada também atualiza sozinho).
+  const partidaSec = document.getElementById('section-partida');
+  const rodadaSec  = document.getElementById('section-rodada');
+  const rodadaMgmt = document.getElementById('rod-gerenciar');
+  const liveDate   = pubLiveSrv?.date || _liveCache?.date;
+  const curDate    = document.getElementById('rod-date')?.value;
+  const onPartida  = partidaSec && !partidaSec.classList.contains('hidden');
+  const onRodadaLive = rodadaSec && !rodadaSec.classList.contains('hidden')
+    && rodadaMgmt && rodadaMgmt.style.display !== 'none'
+    && curDate && liveDate && curDate === liveDate;
+  if (!onPartida && !onRodadaLive) { stopLiveMatchPoll(); return; }
   try {
     const res = await fetch(SERVER_CONFIG.apiUrl + '?action=public', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey } });
     if (!res.ok) return;
@@ -4941,6 +4995,7 @@ async function _pollLiveMatch() {
     const s = d?.liveState;
     if (!s || !s.active) return;
     pubLiveSrv = s;
+    _liveCache = s;
     let changed = false;
     const newGoals = (s.goals || []).filter(g => g.count > 0);
     if (_goalsKey(newGoals) !== _goalsKey(rodState.goals)) {
@@ -4949,7 +5004,7 @@ async function _pollLiveMatch() {
       changed = true;
     }
     if (_adoptLiveTimer(s)) changed = true;
-    if (changed) { renderLiveMatch(); renderRodadaGoals(); }
+    if (changed) { if (onPartida) renderLiveMatch(); renderRodadaGoals(); }
   } catch {}
 }
 
@@ -5077,6 +5132,7 @@ function renderPublicLivePanel(d) {
   const wrapEl = document.getElementById('public-live');
   if (!wrapEl) return;
   const s = d?.liveState;
+  _liveCache = s || null;
   if (!s || !s.active) { wrapEl.style.display='none'; return; }
   pubLiveSrv = s;
   _pubPlayerMap = Object.fromEntries((d.players||[]).map(p=>[p.id,p]));
@@ -5120,8 +5176,53 @@ function renderPublicLivePanel(d) {
         <div style="font-size:.56rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
         <div id="pub-live-away-players">${(s.awayPlayers||[]).map(id=>makeRow(id,'#60a5fa')).join('')}</div>
       </div>
-    </div>`;
+    </div>
+    <button onclick="pubEncerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700;margin-top:14px">🔴 Encerrar e Salvar Partida</button>
+    <div style="font-size:.68rem;color:#475569;text-align:center;margin-top:6px">Requer login de administrador para computar o resultado</div>`;
   renderPubLiveTimer();
+}
+
+// ── Encerrar partida a partir da tela de login (público) ──
+// Como a tela de login não tem sessão, pedimos usuário+senha de admin, fazemos
+// login e finalizamos a partida já dentro do app (reaproveita _finalizeLiveMatch).
+function pubEncerrarPartida() {
+  document.getElementById('pub-encerrar-user').value = '';
+  document.getElementById('pub-encerrar-pass').value = '';
+  document.getElementById('pub-encerrar-error').style.display = 'none';
+  document.getElementById('pub-encerrar-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('pub-encerrar-user').focus(), 80);
+}
+function closePubEncerrarModal() {
+  document.getElementById('pub-encerrar-modal').style.display = 'none';
+}
+async function confirmPubEncerrar() {
+  const username = (document.getElementById('pub-encerrar-user').value || '').trim();
+  const password = document.getElementById('pub-encerrar-pass').value || '';
+  const errEl = document.getElementById('pub-encerrar-error');
+  const btn   = document.getElementById('pub-encerrar-btn');
+  if (!username || !password) { errEl.textContent = 'Informe usuário e senha.'; errEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Verificando…'; errEl.style.display = 'none';
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey },
+      body: JSON.stringify({ username, password })
+    });
+    let data = {}; try { data = await res.json(); } catch {}
+    if (!res.ok) { errEl.textContent = data.error || 'Usuário ou senha incorretos.'; errEl.style.display = 'block'; return; }
+    if (data.role !== 'admin') { errEl.textContent = 'Apenas administradores podem encerrar a partida.'; errEl.style.display = 'block'; return; }
+    App.auth = { token: data.token, role: data.role, username: data.username };
+    localStorage.setItem('fut_token',    data.token);
+    localStorage.setItem('fut_role',     data.role);
+    localStorage.setItem('fut_username', data.username);
+    _finalizeLiveAfterLogin = true; // loadFromServer() encerra a partida após restaurar os dados
+    closePubEncerrarModal();
+    onLoginSuccess();
+  } catch {
+    errEl.textContent = 'Erro de conexão.'; errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = '🔴 Encerrar';
+  }
 }
 
 function startPubLivePoll() {
@@ -6757,11 +6858,34 @@ async function loadFromServer() {
     }
     App.dataLoaded = true; // libera sync somente após dados restaurados (scheduleSync dentro de refreshAll é bloqueado enquanto false)
     if (App.auth.role === 'admin') autoGenerateMonthlyCharges();
+    await restoreLiveMatchState();
     setSyncStatus('saved');
     setTimeout(() => setSyncStatus('idle'), 2000);
   } catch (e) {
     setSyncStatus('error', 'Sem conexão');
     console.error('[load]', e);
+  }
+}
+
+// Restaura o estado de "partida ao vivo" após carregar os dados (login ou reabrir
+// o app). Posiciona a rodada na data da transmissão ativa e adota gols/cronômetro,
+// para que a aba "Ao Vivo" volte a ficar editável e sincronizada. Se o encerramento
+// foi solicitado pela tela de login, finaliza a partida em seguida.
+async function restoreLiveMatchState() {
+  if (App.auth?.role !== 'admin') return;
+  const live = await _fetchLiveState();
+  _liveCache = live || null;
+  if (!live || !live.active || !live.date) {
+    if (_finalizeLiveAfterLogin) { _finalizeLiveAfterLogin = false; showToast('Nenhuma partida ao vivo ativa para encerrar', false); }
+    return;
+  }
+  pubLiveSrv = live;
+  const dateEl = document.getElementById('rod-date');
+  if (dateEl) { dateEl.value = live.date; loadRodadaDate(); } // deriva matchActive de _liveCache
+  if (_finalizeLiveAfterLogin) {
+    _finalizeLiveAfterLogin = false;
+    showSection('partida');
+    await _finalizeLiveMatch();
   }
 }
 
@@ -6881,6 +7005,30 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="closeEncerrarPartidaModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
       <button onclick="confirmEncerrarPartida()" id="encerrar-partida-btn" style="flex:1;padding:10px;border-radius:10px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.35);color:#f87171;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem">🔴 Encerrar</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL ENCERRAR PARTIDA (TELA DE LOGIN) ══ -->
+<div id="pub-encerrar-modal" onclick="if(event.target===this)closePubEncerrarModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:600;align-items:center;justify-content:center;padding:16px">
+  <div class="modal-content" onclick="event.stopPropagation()" style="max-width:400px">
+    <div style="font-size:1.05rem;font-weight:700;color:#f87171;margin-bottom:4px">🔴 Encerrar Partida</div>
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:16px">Entre com sua conta de administrador para salvar o resultado e encerrar a transmissão ao vivo.</div>
+    <div class="field-group">
+      <label class="form-label">Usuário</label>
+      <input type="text" id="pub-encerrar-user" class="input-field" placeholder="usuário"
+             autocomplete="username"
+             onkeydown="if(event.key==='Enter')document.getElementById('pub-encerrar-pass').focus()">
+    </div>
+    <div class="field-group" style="margin-top:10px">
+      <label class="form-label">Senha</label>
+      <input type="password" id="pub-encerrar-pass" class="input-field" placeholder="••••••••"
+             autocomplete="current-password"
+             onkeydown="if(event.key==='Enter')confirmPubEncerrar()">
+    </div>
+    <div id="pub-encerrar-error" style="display:none;font-size:.78rem;color:#f87171;padding:7px 11px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.2);border-radius:8px;margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="closePubEncerrarModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
+      <button onclick="confirmPubEncerrar()" id="pub-encerrar-btn" style="flex:1;padding:10px;border-radius:10px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.35);color:#f87171;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem">🔴 Encerrar</button>
     </div>
   </div>
 </div>
