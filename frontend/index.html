@@ -6756,15 +6756,20 @@ async function createUser() {
 
   if (!username || !password) { showUserMsg('Preencha usuário e senha.', false); return; }
 
+  if (password.length < 6) { showUserMsg('A senha deve ter pelo menos 6 caracteres.', false); return; }
+
   try {
     const res  = await fetch(SERVER_CONFIG.apiUrl + '?action=create_user', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
       body:    JSON.stringify({ username, password, role }),
+      cache:   'no-store',
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro');
-    showUserMsg(`Usuário "${username}" criado!`, true);
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error('Sua sessão expirou. Saia (🚪) e entre novamente para criar usuários.');
+    if (res.status === 403) throw new Error('Apenas administradores podem criar usuários.');
+    if (!res.ok) throw new Error(data.error || `Falha ao criar (HTTP ${res.status}).`);
+    showUserMsg(`Usuário "${username}" criado como ${role}!`, true);
     document.getElementById('new-user-username').value = '';
     document.getElementById('new-user-password').value = '';
     loadUsersList();
@@ -6808,7 +6813,9 @@ function showUserMsg(msg, ok) {
   el.style.background = ok ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)';
   el.style.border = ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(248,113,113,0.2)';
   el.style.color = ok ? '#4ade80' : '#f87171';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
+  clearTimeout(el._t);
+  // Some sozinho só quando é sucesso; erros ficam visíveis até a próxima ação.
+  if (ok) el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
 function setSyncStatus(status, msg) {
