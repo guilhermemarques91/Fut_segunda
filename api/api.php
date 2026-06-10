@@ -362,6 +362,30 @@ if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_
     }
 }
 
+// ── WHATSAPP: enviar confirmados ao grupo agora (admin) ──
+if ($action === 'send_confirmados') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    require_once __DIR__ . '/whatsapp.php';
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date = $body['date'] ?? '';
+    if (!$date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400); echo json_encode(['error' => 'Data inválida']); exit;
+    }
+    // Texto vindo do app (idêntico ao que o admin vê) tem prioridade; senão monta no servidor.
+    $text = isset($body['text']) && trim($body['text']) !== '' ? $body['text'] : wa_build_confirmados_msg($pdo, $date);
+    $send = wa_send_group_text($text);
+    echo json_encode(['ok' => !empty($send['ok']), 'code' => $send['code'] ?? null, 'err' => $send['err'] ?? null, 'preview' => $text]);
+    exit;
+}
+
+// ── WHATSAPP: listar grupos da instância (admin) — p/ achar o JID ──
+if ($action === 'wa_list_groups') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    require_once __DIR__ . '/whatsapp.php';
+    echo json_encode(wa_list_groups());
+    exit;
+}
+
 // ── GET — carrega todos os dados ─────────────────────────
 $method = $_SERVER['REQUEST_METHOD'];
 

@@ -93,6 +93,16 @@ try {
         echo '<p style="color:#94a3b8">ℹ️ Coluna <code>role</code> já existe em <code>sessions</code>.</p>';
     }
 
+    // Tabela de controle de envio ao WhatsApp (debounce/anti-spam por rodada)
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS whatsapp_sent (
+            rodada_date    VARCHAR(10) NOT NULL PRIMARY KEY,
+            last_sent_at   DATETIME    NULL,
+            last_sent_hash CHAR(40)    NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+    echo '<p class="ok">✅ Tabela <code>whatsapp_sent</code> criada/verificada.</p>';
+
     echo '<hr>';
 
     // ── Usuários (reset completo: força role admin + senha correta) ──

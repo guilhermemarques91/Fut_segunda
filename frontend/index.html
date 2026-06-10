@@ -906,6 +906,7 @@
           <button onclick="rodClearAll()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px">Limpar</button>
           <button onclick="openAvulsoOrderModal()" class="btn-secondary" style="font-size:.73rem;padding:5px 10px" title="Ordenar avulsos">↕️ Avulsos</button>
           <button onclick="buildConfirmadosMsg()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.16);border:1px solid rgba(37,211,102,0.32);color:#25d366;cursor:pointer;font-family:inherit;font-weight:700;margin-left:auto">✅ Confirmados</button>
+          <button onclick="sendConfirmadosGrupo()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.22);border:1px solid rgba(37,211,102,0.4);color:#25d366;cursor:pointer;font-family:inherit;font-weight:700" title="Enviar a lista direto no grupo (Evolution API)">📣 Grupo</button>
           <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit">📋 WA</button>
           <button id="btn-gen-links" onclick="gerarLinksRodada()" style="display:none;font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.28);color:#60a5fa;cursor:pointer;font-family:inherit">🔗 Links</button>
         </div>
@@ -5501,13 +5502,15 @@ function buildRodadaPoll() {
 // Mensagem de CONFIRMADOS na ordem lógica da pelada:
 // goleiros mensalistas → demais mensalistas (1..N) → avulsos na ordem fixa.
 // Cada nome leva o emoji da resposta de confirmação.
-function buildConfirmadosMsg() {
+// Monta o TEXTO da mensagem de confirmados (sem efeitos colaterais).
+// IMPORTANTE: manter em sincronia com wa_build_confirmados_msg() em api/whatsapp.php.
+function buildConfirmadosText() {
   const date = document.getElementById('rod-date')?.value || new Date().toISOString().split('T')[0];
   const d    = new Date(date + 'T12:00:00');
   let ds     = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
   ds = ds.charAt(0).toUpperCase() + ds.slice(1);
 
-  const EMOJI = { football: '⚽', football_dinner: '⚽🍴', dinner_only: '🍴', no: '❌', pending: '⏳' };
+  const EMOJI = { football: '✅', football_dinner: '✅🥩', dinner_only: '🥩', no: '❌', pending: '⏳' };
   const { mensalistas, avulsos } = _orderedRodadaPlayers();
 
   // Avulsos confirmados (responderam presença), na ordem configurada.
@@ -5531,7 +5534,7 @@ function buildConfirmadosMsg() {
     const st = _confStatusFor(p.id);
     if (st === 'no') {
       const sub = subPool.find(s => !usedSubs.has(s.id));
-      if (sub) { usedSubs.add(sub.id); lines.push(`${i + 1}. ${p.name}${gk} ❌ → ${sub.name} ⚽`); }
+      if (sub) { usedSubs.add(sub.id); lines.push(`${i + 1}. ${p.name}${gk} ❌ → ${sub.name} ✅`); }
       else      lines.push(`${i + 1}. ${p.name}${gk} ❌`);
     } else {
       lines.push(`${i + 1}. ${p.name}${gk} ${EMOJI[st]}`);
@@ -5545,8 +5548,12 @@ function buildConfirmadosMsg() {
     extraAvulsos.forEach((x, i) => lines.push(`${i + 1}. ${x.p.name} ${EMOJI[x.st]}`));
   }
 
-  lines.push('', '_⚽ joga · 🍴 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
-  const msg = lines.join('\n');
+  lines.push('', '_✅ joga · 🥩 janta · ❌ não vai · ⏳ aguardando_', '━━━━━━━━━━━━━━━━━━━━');
+  return lines.join('\n');
+}
+
+function buildConfirmadosMsg() {
+  const msg = buildConfirmadosText();
   // Copia pra área de transferência (emojis perfeitos) — útil quando o preview
   // do WhatsApp Web desktop renderiza mal; é só colar no grupo.
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -5555,6 +5562,27 @@ function buildConfirmadosMsg() {
       .catch(() => {});
   }
   window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// Envia a lista de confirmados direto ao grupo (via Evolution API, server-side).
+async function sendConfirmadosGrupo() {
+  const date = document.getElementById('rod-date')?.value;
+  if (!date) return showToast('Selecione a data da rodada', false);
+  const text = buildConfirmadosText();
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=send_confirmados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(_authHeaders()) },
+      body: JSON.stringify({ date, text }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.status === 401) return showToast('Sessão expirada — entre novamente', false);
+    if (d && d.ok)            return showToast('📣 Lista enviada no grupo!');
+    if (d && d.err === 'not_configured') return showToast('WhatsApp do grupo ainda não configurado no servidor', false);
+    return showToast('Falha ao enviar' + (d && d.code ? ` (HTTP ${d.code})` : ''), false);
+  } catch {
+    showToast('Erro de conexão ao enviar', false);
+  }
 }
 
 // ── Modal de ordenação dos avulsos ──
