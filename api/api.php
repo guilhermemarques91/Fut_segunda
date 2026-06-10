@@ -76,13 +76,22 @@ if ($action === 'public') {
         'position' => $p['position'] ?? '',
         'overall'  => $p['overall']  ?? 60,
     ], $d['players'] ?? []);
-    $dinner = array_map(fn($h) => [
-        'date'  => $h['date'],
-        'meal'  => $h['meal']  ?? '',
-        'total' => $h['total'] ?? 0,
-        'share' => $h['share'] ?? 0,
-        'count' => count($h['participants'] ?? []),
-    ], $d['dinnerHistory'] ?? []);
+    // Mapa id -> nome para resolver participantes e responsável pela louça
+    $nameById = [];
+    foreach ($d['players'] ?? [] as $p) { $nameById[$p['id']] = $p['name']; }
+    // Tira-gosto público: SEM valores/cobranças/pendência — só janta, participantes e quem lavou
+    $dinner = array_map(function($h) use ($nameById) {
+        $partIds   = $h['participants'] ?? [];
+        $partNames = array_values(array_filter(array_map(fn($id) => $nameById[$id] ?? null, $partIds)));
+        $loucaId   = $h['loucaResponsavel'] ?? null;
+        return [
+            'date'         => $h['date'],
+            'meal'         => $h['meal'] ?? '',
+            'count'        => count($partIds),
+            'participants' => $partNames,
+            'louca'        => ($loucaId !== null && isset($nameById[$loucaId])) ? $nameById[$loucaId] : null,
+        ];
+    }, $d['dinnerHistory'] ?? []);
     echo json_encode([
         'players'       => $players,
         'attendances'   => $d['attendances']  ?? [],
