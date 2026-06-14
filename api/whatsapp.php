@@ -142,20 +142,25 @@ function wa_build_confirmados_msg($pdo, $rodadaDate) {
         }
     }
 
-    // link de confirmação (token da rodada, se existir)
-    $tkStmt = $pdo->prepare('SELECT token FROM presence_confirmations WHERE rodada_date = ? LIMIT 1');
-    $tkStmt->execute([$rodadaDate]);
-    $tk = $tkStmt->fetchColumn();
-    if ($tk && wa_cfg('SITE_URL')) {
-        $lines[] = '';
-        $lines[] = '🔗 *Confirme sua presença pelo link:*';
-        $lines[] = rtrim(wa_cfg('SITE_URL'), '/') . '/confirmar.php?t=' . $tk;
-    }
-
     $lines[] = '';
     $lines[] = '_✅ joga · 🥩 janta · ❌ não vai · ⏳ aguardando_';
     $lines[] = $hr;
+    foreach (wa_confirm_link_lines($pdo, $rodadaDate) as $l) $lines[] = $l;
     return implode("\n", $lines);
+}
+
+// Bloco do link de confirmação (rodapé) — token da rodada + SITE_URL.
+// Retorna [] se não houver token ou SITE_URL não estiver configurado.
+function wa_confirm_link_lines($pdo, $rodadaDate) {
+    $tkStmt = $pdo->prepare('SELECT token FROM presence_confirmations WHERE rodada_date = ? LIMIT 1');
+    $tkStmt->execute([$rodadaDate]);
+    $tk = $tkStmt->fetchColumn();
+    if (!$tk || !wa_cfg('SITE_URL')) return [];
+    return [
+        '',
+        '🔗 *Confirme sua presença pelo link:*',
+        rtrim(wa_cfg('SITE_URL'), '/') . '/confirmar.php?t=' . $tk,
+    ];
 }
 
 // Envia um texto para o grupo configurado via Evolution API (sendText v2).

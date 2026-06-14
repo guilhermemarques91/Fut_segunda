@@ -372,7 +372,13 @@ if ($action === 'send_confirmados') {
         http_response_code(400); echo json_encode(['error' => 'Data inválida']); exit;
     }
     // Texto vindo do app (idêntico ao que o admin vê) tem prioridade; senão monta no servidor.
-    $text = isset($body['text']) && trim($body['text']) !== '' ? $body['text'] : wa_build_confirmados_msg($pdo, $date);
+    $fromApp = isset($body['text']) && trim($body['text']) !== '';
+    $text = $fromApp ? $body['text'] : wa_build_confirmados_msg($pdo, $date);
+    // O texto do servidor já inclui o link; o do app não — anexa o rodapé com o link.
+    if ($fromApp) {
+        $linkLines = wa_confirm_link_lines($pdo, $date);
+        if ($linkLines) $text .= "\n" . implode("\n", $linkLines);
+    }
     $send = wa_send_group_text($text);
     echo json_encode(['ok' => !empty($send['ok']), 'code' => $send['code'] ?? null, 'err' => $send['err'] ?? null, 'preview' => $text]);
     exit;
