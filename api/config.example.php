@@ -19,3 +19,4 @@ define('EVOLUTION_APIKEY', '');     // AUTHENTICATION_API_KEY da Evolution
 define('EVOLUTION_GROUP_JID', '');  // ex: [email protected] (use wa_list_groups p/ achar)
 define('WA_QUIET_SECONDS', 90);     // janela de silêncio p/ consolidar o envio
 define('WA_CRON_KEY', '');          // segredo p/ chamar o cron via HTTP (?key=...)
+define('SITE_URL', '');             // ex: https://fut.barleiseca.com.br (sem barra final)

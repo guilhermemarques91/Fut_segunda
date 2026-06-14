@@ -42,6 +42,16 @@ if ($token) {
         $error = 'Erro de conexão. Tente novamente mais tarde.';
     }
 
+    // Valida se o token existe antes de mostrar o formulário
+    if (!$error) {
+        $tkStmt = $pdo->prepare('SELECT COUNT(*) FROM presence_confirmations WHERE token = ?');
+        $tkStmt->execute([$token]);
+        if ((int)$tkStmt->fetchColumn() === 0) {
+            $token = ''; // força o bloco "Link inválido"
+            $error = 'Link expirado ou inválido. Peça ao organizador para gerar um novo link.';
+        }
+    }
+
     if (!$error && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $rawPhone = $_POST['phone'] ?? '';
         $phone    = normalizePhone($rawPhone);
@@ -56,7 +66,7 @@ if ($token) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$row) {
-                $error = 'Número não encontrado nesta rodada. Verifique o número ou fale com o organizador.';
+                $error = 'Número não encontrado nesta rodada. Verifique se digitou o número cadastrado ou fale com o organizador.';
             } else {
                 $player = $row['player_name'];
                 $rowId  = $row['id'];
@@ -114,7 +124,7 @@ input[type="tel"]:focus{border-color:#3b82f6}
   <div class="title">Fut Segunda — Confirmação de Presença</div>
 
 <?php if (!$token): ?>
-  <div class="error">Link inválido. Use o link enviado no grupo do WhatsApp.</div>
+  <div class="error"><?= $error ?: 'Link inválido. Use o link enviado no grupo do WhatsApp.' ?></div>
 
 <?php elseif ($success): ?>
   <div class="success-icon"><?= $status === 'no' ? '😢' : ($status === 'dinner_only' ? '🍖' : '🎉') ?></div>

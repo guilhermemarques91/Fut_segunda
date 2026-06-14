@@ -142,6 +142,16 @@ function wa_build_confirmados_msg($pdo, $rodadaDate) {
         }
     }
 
+    // link de confirmação (token da rodada, se existir)
+    $tkStmt = $pdo->prepare('SELECT token FROM presence_confirmations WHERE rodada_date = ? LIMIT 1');
+    $tkStmt->execute([$rodadaDate]);
+    $tk = $tkStmt->fetchColumn();
+    if ($tk && wa_cfg('SITE_URL')) {
+        $lines[] = '';
+        $lines[] = '🔗 *Confirme sua presença pelo link:*';
+        $lines[] = rtrim(wa_cfg('SITE_URL'), '/') . '/confirmar.php?t=' . $tk;
+    }
+
     $lines[] = '';
     $lines[] = '_✅ joga · 🥩 janta · ❌ não vai · ⏳ aguardando_';
     $lines[] = $hr;
