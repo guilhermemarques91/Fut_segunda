@@ -49,7 +49,8 @@ function syncAttendanceFromConfirmations($pdo, $date) {
         $att =& $data['attendances'][$attIdx];
         $att['players'] = array_values(array_map('intval', $att['players'] ?? []));
         $att['noShow']  = array_values(array_map('intval', $att['noShow'] ?? []));
-        $att['manual']  = array_values(array_map('intval', $att['manual'] ?? []));
+        // mapa playerId(string) -> último status já importado; só reagimos a mudanças
+        $imported = (isset($att['imported']) && is_array($att['imported'])) ? $att['imported'] : [];
 
         // ── dinnerHistory[date] ────────────────────────────
         $data['dinnerHistory'] = $data['dinnerHistory'] ?? [];
@@ -67,7 +68,6 @@ function syncAttendanceFromConfirmations($pdo, $date) {
         $dinnerClosed = !empty($din['closed']);
         $din['participants'] = array_values(array_map('intval', $din['participants'] ?? []));
 
-        $manual = array_flip($att['manual']);
         $setMember = function (&$arr, $id, $want) {
             $pos = array_search($id, $arr, true);
             if ($want && $pos === false) { $arr[] = $id; return true; }
@@ -80,14 +80,18 @@ function syncAttendanceFromConfirmations($pdo, $date) {
             if ($c['status'] === 'pending') continue;
             $id = (int)$c['player_id'];
             if (!$id || !isset($playerSet[$id])) continue;
-            if (isset($manual[$id])) continue; // admin ajustou na mão — não sobrescreve
             $st = $c['status'];
+            // só reage quando a resposta é nova/mudou (preserva ajuste manual do admin)
+            if (isset($imported[$id]) && $imported[$id] === $st) continue;
             $wantFootball = ($st === 'football' || $st === 'football_dinner');
             $wantDinner   = ($st === 'football_dinner' || $st === 'dinner_only');
-            if ($setMember($att['players'], $id, $wantFootball)) $changed = true;
-            if (!$dinnerClosed && $setMember($din['participants'], $id, $wantDinner)) $changed = true;
-            if ($setMember($att['noShow'], $id, $st === 'no')) $changed = true;
+            $setMember($att['players'], $id, $wantFootball);
+            if (!$dinnerClosed) $setMember($din['participants'], $id, $wantDinner);
+            $setMember($att['noShow'], $id, $st === 'no');
+            $imported[$id] = $st;
+            $changed = true;
         }
+        $att['imported'] = $imported; // persiste o mapa de status já importados
         unset($att, $din);
         if (!$changed) return;
 

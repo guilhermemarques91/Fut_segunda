@@ -3619,7 +3619,8 @@ let rodState = {
   confirmedIds: [],
   dinnerIds: [],
   noShowIds: [],
-  manualIds: [], // jogadores ajustados manualmente pelo admin — auto-import não sobrescreve
+  manualIds: [], // legado — não é mais usado para bloquear o auto-import (ver `imported`)
+  imported: {},  // playerId -> último status já importado do link; auto-import só reage a MUDANÇAS
   rodTeams: { home: [], away: [], homeReserve: null, awayReserve: null },
   teamsGenerated: false,
   teamsEditMode: false,
@@ -3688,10 +3689,12 @@ function loadRodadaDate() {
     rodState.confirmedIds = [...att.players];
     rodState.noShowIds = Array.isArray(att.noShow) ? [...att.noShow] : [];
     rodState.manualIds = Array.isArray(att.manual) ? [...att.manual] : [];
+    rodState.imported = (att.imported && typeof att.imported === 'object') ? { ...att.imported } : {};
   } else {
     rodState.confirmedIds = App.players.filter(p => p.isRegular && !p.isIsento).map(p => p.id);
     rodState.noShowIds = [];
     rodState.manualIds = [];
+    rodState.imported = {};
   }
 
   if (th) {
@@ -3926,7 +3929,12 @@ function rodSelectAll() {
 }
 function rodClearAll() {
   rodState.confirmedIds = []; rodState.dinnerIds = []; rodState.noShowIds = [];
-  App.players.forEach(p => _markManual(p.id)); // limpar é decisão manual — não deixa o poll repovoar
+  // registra os status atuais como "já importados" p/ o auto-import não repovoar
+  // (limpar é decisão do admin; só uma resposta NOVA/alterada volta a entrar)
+  rodState.imported = rodState.imported || {};
+  Object.values(_confRowsByPlayer || {}).forEach(r => {
+    if (r && r.status && r.status !== 'pending') rodState.imported[Number(r.player_id)] = r.status;
+  });
   renderRodadaPresenca(); renderRodadaDinner(); autoSavePresenca(); autoSaveDinnerData();
 }
 
@@ -4361,8 +4369,9 @@ function autoSavePresenca() {
     existAtt.players = [...rodState.confirmedIds];
     existAtt.noShow  = [...rodState.noShowIds];
     existAtt.manual  = [...rodState.manualIds];
+    existAtt.imported = { ...(rodState.imported || {}) };
   } else if (rodState.confirmedIds.length > 0 || rodState.noShowIds.length > 0) {
-    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds], noShow: [...rodState.noShowIds], manual: [...rodState.manualIds] });
+    App.attendances.push({ date, opponent: opp, players: [...rodState.confirmedIds], noShow: [...rodState.noShowIds], manual: [...rodState.manualIds], imported: { ...(rodState.imported || {}) } });
   }
   scheduleSync();
   rodAutoSaveIndicator();
@@ -5713,6 +5722,7 @@ async function loadConfirmations(date) {
 // Retorna true se algo mudou.
 function _applyConfirmations(rows) {
   if (!rows || !rows.length || rodState.locked) return false;
+  rodState.imported = rodState.imported || {};
   let changed = false;
   const setMember = (arr, id, want) => {
     const has = arr.includes(id);
@@ -5724,13 +5734,18 @@ function _applyConfirmations(rows) {
     if (r.status === 'pending') return;
     const id = Number(r.player_id);
     if (!id || !App.players.find(p => p.id === id)) return;
-    if (rodState.manualIds.includes(id)) return; // admin ajustou na mão — não sobrescreve
+    // Só reage quando a resposta é NOVA ou MUDOU desde a última importação.
+    // Assim um ajuste manual do admin (que não altera o status no banco) é
+    // preservado, mas uma (re)confirmação pelo link sempre entra.
+    if (rodState.imported[id] === r.status) return;
     const wantFootball = r.status === 'football' || r.status === 'football_dinner';
     const wantDinner   = r.status === 'football_dinner' || r.status === 'dinner_only';
-    if (setMember(rodState.confirmedIds, id, wantFootball)) changed = true;
-    if (setMember(rodState.dinnerIds, id, wantDinner)) changed = true;
+    setMember(rodState.confirmedIds, id, wantFootball);
+    setMember(rodState.dinnerIds, id, wantDinner);
     // "não vai" do questionário marca o no-show; qualquer outra resposta o limpa
-    if (setMember(rodState.noShowIds, id, r.status === 'no')) changed = true;
+    setMember(rodState.noShowIds, id, r.status === 'no');
+    rodState.imported[id] = r.status;
+    changed = true;
   });
   return changed;
 }
@@ -5818,6 +5833,9 @@ async function importConfirmations(date) {
     rodState.dinnerIds    = dinnerIds;
     rodState.noShowIds    = noShowIds;
     rodState.manualIds    = []; // re-sincroniza tudo do questionário (descarta ajustes manuais)
+    // registra os status atuais como "já importados" p/ o auto-import não re-disparar
+    rodState.imported = {};
+    (rows || []).forEach(r => { if (r.status && r.status !== 'pending') rodState.imported[Number(r.player_id)] = r.status; });
     renderRodadaPresenca();
     renderRodadaDinner();
     autoSavePresenca();
