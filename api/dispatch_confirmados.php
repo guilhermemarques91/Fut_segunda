@@ -29,6 +29,13 @@ try {
 
     $quiet = (int) wa_cfg('WA_QUIET_SECONDS', 90);
 
+    // Garante a tabela de controle de envio (não depende de rodar o auth_setup.php).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS whatsapp_sent (
+        rodada_date    VARCHAR(10) NOT NULL PRIMARY KEY,
+        last_sent_at   DATETIME    NULL,
+        last_sent_hash CHAR(40)    NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     // Rodadas com confirmações nas últimas 6h e alguém que respondeu (não pending)
     $stmt = $pdo->query("
         SELECT rodada_date,
