@@ -75,6 +75,7 @@ if ($action === 'public') {
         'name'     => $p['name'],
         'position' => $p['position'] ?? '',
         'overall'  => $p['overall']  ?? 60,
+        'photo'    => $p['photo']    ?? null,
     ], $d['players'] ?? []);
     // Mapa id -> nome para resolver participantes e responsável pela louça
     $nameById = [];

@@ -330,18 +330,32 @@
       .link-tag{white-space:normal}
     }
     /* ─ PARTIDA AO VIVO ─ */
-    .live-score-num{font-size:4.5rem;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+    .live-score-num{font-size:clamp(3.6rem,9vw,6.5rem);font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
     .live-timer-display{font-size:2.8rem;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;transition:color .3s;color:#475569}
     .live-timer-display.running{color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.4)}
-    .goal-btn-lg{width:46px;height:46px;border-radius:10px;border:none;cursor:pointer;font-size:1.25rem;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:transform .1s,background .15s}
+    .goal-btn-lg{width:60px;height:60px;border-radius:14px;border:none;cursor:pointer;font-size:1.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:transform .1s,background .15s}
     .goal-btn-lg:active{transform:scale(.88)}
     .goal-btn-plus{background:rgba(34,197,94,0.15);color:#4ade80}.goal-btn-plus:hover{background:rgba(34,197,94,0.28)}
     .goal-btn-minus{background:rgba(255,255,255,0.06);color:#475569}.goal-btn-minus:hover{background:rgba(255,255,255,0.12);color:#94a3b8}
     .live-pulse{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;animation:livepulse 1.4s infinite}
     @keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.8)}}
-    .pub-live-score{font-size:3.5rem;font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+    .pub-live-score{font-size:clamp(3.4rem,8.5vw,6rem);font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
     .pub-live-timer{font-size:2.2rem;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:color .3s;color:#475569}
     .pub-live-timer.running{color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.4)}
+    /* Popup de gol (marcador + assistência) — ocupa boa parte da tela p/ uso em tablets */
+    #goal-modal .modal-content{width:80vw;max-width:860px;max-height:80vh;overflow-y:auto}
+    /* Card de jogador (avatar + nome) usado no popup de gol — preparado para futura foto do jogador */
+    .player-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);cursor:pointer;transition:all .15s;font-family:inherit;color:#94a3b8}
+    .player-card:hover{background:rgba(255,255,255,0.08);color:#e2e8f0}
+    .player-card.active{background:linear-gradient(135deg,#22c55e,#15803d);border-color:transparent;color:#fff;box-shadow:0 4px 18px rgba(34,197,94,0.35)}
+    .player-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.15rem;color:#64748b;flex-shrink:0;overflow:hidden}
+    .player-avatar img{width:100%;height:100%;object-fit:cover}
+    .player-card.active .player-avatar{background:rgba(255,255,255,0.22);color:#fff}
+    .player-card-name{font-size:.76rem;font-weight:600;text-align:center;line-height:1.2;word-break:break-word}
+    .player-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+    .no-assist-card{display:flex;align-items:center;justify-content:center;padding:14px 12px;border-radius:16px;border:1px dashed rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);cursor:pointer;font-family:inherit;color:#64748b;font-size:.8rem;font-weight:600;transition:all .15s;margin-bottom:12px}
+    .no-assist-card:hover{background:rgba(255,255,255,0.06);color:#94a3b8}
+    .no-assist-card.active{background:linear-gradient(135deg,#22c55e,#15803d);border-color:transparent;color:#fff}
   </style>
 </head>
 <body>
@@ -364,7 +378,7 @@
   </div>
 
   <!-- Partida ao vivo — visível sem login quando ativa -->
-  <div id="public-live" style="display:none;width:100%;max-width:900px;margin-top:28px">
+  <div id="public-live" style="display:none;width:100%;margin-top:28px">
     <div style="text-align:center;font-size:.72rem;color:#334155;margin-bottom:12px;letter-spacing:.03em">─── Partida Ao Vivo ───</div>
     <div id="pub-live-content"></div>
   </div>
@@ -464,6 +478,16 @@
     <div class="card">
       <div class="card-title"><div class="card-title-bar"></div><span id="form-title">Cadastrar Jogador</span></div>
       <div class="space-y">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="player-avatar" id="player-photo-preview" style="width:72px;height:72px;font-size:1.4rem;flex-shrink:0">?</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label class="btn-secondary" style="cursor:pointer;font-size:.78rem;padding:7px 14px;width:fit-content">
+              📷 Escolher foto
+              <input type="file" id="player-photo-input" accept="image/*" onchange="handlePlayerPhotoSelect(this)" style="display:none">
+            </label>
+            <button type="button" onclick="removePlayerPhoto()" id="player-photo-remove-btn" class="hidden" style="background:none;border:none;color:#f87171;font-size:.72rem;cursor:pointer;font-family:inherit;text-align:left;padding:0">✕ Remover foto</button>
+          </div>
+        </div>
         <div class="field-group"><label class="form-label">Nome Completo</label><input type="text" id="player-name" placeholder="Ex: João Silva" class="input-field"></div>
         <div class="form-grid-2">
           <div class="field-group"><label class="form-label">Apelido (opcional)</label><input type="text" id="player-apelido" placeholder="Ex: Juninho, Magrão…" class="input-field" maxlength="24"></div>
@@ -1942,6 +1966,57 @@ function updateRatingLive() {
 // ═══════════════════════════════════════════════════════
 //  PLAYERS CRUD
 // ═══════════════════════════════════════════════════════
+// undefined = sem alteração (mantém foto atual na edição) · null = removida · string = nova foto (data URI)
+let _pendingPlayerPhoto = undefined;
+
+function _setPlayerPhotoPreview(photoUrl, fallbackText) {
+  const el = document.getElementById('player-photo-preview');
+  const rmBtn = document.getElementById('player-photo-remove-btn');
+  if (!el) return;
+  if (photoUrl) {
+    el.innerHTML = `<img src="${photoUrl}" alt="">`;
+    if (rmBtn) rmBtn.classList.remove('hidden');
+  } else {
+    el.textContent = fallbackText || '?';
+    if (rmBtn) rmBtn.classList.add('hidden');
+  }
+}
+
+// Lê a imagem escolhida, redimensiona (máx. 256px) e comprime em JPEG antes de
+// guardar como data URI — evita fotos de câmera (vários MB) inchando o app_data.
+function handlePlayerPhotoSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { showToast('Selecione um arquivo de imagem', false); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 256;
+      let { width, height } = img;
+      if (width > height && width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+      else if (height >= width && height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      _pendingPlayerPhoto = dataUrl;
+      _setPlayerPhotoPreview(dataUrl);
+    };
+    img.onerror = () => showToast('Não foi possível ler a imagem', false);
+    img.src = e.target.result;
+  };
+  reader.onerror = () => showToast('Erro ao ler o arquivo', false);
+  reader.readAsDataURL(file);
+  input.value = ''; // permite selecionar o mesmo arquivo novamente depois
+}
+
+function removePlayerPhoto() {
+  _pendingPlayerPhoto = null;
+  const input = document.getElementById('player-photo-input'); if (input) input.value = '';
+  _setPlayerPhotoPreview(null, _playerInitials(document.getElementById('player-name')?.value || ''));
+}
+
 function savePlayer() {
   const name = document.getElementById('player-name').value.trim();
   if (!name) return alert('Informe o nome do jogador.');
@@ -1955,10 +2030,13 @@ function savePlayer() {
   const whatsapp = (document.getElementById('player-whatsapp')?.value || '').trim();
   if (App.editingId !== null) {
     const p = App.players.find(x => x.id === App.editingId);
-    if (p) { p.name=name; p.apelido=apelido; p.whatsapp=whatsapp; p.position=pos; p.attributes={physical:phy,tactical:tac,technical:tec}; p.overall=ovr; p.isRegular=isReg; p.isIsento=isIsento; p.monthlyFee=fee; }
+    if (p) {
+      p.name=name; p.apelido=apelido; p.whatsapp=whatsapp; p.position=pos; p.attributes={physical:phy,tactical:tac,technical:tec}; p.overall=ovr; p.isRegular=isReg; p.isIsento=isIsento; p.monthlyFee=fee;
+      if (_pendingPlayerPhoto !== undefined) p.photo = _pendingPlayerPhoto;
+    }
     App.editingId=null; document.getElementById('btn-save').textContent='📥 Cadastrar'; document.getElementById('btn-cancel').classList.add('hidden'); document.getElementById('form-title').textContent='Cadastrar Jogador';
   } else {
-    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,isIsento:isIsento,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null});
+    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,isIsento:isIsento,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null,photo:_pendingPlayerPhoto||null});
   }
   document.getElementById('player-name').value='';
   if (document.getElementById('player-apelido'))  document.getElementById('player-apelido').value='';
@@ -1967,6 +2045,7 @@ function savePlayer() {
   document.getElementById('attr-physical').value=65; document.getElementById('attr-tactical').value=60; document.getElementById('attr-technical').value=70;
   document.querySelector('input[name="player-type"][value="mensal"]').checked=true;
   document.getElementById('player-isento').checked=false;
+  _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(null, '?');
   updateRatingLive(); refreshAll();
 }
 
@@ -1979,6 +2058,7 @@ function editPlayer(id) {
   document.querySelector(`input[name="player-type"][value="${p.isRegular?'mensal':'avulso'}"]`).checked=true;
   document.getElementById('player-isento').checked=!!p.isIsento;
   document.getElementById('btn-save').innerHTML='💾 Atualizar'; document.getElementById('btn-cancel').classList.remove('hidden'); document.getElementById('form-title').textContent='Editar Jogador';
+  _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(p.photo || null, _playerInitials(p.name));
   updateRatingLive(); showSection('players'); window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -1990,6 +2070,7 @@ function cancelEdit() {
   document.querySelector('input[name="player-type"][value="mensal"]').checked=true;
   document.getElementById('player-isento').checked=false;
   document.getElementById('btn-save').textContent='📥 Cadastrar'; document.getElementById('btn-cancel').classList.add('hidden'); document.getElementById('form-title').textContent='Cadastrar Jogador';
+  _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(null, '?');
   updateRatingLive();
 }
 
@@ -2032,6 +2113,7 @@ function renderPlayerList() {
     ].filter(Boolean).join(' · ');
     return `<div class="player-item">
       <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
+        ${p.photo ? `<div class="player-avatar" style="width:38px;height:38px;flex-shrink:0"><img src="${p.photo}" alt=""></div>` : ''}
         <div class="overall-ring ring-lg ${getOverallColor(p.overall)}" style="box-shadow:0 0 13px ${g};flex-shrink:0">${p.overall}</div>
         <div style="min-width:0">
           <div style="font-weight:700;font-size:.87rem;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
@@ -3626,6 +3708,7 @@ let rodState = {
   teamsEditMode: false,
   locked: false,
   goals: [],
+  goalLog: [], // [{scorerId, assistId}] — histórico de gols marcados via popup (Ao Vivo), na ordem em que ocorreram
   motm: null,
   matchActive: false,
 };
@@ -3712,13 +3795,14 @@ function loadRodadaDate() {
 
   if (res) {
     rodState.goals = [...(res.goals||[])];
+    rodState.goalLog = [...(res.goalLog||[])];
     rodState.motm  = res.motm || null;
     const hEl = document.getElementById('rod-home-score');
     const aEl = document.getElementById('rod-away-score');
     if (hEl) hEl.value = res.homeScore !== null ? res.homeScore : '';
     if (aEl) aEl.value = res.awayScore !== null ? res.awayScore : '';
   } else {
-    rodState.goals = []; rodState.motm = null;
+    rodState.goals = []; rodState.goalLog = []; rodState.motm = null;
     const hEl = document.getElementById('rod-home-score');
     const aEl = document.getElementById('rod-away-score');
     if (hEl) hEl.value = ''; if (aEl) aEl.value = '';
@@ -3751,6 +3835,7 @@ function loadRodadaDate() {
     if (_goalsKey(liveGoals) !== _goalsKey(rodState.goals)) {
       rodState.goals = JSON.parse(JSON.stringify(liveGoals));
     }
+    rodState.goalLog = JSON.parse(JSON.stringify(_liveCache.goalLog||[]));
     _adoptLiveTimer(_liveCache);
     startLiveMatchPoll(); // sincroniza o placar da Rodada em tempo real (guarda interna decide se segue)
   } else {
@@ -4085,6 +4170,7 @@ async function lockRodada() {
       const total = liveGoals.reduce((s, g) => s + g.count, 0);
       if (confirm(`A partida ao vivo registrou ${total} gol(s) (placar da tela Ao Vivo / login).\n\nUsar esse placar nesta rodada?\n\nOK = usar os gols da partida ao vivo · Cancelar = manter os gols atuais da rodada.`)) {
         rodState.goals = JSON.parse(JSON.stringify(liveGoals));
+        rodState.goalLog = JSON.parse(JSON.stringify(live.goalLog||[]));
       }
     }
     pubLiveSrv = live;
@@ -4410,16 +4496,19 @@ function autoSaveGoals() {
   const homePlayerIds = (rodState.rodTeams.home || []).map(p => p.id);
   const awayPlayerIds = (rodState.rodTeams.away || []).map(p => p.id);
   if (!homePlayerIds.length && !awayPlayerIds.length) return;
+  const homeScoreIds = rodState.rodTeams.homeReserve ? [...homePlayerIds, rodState.rodTeams.homeReserve.id] : homePlayerIds;
+  const awayScoreIds = rodState.rodTeams.awayReserve ? [...awayPlayerIds, rodState.rodTeams.awayReserve.id] : awayPlayerIds;
   const goalCnt = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
-  const hScore = homePlayerIds.reduce((s, pid) => s + goalCnt(pid), 0);
-  const aScore = awayPlayerIds.reduce((s, pid) => s + goalCnt(pid), 0);
+  const hScore = homeScoreIds.reduce((s, pid) => s + goalCnt(pid), 0);
+  const aScore = awayScoreIds.reduce((s, pid) => s + goalCnt(pid), 0);
   const pending = rodState.goals.length === 0;
   const existRes = App.results.find(r => r.date === date);
   if (existRes) {
     existRes.goals = [...rodState.goals];
+    existRes.goalLog = [...(rodState.goalLog||[])];
     if (!pending) { existRes.homeScore = hScore; existRes.awayScore = aScore; existRes.pending = false; }
   } else {
-    App.results.push({ id: App.nextId(), date, homeTeam: 'T. Preto e Amarelo', awayTeam: 'T. Azul', homeScore: pending ? null : hScore, awayScore: pending ? null : aScore, pending, goals: [...rodState.goals], motm: null, homePlayerIds, awayPlayerIds });
+    App.results.push({ id: App.nextId(), date, homeTeam: 'T. Preto e Amarelo', awayTeam: 'T. Azul', homeScore: pending ? null : hScore, awayScore: pending ? null : aScore, pending, goals: [...rodState.goals], goalLog: [...(rodState.goalLog||[])], motm: null, homePlayerIds, awayPlayerIds });
   }
   scheduleSync();
   rodAutoSaveIndicator();
@@ -4658,6 +4747,7 @@ function startPartida() {
     homeReserveId: homeReserve?.id||null,
     awayReserveId: awayReserve?.id||null,
     goals: [...(rodState.goals||[])],
+    goalLog: [...(rodState.goalLog||[])],
     periodo: 1, t1ms: null,
     timerRunning: false, timerElapsed: 0, timerStartedAt: null,
     intervaloStart: null, intervaloMs: null
@@ -4694,8 +4784,8 @@ function renderLiveMatch() {
   const homeFull = sortByPos(homeReserve ? [...(home||[]), homeReserve] : (home||[]));
   const awayFull = sortByPos(awayReserve ? [...(away||[]), awayReserve] : (away||[]));
   const cnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
-  const hScore = (home||[]).reduce((s,p)=>s+cnt(p.id),0);
-  const aScore = (away||[]).reduce((s,p)=>s+cnt(p.id),0);
+  const hScore = homeFull.reduce((s,p)=>s+cnt(p.id),0);
+  const aScore = awayFull.reduce((s,p)=>s+cnt(p.id),0);
 
   // Histórico read-only (partida encerrada)
   if (!rodState.matchActive) {
@@ -4746,47 +4836,33 @@ function renderLiveMatch() {
   }
 
   // Partida ativa
-  const makeRow = (p, color) => {
-    const c = cnt(p.id);
-    const balls = c > 0 ? ' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`) : '';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.88rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.72rem">${balls}</span></span>
-      <span style="font-size:1.05rem;font-weight:800;color:${c>0?color:'#334155'};min-width:20px;text-align:center">${c}</span>
-      <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
-      <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
-    </div>`;
-  };
-
   el.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
       <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
     </div>
 
-    <div class="card" style="margin-bottom:14px;padding:20px 16px;text-align:center">
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
-        <div style="flex:1;text-align:center">
-          <div style="font-size:.6rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">⬛🟡 T. Preto</div>
+    <div class="card" style="margin-bottom:14px;padding:34px 22px;text-align:center;width:100%">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:18px;margin-bottom:24px">
+        <div style="text-align:center">
+          <div style="font-size:.7rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 T. Preto</div>
           <div id="live-home-score" class="live-score-num">${hScore}</div>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
+            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalTab('home')">−</button>
+            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('live','home')">+</button>
+          </div>
         </div>
-        <div style="font-size:2rem;font-weight:200;color:#334155;padding-bottom:4px">×</div>
-        <div style="flex:1;text-align:center">
-          <div style="font-size:.6rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🔵 T. Azul</div>
+        <div style="font-size:2rem;font-weight:200;color:#334155;padding-top:22px">×</div>
+        <div style="text-align:center">
+          <div style="font-size:.7rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 T. Azul</div>
           <div id="live-away-score" class="live-score-num">${aScore}</div>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
+            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalTab('away')">−</button>
+            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('live','away')">+</button>
+          </div>
         </div>
       </div>
       <div id="live-timer-panel"></div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div class="card" style="padding:12px 10px">
-        <div style="font-size:.58rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 Preto</div>
-        <div id="live-home-players">${homeFull.map(p=>makeRow(p,'#fbbf24')).join('')}</div>
-      </div>
-      <div class="card" style="padding:12px 10px">
-        <div style="font-size:.58rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
-        <div id="live-away-players">${awayFull.map(p=>makeRow(p,'#60a5fa')).join('')}</div>
-      </div>
     </div>
 
     <button onclick="encerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700">🔴 Encerrar e Salvar Partida</button>
@@ -4795,38 +4871,122 @@ function renderLiveMatch() {
   startLiveMatchPoll(); // mantém o app em sincronia com o liveState (tela de login)
 }
 
-function addLiveGoal(playerId, delta) {
+// ── MODAL DE GOL (marcador + assistência) — compartilhado pelas duas telas "Ao Vivo" ──
+// context: 'pub' (tela de login, opera sobre pubLiveSrv) ou 'live' (aba logada, opera sobre rodState)
+let _goalModal = null; // {context, team, players:[{id,name}], scorerId, assistId}
+
+function _lastGoalIndexForTeam(goalLog, teamPlayerIds) {
+  for (let i = goalLog.length - 1; i >= 0; i--) {
+    if (teamPlayerIds.includes(goalLog[i].scorerId)) return i;
+  }
+  return -1;
+}
+
+function _goalModalTeamPlayers(context, team) {
+  if (context === 'pub') {
+    const ids = [...((team==='home' ? pubLiveSrv?.homePlayers : pubLiveSrv?.awayPlayers) || [])];
+    const reserveId = team==='home' ? pubLiveSrv?.homeReserveId : pubLiveSrv?.awayReserveId;
+    if (reserveId) ids.push(reserveId);
+    return ids.map(id => _pubPlayerMap[id]).filter(Boolean);
+  }
+  const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
+  const base = team==='home' ? (home||[]) : (away||[]);
+  const reserve = team==='home' ? homeReserve : awayReserve;
+  const sortByPos = arr => [...arr].sort((a,b)=>(POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
+  return sortByPos(reserve ? [...base, reserve] : base);
+}
+
+function openGoalModal(context, team) {
+  const players = _goalModalTeamPlayers(context, team);
+  if (!players.length) { showToast('Nenhum jogador nesse time', false); return; }
+  _goalModal = { context, team, players, scorerId: null, assistId: null };
+  document.getElementById('goal-modal-title').textContent = `⚽ Registrar Gol · ${team==='home'?'T. Preto':'T. Azul'}`;
+  _renderGoalModal();
+  document.getElementById('goal-modal').style.display = 'flex';
+}
+
+function closeGoalModal() {
+  const el = document.getElementById('goal-modal'); if (el) el.style.display = 'none';
+  _goalModal = null;
+}
+
+function selectGoalScorer(id) {
+  if (!_goalModal) return;
+  _goalModal.scorerId = id;
+  if (_goalModal.assistId === id) _goalModal.assistId = null;
+  _renderGoalModal();
+}
+function selectGoalAssist(id) {
+  if (!_goalModal) return;
+  _goalModal.assistId = (_goalModal.assistId === id) ? null : id;
+  _renderGoalModal();
+}
+
+// Iniciais para o avatar-placeholder do card de jogador (até termos foto real).
+function _playerInitials(name) {
+  const parts = (name||'').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return parts.length === 1 ? parts[0].slice(0,2).toUpperCase() : (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+}
+
+function _renderGoalModal() {
+  const m = _goalModal; if (!m) return;
+  const card = (p, selected, onClick) =>
+    `<button type="button" onclick="${onClick}" class="player-card${selected?' active':''}">
+      <span class="player-avatar">${p.photo ? `<img src="${p.photo}" alt="">` : _playerInitials(p.name)}</span>
+      <span class="player-card-name">${p.name}</span>
+    </button>`;
+  document.getElementById('goal-modal-scorers').innerHTML =
+    m.players.map(p => card(p, m.scorerId===p.id, `selectGoalScorer(${p.id})`)).join('');
+  document.getElementById('goal-modal-assists').innerHTML =
+    `<button type="button" onclick="selectGoalAssist(null)" class="no-assist-card${m.assistId===null?' active':''}">Sem assistência</button>
+    <div class="player-card-grid">` +
+    m.players.filter(p=>p.id!==m.scorerId).map(p => card(p, m.assistId===p.id, `selectGoalAssist(${p.id})`)).join('') +
+    `</div>`;
+  const btn = document.getElementById('goal-modal-confirm-btn');
+  btn.disabled = !m.scorerId;
+  btn.style.opacity = m.scorerId ? '1' : '.5';
+}
+
+async function confirmGoalModal() {
+  const m = _goalModal; if (!m || !m.scorerId) return;
+  if (m.context === 'pub') await _pubApplyGoal(m.scorerId, m.assistId);
+  else _liveApplyGoal(m.scorerId, m.assistId);
+  closeGoalModal();
+}
+
+// Aplica um gol marcado via popup (aba "Ao Vivo" logada) — soma no placar de rodState
+// e registra no goalLog (marcador + assistência) para persistir no resultado da rodada.
+function _liveApplyGoal(scorerId, assistId) {
   if (rodState.locked) return;
-  let g = rodState.goals.find(g=>g.playerId===playerId);
-  if (!g) { g={playerId,count:0}; rodState.goals.push(g); }
-  g.count = Math.max(0, g.count+delta);
-  if (g.count===0) rodState.goals = rodState.goals.filter(g=>g.playerId!==playerId);
+  let g = rodState.goals.find(g=>g.playerId===scorerId);
+  if (!g) { g={playerId:scorerId,count:0}; rodState.goals.push(g); }
+  g.count += 1;
+  rodState.goalLog = [...(rodState.goalLog||[]), {scorerId, assistId}];
+  renderLiveMatch();
+  autoSaveGoals(); renderRodadaGoals();
+  _syncLiveGoals();
+}
 
-  const cnt = pid=>(rodState.goals.find(g=>g.playerId===pid)?.count)||0;
-  const {home, away, homeReserve, awayReserve} = rodState.rodTeams;
-  const sortByPos = arr=>[...arr].sort((a,b)=>(POS_ORDER[a.position]??4)-(POS_ORDER[b.position]??4));
-  const homeFull = sortByPos(homeReserve?[...(home||[]),homeReserve]:(home||[]));
-  const awayFull = sortByPos(awayReserve?[...(away||[]),awayReserve]:(away||[]));
-
-  const hs = document.getElementById('live-home-score');
-  const as = document.getElementById('live-away-score');
-  if (hs) hs.textContent = (home||[]).reduce((s,p)=>s+cnt(p.id),0);
-  if (as) as.textContent = (away||[]).reduce((s,p)=>s+cnt(p.id),0);
-
-  const makeRow = (p,color) => {
-    const c=cnt(p.id), balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.88rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.72rem">${balls}</span></span>
-      <span style="font-size:1.05rem;font-weight:800;color:${c>0?color:'#334155'};min-width:20px;text-align:center">${c}</span>
-      <button class="goal-btn-lg goal-btn-minus" onclick="addLiveGoal(${p.id},-1)">−</button>
-      <button class="goal-btn-lg goal-btn-plus"  onclick="addLiveGoal(${p.id}, 1)">+</button>
-    </div>`;
-  };
-  const homeEl=document.getElementById('live-home-players');
-  const awayEl=document.getElementById('live-away-players');
-  if (homeEl) homeEl.innerHTML = homeFull.map(p=>makeRow(p,'#fbbf24')).join('');
-  if (awayEl) awayEl.innerHTML = awayFull.map(p=>makeRow(p,'#60a5fa')).join('');
-
+// Desfaz o último gol marcado pelo time informado (confirma antes, mostrando quem seria removido).
+function undoLiveGoalTab(team) {
+  if (rodState.locked) return;
+  const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
+  const base = (team==='home' ? (home||[]) : (away||[])).map(p=>p.id);
+  const reserveId = (team==='home' ? homeReserve : awayReserve)?.id;
+  const ids = reserveId ? [...base, reserveId] : base;
+  const goalLog = [...(rodState.goalLog||[])];
+  const idx = _lastGoalIndexForTeam(goalLog, ids);
+  if (idx === -1) { showToast('Nenhum gol para desfazer', false); return; }
+  const ev = goalLog[idx];
+  const scorer = findPlayerById(ev.scorerId);
+  const assist = ev.assistId ? findPlayerById(ev.assistId) : null;
+  if (!confirm(`Desfazer o gol de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
+  goalLog.splice(idx, 1);
+  rodState.goalLog = goalLog;
+  const g = rodState.goals.find(g=>g.playerId===ev.scorerId);
+  if (g) { g.count = Math.max(0, g.count-1); if (g.count===0) rodState.goals = rodState.goals.filter(x=>x.playerId!==ev.scorerId); }
+  renderLiveMatch();
   autoSaveGoals(); renderRodadaGoals();
   _syncLiveGoals();
 }
@@ -4888,6 +5048,8 @@ async function _finalizeLiveMatch() {
       const d = await r.json();
       const sg = d?.liveState?.goals;
       if (Array.isArray(sg)) rodState.goals = JSON.parse(JSON.stringify(sg.filter(g => g.count > 0)));
+      const sl = d?.liveState?.goalLog;
+      if (Array.isArray(sl)) rodState.goalLog = JSON.parse(JSON.stringify(sl));
     }
   } catch {}
   autoSaveGoals();
@@ -4954,7 +5116,7 @@ function _syncLiveGoals() {
   // Não mistura datas: só empurra se a rodada carregada for a da partida ao vivo.
   const date = document.getElementById('rod-date')?.value;
   if (date && pubLiveSrv.date && date !== pubLiveSrv.date) return;
-  _pushLiveState({goals: [...(rodState.goals||[])].filter(g => g.count > 0)});
+  _pushLiveState({goals: [...(rodState.goals||[])].filter(g => g.count > 0), goalLog: [...(rodState.goalLog||[])]});
 }
 
 // ── Sincronização in-app ⇄ liveState (placar editável nas duas telas) ──
@@ -5021,6 +5183,7 @@ async function _pollLiveMatch() {
     const newGoals = (s.goals || []).filter(g => g.count > 0);
     if (_goalsKey(newGoals) !== _goalsKey(rodState.goals)) {
       rodState.goals = JSON.parse(JSON.stringify(newGoals));
+      rodState.goalLog = JSON.parse(JSON.stringify(s.goalLog||[]));
       autoSaveGoals();
       changed = true;
     }
@@ -5128,25 +5291,38 @@ async function pubLiveReset() {
   renderPubLiveTimer();
 }
 
-async function pubLiveAddGoal(playerId, delta) {
+// Aplica um gol marcado via popup (tela pública de login) — soma no placar do liveState
+// e registra no goalLog (marcador + assistência), replicando para a aba "Ao Vivo" logada.
+async function _pubApplyGoal(scorerId, assistId) {
   if (!pubLiveSrv) return;
   const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
-  let g = goals.find(g=>g.playerId===playerId);
-  if (!g) { g={playerId,count:0}; goals.push(g); }
-  g.count = Math.max(0, g.count+delta);
-  await _pushLiveState({goals: goals.filter(g=>g.count>0)});
-  const cnt = id => (pubLiveSrv.goals||[]).find(g=>g.playerId===id)?.count||0;
-  const hEl=document.getElementById('pub-live-home-score'); if(hEl) hEl.textContent=(pubLiveSrv.homePlayers||[]).reduce((a,id)=>a+cnt(id),0);
-  const aEl=document.getElementById('pub-live-away-score'); if(aEl) aEl.textContent=(pubLiveSrv.awayPlayers||[]).reduce((a,id)=>a+cnt(id),0);
-  const makeRow=(id,color)=>{const p=_pubPlayerMap[id];if(!p)return '';const c=cnt(id);const balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.85rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.7rem">${balls}</span></span>
-      <span style="font-size:1rem;font-weight:800;color:${c>0?color:'#334155'};min-width:18px;text-align:center">${c}</span>
-      <button class="goal-btn-lg goal-btn-minus" onclick="pubLiveAddGoal(${id},-1)">−</button>
-      <button class="goal-btn-lg goal-btn-plus"  onclick="pubLiveAddGoal(${id}, 1)">+</button>
-    </div>`;};
-  const hEl2=document.getElementById('pub-live-home-players'); if(hEl2) hEl2.innerHTML=(pubLiveSrv.homePlayers||[]).map(id=>makeRow(id,'#fbbf24')).join('');
-  const aEl2=document.getElementById('pub-live-away-players'); if(aEl2) aEl2.innerHTML=(pubLiveSrv.awayPlayers||[]).map(id=>makeRow(id,'#60a5fa')).join('');
+  let g = goals.find(g=>g.playerId===scorerId);
+  if (!g) { g={playerId:scorerId,count:0}; goals.push(g); }
+  g.count += 1;
+  const goalLog = [...(pubLiveSrv.goalLog||[]), {scorerId, assistId}];
+  await _pushLiveState({goals, goalLog});
+  renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
+}
+
+// Desfaz o último gol marcado pelo time informado (confirma antes, mostrando quem seria removido).
+async function undoLiveGoalPub(team) {
+  if (!pubLiveSrv) return;
+  const ids = [...((team==='home' ? pubLiveSrv.homePlayers : pubLiveSrv.awayPlayers) || [])];
+  const reserveId = team==='home' ? pubLiveSrv.homeReserveId : pubLiveSrv.awayReserveId;
+  if (reserveId) ids.push(reserveId);
+  const goalLog = [...(pubLiveSrv.goalLog||[])];
+  const idx = _lastGoalIndexForTeam(goalLog, ids);
+  if (idx === -1) { showToast('Nenhum gol para desfazer', false); return; }
+  const ev = goalLog[idx];
+  const scorer = _pubPlayerMap[ev.scorerId];
+  const assist = ev.assistId ? _pubPlayerMap[ev.assistId] : null;
+  if (!confirm(`Desfazer o gol de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
+  goalLog.splice(idx, 1);
+  const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
+  const g = goals.find(g=>g.playerId===ev.scorerId);
+  if (g) g.count = Math.max(0, g.count-1);
+  await _pushLiveState({goals: goals.filter(g=>g.count>0), goalLog});
+  renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
 }
 
 function renderPublicLivePanel(d) {
@@ -5159,44 +5335,37 @@ function renderPublicLivePanel(d) {
   _pubPlayerMap = Object.fromEntries((d.players||[]).map(p=>[p.id,p]));
   wrapEl.style.display = 'block';
   const cnt = id => (s.goals||[]).find(g=>g.playerId===id)?.count||0;
-  const hScore = (s.homePlayers||[]).reduce((a,id)=>a+cnt(id),0);
-  const aScore = (s.awayPlayers||[]).reduce((a,id)=>a+cnt(id),0);
+  const hIds = [...(s.homePlayers||[])]; if (s.homeReserveId) hIds.push(s.homeReserveId);
+  const aIds = [...(s.awayPlayers||[])]; if (s.awayReserveId) aIds.push(s.awayReserveId);
+  const hScore = hIds.reduce((a,id)=>a+cnt(id),0);
+  const aScore = aIds.reduce((a,id)=>a+cnt(id),0);
   const dateLabel = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
-  const makeRow = (id,color)=>{const p=_pubPlayerMap[id];if(!p)return '';const c=cnt(id);const balls=c>0?' '+(c<=5?'⚽'.repeat(c):`⚽×${c}`):'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 2px;border-bottom:1px solid rgba(255,255,255,0.04)">
-      <span style="flex:1;font-size:.85rem;color:${c>0?'#f1f5f9':'#64748b'};font-weight:${c>0?700:400}">${p.name}<span style="font-size:.7rem">${balls}</span></span>
-      <span style="font-size:1rem;font-weight:800;color:${c>0?color:'#334155'};min-width:18px;text-align:center">${c}</span>
-      <button class="goal-btn-lg goal-btn-minus" onclick="pubLiveAddGoal(${id},-1)">−</button>
-      <button class="goal-btn-lg goal-btn-plus"  onclick="pubLiveAddGoal(${id}, 1)">+</button>
-    </div>`;};
   document.getElementById('pub-live-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
       <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
     </div>
-    <div class="card" style="margin-bottom:12px;padding:18px 14px;text-align:center">
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px">
-        <div style="flex:1;text-align:center">
-          <div style="font-size:.58rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">⬛🟡 T. Preto</div>
+    <div class="card" style="margin-bottom:12px;padding:34px 22px;text-align:center;width:100%">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:18px;margin-bottom:24px">
+        <div style="text-align:center">
+          <div style="font-size:.68rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 T. Preto</div>
           <div id="pub-live-home-score" class="pub-live-score">${hScore}</div>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
+            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalPub('home')">−</button>
+            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('pub','home')">+</button>
+          </div>
         </div>
-        <div style="font-size:1.8rem;font-weight:200;color:#334155;padding-bottom:4px">×</div>
-        <div style="flex:1;text-align:center">
-          <div style="font-size:.58rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px">🔵 T. Azul</div>
+        <div style="font-size:1.8rem;font-weight:200;color:#334155;padding-top:20px">×</div>
+        <div style="text-align:center">
+          <div style="font-size:.68rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 T. Azul</div>
           <div id="pub-live-away-score" class="pub-live-score">${aScore}</div>
+          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
+            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalPub('away')">−</button>
+            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('pub','away')">+</button>
+          </div>
         </div>
       </div>
       <div id="pub-live-timer-panel"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="card" style="padding:12px 10px">
-        <div style="font-size:.56rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 Preto</div>
-        <div id="pub-live-home-players">${(s.homePlayers||[]).map(id=>makeRow(id,'#fbbf24')).join('')}</div>
-      </div>
-      <div class="card" style="padding:12px 10px">
-        <div style="font-size:.56rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 Azul</div>
-        <div id="pub-live-away-players">${(s.awayPlayers||[]).map(id=>makeRow(id,'#60a5fa')).join('')}</div>
-      </div>
     </div>
     <button onclick="pubEncerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700;margin-top:14px">🔴 Encerrar e Salvar Partida</button>
     <div style="font-size:.68rem;color:#475569;text-align:center;margin-top:6px">Requer login de administrador para computar o resultado</div>`;
@@ -5285,8 +5454,10 @@ function saveRodada() {
   const goalCnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
   const homePlayerIds = (rodState.rodTeams.home||[]).map(p=>p.id);
   const awayPlayerIds = (rodState.rodTeams.away||[]).map(p=>p.id);
-  let hScore = homePlayerIds.reduce((s,pid)=>s+goalCnt(pid),0);
-  let aScore = awayPlayerIds.reduce((s,pid)=>s+goalCnt(pid),0);
+  const homeScoreIds = rodState.rodTeams.homeReserve ? [...homePlayerIds, rodState.rodTeams.homeReserve.id] : homePlayerIds;
+  const awayScoreIds = rodState.rodTeams.awayReserve ? [...awayPlayerIds, rodState.rodTeams.awayReserve.id] : awayPlayerIds;
+  let hScore = homeScoreIds.reduce((s,pid)=>s+goalCnt(pid),0);
+  let aScore = awayScoreIds.reduce((s,pid)=>s+goalCnt(pid),0);
   if (rodState.goals.length === 0) {
     hScore = hEl?.value !== '' ? (parseInt(hEl?.value)||0) : null;
     aScore = aEl?.value !== '' ? (parseInt(aEl?.value)||0) : null;
@@ -5295,11 +5466,11 @@ function saveRodada() {
   const existRes = App.results.find(r => r.date === date);
   if (existRes) {
     existRes.homeScore=hScore; existRes.awayScore=aScore; existRes.pending=pending;
-    existRes.goals=[...rodState.goals]; existRes.motm=rodState.motm;
+    existRes.goals=[...rodState.goals]; existRes.goalLog=[...(rodState.goalLog||[])]; existRes.motm=rodState.motm;
     if (homePlayerIds.length) existRes.homePlayerIds=homePlayerIds;
     if (awayPlayerIds.length) existRes.awayPlayerIds=awayPlayerIds;
   } else if (homePlayerIds.length || hScore !== null) {
-    App.results.push({ id:App.nextId(), date, homeTeam:'T. Preto e Amarelo', awayTeam:'T. Azul', homeScore:hScore, awayScore:aScore, pending, goals:[...rodState.goals], motm:rodState.motm, homePlayerIds, awayPlayerIds });
+    App.results.push({ id:App.nextId(), date, homeTeam:'T. Preto e Amarelo', awayTeam:'T. Azul', homeScore:hScore, awayScore:aScore, pending, goals:[...rodState.goals], goalLog:[...(rodState.goalLog||[])], motm:rodState.motm, homePlayerIds, awayPlayerIds });
   }
 
   // 4. Dinner — apenas salva dados; débitos são criados somente via "Fechar Tira Gosto"
@@ -5407,6 +5578,7 @@ async function confirmDeleteRodada() {
     rodState.teamsGenerated = false;
     rodState.rodTeams = { home: [], away: [], homeReserve: null, awayReserve: null };
     rodState.goals = [];
+    rodState.goalLog = [];
   }
 
   scheduleSync();
@@ -7205,6 +7377,21 @@ document.addEventListener('DOMContentLoaded', () => {
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="closePubEncerrarModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
       <button onclick="confirmPubEncerrar()" id="pub-encerrar-btn" style="flex:1;padding:10px;border-radius:10px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.35);color:#f87171;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem">🔴 Encerrar</button>
+    </div>
+  </div>
+</div>
+<!-- ══ MODAL REGISTRAR GOL (AO VIVO — marcador + assistência) ══ -->
+<div id="goal-modal" onclick="if(event.target===this)closeGoalModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:700;align-items:center;justify-content:center;padding:16px">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div id="goal-modal-title" style="font-size:1.15rem;font-weight:700;color:#f1f5f9;margin-bottom:4px">⚽ Registrar Gol</div>
+    <div style="font-size:.8rem;color:#64748b;margin-bottom:16px">Selecione quem marcou e, se houver, quem deu a assistência.</div>
+    <label class="form-label">Quem marcou? <span style="color:#f87171">*</span></label>
+    <div id="goal-modal-scorers" class="player-card-grid" style="margin:8px 0 20px"></div>
+    <label class="form-label">Assistência (opcional)</label>
+    <div id="goal-modal-assists" style="margin:8px 0 4px"></div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button onclick="closeGoalModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
+      <button onclick="confirmGoalModal()" id="goal-modal-confirm-btn" disabled style="flex:1;padding:10px;border-radius:10px;background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.4);color:#4ade80;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem;opacity:.5">✅ Confirmar Gol</button>
     </div>
   </div>
 </div>
