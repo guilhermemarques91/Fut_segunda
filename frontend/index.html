@@ -345,14 +345,16 @@
     /* Popup de gol (marcador + assistência) — ocupa boa parte da tela p/ uso em tablets */
     #goal-modal .modal-content{width:80vw;max-width:860px;max-height:80vh;overflow-y:auto}
     /* Card de jogador (avatar + nome) usado no popup de gol — preparado para futura foto do jogador */
-    .player-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);cursor:pointer;transition:all .15s;font-family:inherit;color:#94a3b8}
+    .player-card{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);cursor:pointer;transition:all .15s;font-family:inherit;color:#94a3b8;overflow:hidden}
     .player-card:hover{background:rgba(255,255,255,0.08);color:#e2e8f0}
     .player-card.active{background:linear-gradient(135deg,#22c55e,#15803d);border-color:transparent;color:#fff;box-shadow:0 4px 18px rgba(34,197,94,0.35)}
     .player-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.15rem;color:#64748b;flex-shrink:0;overflow:hidden}
     .player-avatar img,.player-avatar video{width:100%;height:100%;object-fit:cover}
     .player-card.active .player-avatar{background:rgba(255,255,255,0.22);color:#fff}
-    .player-card-name{font-size:.76rem;font-weight:600;text-align:center;line-height:1.2;word-break:break-word}
-    .player-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+    /* No card de gol, a mídia ocupa o card inteiro (não é mais um avatar circular pequeno) */
+    .player-card .player-avatar{width:100%;height:auto;aspect-ratio:1/1;border-radius:0;font-size:2.1rem}
+    .player-card-name{padding:8px 6px;font-size:.78rem;font-weight:600;text-align:center;line-height:1.2;word-break:break-word}
+    .player-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:12px}
     .no-assist-card{display:flex;align-items:center;justify-content:center;padding:14px 12px;border-radius:16px;border:1px dashed rgba(255,255,255,0.18);background:rgba(255,255,255,0.02);cursor:pointer;font-family:inherit;color:#64748b;font-size:.8rem;font-weight:600;transition:all .15s;margin-bottom:12px}
     .no-assist-card:hover{background:rgba(255,255,255,0.06);color:#94a3b8}
     .no-assist-card.active{background:linear-gradient(135deg,#22c55e,#15803d);border-color:transparent;color:#fff}
