@@ -349,7 +349,7 @@
     .player-card:hover{background:rgba(255,255,255,0.08);color:#e2e8f0}
     .player-card.active{background:linear-gradient(135deg,#22c55e,#15803d);border-color:transparent;color:#fff;box-shadow:0 4px 18px rgba(34,197,94,0.35)}
     .player-avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.15rem;color:#64748b;flex-shrink:0;overflow:hidden}
-    .player-avatar img{width:100%;height:100%;object-fit:cover}
+    .player-avatar img,.player-avatar video{width:100%;height:100%;object-fit:cover}
     .player-card.active .player-avatar{background:rgba(255,255,255,0.22);color:#fff}
     .player-card-name{font-size:.76rem;font-weight:600;text-align:center;line-height:1.2;word-break:break-word}
     .player-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
@@ -478,14 +478,28 @@
     <div class="card">
       <div class="card-title"><div class="card-title-bar"></div><span id="form-title">Cadastrar Jogador</span></div>
       <div class="space-y">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div class="player-avatar" id="player-photo-preview" style="width:72px;height:72px;font-size:1.4rem;flex-shrink:0">?</div>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <label class="btn-secondary" style="cursor:pointer;font-size:.78rem;padding:7px 14px;width:fit-content">
-              📷 Escolher foto
-              <input type="file" id="player-photo-input" accept="image/*" onchange="handlePlayerPhotoSelect(this)" style="display:none">
-            </label>
-            <button type="button" onclick="removePlayerPhoto()" id="player-photo-remove-btn" class="hidden" style="background:none;border:none;color:#f87171;font-size:.72rem;cursor:pointer;font-family:inherit;text-align:left;padding:0">✕ Remover foto</button>
+        <div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="player-avatar" id="player-photo-preview" style="width:72px;height:72px;font-size:1.4rem;flex-shrink:0">?</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label class="btn-secondary" style="cursor:pointer;font-size:.78rem;padding:7px 14px;width:fit-content">
+                📷 Escolher foto
+                <input type="file" id="player-photo-input" accept="image/*" onchange="handlePlayerPhotoSelect(this)" style="display:none">
+              </label>
+              <button type="button" onclick="removePlayerPhoto()" id="player-photo-remove-btn" class="hidden" style="background:none;border:none;color:#f87171;font-size:.72rem;cursor:pointer;font-family:inherit;text-align:left;padding:0">✕ Remover foto</button>
+              <span style="font-size:.62rem;color:#334155">Foto ou GIF animado</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="player-avatar" id="player-video-preview" style="width:72px;height:72px;font-size:1.4rem;flex-shrink:0">?</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <label class="btn-secondary" id="player-video-picker-label" style="cursor:pointer;font-size:.78rem;padding:7px 14px;width:fit-content">
+                🎥 Escolher vídeo
+                <input type="file" id="player-video-input" accept="video/*" onchange="handlePlayerVideoSelect(this)" style="display:none">
+              </label>
+              <button type="button" onclick="removePlayerVideo()" id="player-video-remove-btn" class="hidden" style="background:none;border:none;color:#f87171;font-size:.72rem;cursor:pointer;font-family:inherit;text-align:left;padding:0">✕ Remover vídeo</button>
+              <span style="font-size:.62rem;color:#334155">mp4/webm/mov, até 8MB</span>
+            </div>
           </div>
         </div>
         <div class="field-group"><label class="form-label">Nome Completo</label><input type="text" id="player-name" placeholder="Ex: João Silva" class="input-field"></div>
@@ -1966,28 +1980,42 @@ function updateRatingLive() {
 // ═══════════════════════════════════════════════════════
 //  PLAYERS CRUD
 // ═══════════════════════════════════════════════════════
-// undefined = sem alteração (mantém foto atual na edição) · null = removida · string = nova foto (data URI)
+// undefined = sem alteração (mantém mídia atual na edição) · null = removida · string = nova mídia (data URI ou URL)
 let _pendingPlayerPhoto = undefined;
+let _pendingPlayerVideo = undefined;
 
-function _setPlayerPhotoPreview(photoUrl, fallbackText) {
-  const el = document.getElementById('player-photo-preview');
-  const rmBtn = document.getElementById('player-photo-remove-btn');
+function _setMediaPreview(previewElId, rmBtnId, url, kind, fallbackText) {
+  const el = document.getElementById(previewElId);
+  const rmBtn = document.getElementById(rmBtnId);
   if (!el) return;
-  if (photoUrl) {
-    el.innerHTML = `<img src="${photoUrl}" alt="">`;
+  if (url) {
+    el.innerHTML = kind === 'video' ? `<video src="${url}" muted></video>` : `<img src="${url}" alt="">`;
     if (rmBtn) rmBtn.classList.remove('hidden');
   } else {
     el.textContent = fallbackText || '?';
     if (rmBtn) rmBtn.classList.add('hidden');
   }
 }
+function _setPlayerPhotoPreview(photoUrl, fallbackText) { _setMediaPreview('player-photo-preview', 'player-photo-remove-btn', photoUrl, 'photo', fallbackText); }
+function _setPlayerVideoPreview(videoUrl, fallbackText) { _setMediaPreview('player-video-preview', 'player-video-remove-btn', videoUrl, 'video', fallbackText); }
 
-// Lê a imagem escolhida, redimensiona (máx. 256px) e comprime em JPEG antes de
-// guardar como data URI — evita fotos de câmera (vários MB) inchando o app_data.
+// Lê a imagem escolhida. GIF anda como está (redimensionar via canvas quebraria a
+// animação) — só valida tamanho. Demais formatos são redimensionados (máx. 256px) e
+// comprimidos em JPEG antes de guardar como data URI, evitando fotos de câmera (vários
+// MB) inchando o app_data.
 function handlePlayerPhotoSelect(input) {
   const file = input.files && input.files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) { showToast('Selecione um arquivo de imagem', false); input.value=''; return; }
+  if (file.type === 'image/gif') {
+    if (file.size > 3 * 1024 * 1024) { showToast('GIF muito grande (máx. 3MB)', false); input.value=''; return; }
+    const reader = new FileReader();
+    reader.onload = (e) => { _pendingPlayerPhoto = e.target.result; _setPlayerPhotoPreview(e.target.result); };
+    reader.onerror = () => showToast('Erro ao ler o arquivo', false);
+    reader.readAsDataURL(file);
+    input.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
@@ -2017,6 +2045,64 @@ function removePlayerPhoto() {
   _setPlayerPhotoPreview(null, _playerInitials(document.getElementById('player-name')?.value || ''));
 }
 
+const PLAYER_VIDEO_MAX_BYTES = 8 * 1024 * 1024;
+const PLAYER_VIDEO_EXTS = ['mp4', 'webm', 'mov'];
+
+// Apaga (best-effort, sem bloquear a UI) um vídeo antigo do servidor quando é
+// substituído por outro ou removido.
+function _requestDeletePlayerVideo(url) {
+  if (!url) return;
+  fetch(SERVER_CONFIG.apiUrl + '?action=delete_player_video', {
+    method: 'POST', headers: { ..._authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ url })
+  }).catch(() => {});
+}
+function _currentPlayerVideoUrl() {
+  return _pendingPlayerVideo !== undefined ? _pendingPlayerVideo : (App.editingId !== null ? App.players.find(p => p.id === App.editingId)?.video : null);
+}
+
+// Envia o vídeo pro servidor (não cabe inline no blob JSON como a foto) e guarda a
+// URL retornada. Diferente da foto, o upload acontece já na seleção do arquivo —
+// se o usuário cancelar a edição depois, o arquivo fica órfão no servidor (aceito
+// dado o porte do app; não há faxina automática).
+async function handlePlayerVideoSelect(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!file.type.startsWith('video/') || !PLAYER_VIDEO_EXTS.includes(ext)) {
+    showToast('Selecione um vídeo mp4, webm ou mov', false); input.value=''; return;
+  }
+  if (file.size > PLAYER_VIDEO_MAX_BYTES) { showToast('Vídeo maior que 8MB', false); input.value=''; return; }
+  const label = document.getElementById('player-video-picker-label');
+  const orig = label ? label.innerHTML : '';
+  if (label) label.innerHTML = '⏳ Enviando…';
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('playerId', App.editingId !== null ? String(App.editingId) : '0');
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=upload_player_video', {
+      method: 'POST', headers: _authHeaders(), body: form
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.url) { showToast(data.error || 'Falha no upload do vídeo', false); return; }
+    const oldUrl = _currentPlayerVideoUrl();
+    if (oldUrl && oldUrl !== data.url) _requestDeletePlayerVideo(oldUrl);
+    _pendingPlayerVideo = data.url;
+    _setPlayerVideoPreview(data.url);
+  } catch {
+    showToast('Erro de conexão ao enviar o vídeo', false);
+  } finally {
+    if (label) label.innerHTML = orig;
+    input.value = '';
+  }
+}
+
+function removePlayerVideo() {
+  _requestDeletePlayerVideo(_currentPlayerVideoUrl());
+  _pendingPlayerVideo = null;
+  const input = document.getElementById('player-video-input'); if (input) input.value = '';
+  _setPlayerVideoPreview(null, '?');
+}
+
 function savePlayer() {
   const name = document.getElementById('player-name').value.trim();
   if (!name) return alert('Informe o nome do jogador.');
@@ -2033,10 +2119,11 @@ function savePlayer() {
     if (p) {
       p.name=name; p.apelido=apelido; p.whatsapp=whatsapp; p.position=pos; p.attributes={physical:phy,tactical:tac,technical:tec}; p.overall=ovr; p.isRegular=isReg; p.isIsento=isIsento; p.monthlyFee=fee;
       if (_pendingPlayerPhoto !== undefined) p.photo = _pendingPlayerPhoto;
+      if (_pendingPlayerVideo !== undefined) p.video = _pendingPlayerVideo;
     }
     App.editingId=null; document.getElementById('btn-save').textContent='📥 Cadastrar'; document.getElementById('btn-cancel').classList.add('hidden'); document.getElementById('form-title').textContent='Cadastrar Jogador';
   } else {
-    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,isIsento:isIsento,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null,photo:_pendingPlayerPhoto||null});
+    App.players.push({id:App.nextId(),name,apelido,whatsapp,position:pos,attributes:{physical:phy,tactical:tac,technical:tec},overall:ovr,isRegular:isReg,isIsento:isIsento,monthlyFee:fee,balance:0,payments:[],dinnerDebt:0,lastRating:null,photo:_pendingPlayerPhoto||null,video:_pendingPlayerVideo||null});
   }
   document.getElementById('player-name').value='';
   if (document.getElementById('player-apelido'))  document.getElementById('player-apelido').value='';
@@ -2046,6 +2133,7 @@ function savePlayer() {
   document.querySelector('input[name="player-type"][value="mensal"]').checked=true;
   document.getElementById('player-isento').checked=false;
   _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(null, '?');
+  _pendingPlayerVideo = undefined; _setPlayerVideoPreview(null, '?');
   updateRatingLive(); refreshAll();
 }
 
@@ -2059,6 +2147,7 @@ function editPlayer(id) {
   document.getElementById('player-isento').checked=!!p.isIsento;
   document.getElementById('btn-save').innerHTML='💾 Atualizar'; document.getElementById('btn-cancel').classList.remove('hidden'); document.getElementById('form-title').textContent='Editar Jogador';
   _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(p.photo || null, _playerInitials(p.name));
+  _pendingPlayerVideo = undefined; _setPlayerVideoPreview(p.video || null, '?');
   updateRatingLive(); showSection('players'); window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -2071,6 +2160,7 @@ function cancelEdit() {
   document.getElementById('player-isento').checked=false;
   document.getElementById('btn-save').textContent='📥 Cadastrar'; document.getElementById('btn-cancel').classList.add('hidden'); document.getElementById('form-title').textContent='Cadastrar Jogador';
   _pendingPlayerPhoto = undefined; _setPlayerPhotoPreview(null, '?');
+  _pendingPlayerVideo = undefined; _setPlayerVideoPreview(null, '?');
   updateRatingLive();
 }
 
@@ -2113,7 +2203,7 @@ function renderPlayerList() {
     ].filter(Boolean).join(' · ');
     return `<div class="player-item">
       <div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0">
-        ${p.photo ? `<div class="player-avatar" style="width:38px;height:38px;flex-shrink:0"><img src="${p.photo}" alt=""></div>` : ''}
+        ${p.video ? `<div class="player-avatar" style="width:38px;height:38px;flex-shrink:0"><video src="${p.video}" muted></video></div>` : p.photo ? `<div class="player-avatar" style="width:38px;height:38px;flex-shrink:0"><img src="${p.photo}" alt=""></div>` : ''}
         <div class="overall-ring ring-lg ${getOverallColor(p.overall)}" style="box-shadow:0 0 13px ${g};flex-shrink:0">${p.overall}</div>
         <div style="min-width:0">
           <div style="font-weight:700;font-size:.87rem;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
@@ -3708,7 +3798,7 @@ let rodState = {
   teamsEditMode: false,
   locked: false,
   goals: [],
-  goalLog: [], // [{scorerId, assistId}] — histórico de gols marcados via popup (Ao Vivo), na ordem em que ocorreram
+  goalLog: [], // [{scorerId, assistId, team, ownGoal}] — histórico de gols marcados via popup (Ao Vivo), na ordem em que ocorreram
   motm: null,
   matchActive: false,
 };
@@ -4405,8 +4495,8 @@ function renderRodadaGoals() {
       <div><div style="font-size:.63rem;color:#60a5fa;font-weight:700;margin-bottom:5px">🔵 T. AZUL</div>${awaySorted.map(p=>renderRow(p,'#60a5fa')).join('')}</div>
     </div>
   </div>`;
-  const hs = homeSorted.reduce((s,p)=>s+cnt(p.id),0);
-  const as = awaySorted.reduce((s,p)=>s+cnt(p.id),0);
+  const hs = homeSorted.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'home');
+  const as = awaySorted.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'away');
   const hEl = document.getElementById('rod-home-score'), aEl = document.getElementById('rod-away-score');
   if (hEl && document.activeElement!==hEl) hEl.value = hs||'';
   if (aEl && document.activeElement!==aEl) aEl.value = as||'';
@@ -4499,9 +4589,9 @@ function autoSaveGoals() {
   const homeScoreIds = rodState.rodTeams.homeReserve ? [...homePlayerIds, rodState.rodTeams.homeReserve.id] : homePlayerIds;
   const awayScoreIds = rodState.rodTeams.awayReserve ? [...awayPlayerIds, rodState.rodTeams.awayReserve.id] : awayPlayerIds;
   const goalCnt = pid => (rodState.goals.find(g => g.playerId === pid)?.count) || 0;
-  const hScore = homeScoreIds.reduce((s, pid) => s + goalCnt(pid), 0);
-  const aScore = awayScoreIds.reduce((s, pid) => s + goalCnt(pid), 0);
-  const pending = rodState.goals.length === 0;
+  const hScore = homeScoreIds.reduce((s, pid) => s + goalCnt(pid), 0) + _ownGoalCountForTeam(rodState.goalLog,'home');
+  const aScore = awayScoreIds.reduce((s, pid) => s + goalCnt(pid), 0) + _ownGoalCountForTeam(rodState.goalLog,'away');
+  const pending = rodState.goals.length === 0 && !(rodState.goalLog||[]).some(e=>e.ownGoal);
   const existRes = App.results.find(r => r.date === date);
   if (existRes) {
     existRes.goals = [...rodState.goals];
@@ -4784,8 +4874,8 @@ function renderLiveMatch() {
   const homeFull = sortByPos(homeReserve ? [...(home||[]), homeReserve] : (home||[]));
   const awayFull = sortByPos(awayReserve ? [...(away||[]), awayReserve] : (away||[]));
   const cnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
-  const hScore = homeFull.reduce((s,p)=>s+cnt(p.id),0);
-  const aScore = awayFull.reduce((s,p)=>s+cnt(p.id),0);
+  const hScore = homeFull.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'home');
+  const aScore = awayFull.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'away');
 
   // Histórico read-only (partida encerrada)
   if (!rodState.matchActive) {
@@ -4873,13 +4963,25 @@ function renderLiveMatch() {
 
 // ── MODAL DE GOL (marcador + assistência) — compartilhado pelas duas telas "Ao Vivo" ──
 // context: 'pub' (tela de login, opera sobre pubLiveSrv) ou 'live' (aba logada, opera sobre rodState)
-let _goalModal = null; // {context, team, players:[{id,name}], scorerId, assistId}
+let _goalModal = null; // {context, team, players:[{id,name}], scorerId, assistId, ownGoal}
 
-function _lastGoalIndexForTeam(goalLog, teamPlayerIds) {
+// Casa o último gol do `team` no goalLog. Gols contam pro time gravado em `entry.team`
+// (independente de quem marcou — é assim que um gol contra do adversário conta pra
+// mim). Entradas antigas (antes do campo `team` existir) caem no fallback por elenco.
+function _lastGoalIndexForTeam(goalLog, team, teamPlayerIds) {
   for (let i = goalLog.length - 1; i >= 0; i--) {
-    if (teamPlayerIds.includes(goalLog[i].scorerId)) return i;
+    const e = goalLog[i];
+    if (e.team !== undefined) { if (e.team === team) return i; }
+    else if (teamPlayerIds.includes(e.scorerId)) return i;
   }
   return -1;
+}
+
+// Quantos gols contra contam pro placar do `team` — somado por cima da contagem normal
+// de goals[] em todo lugar que calcula placar. Entradas antigas (sem `ownGoal`) nunca
+// batem aqui, então dados históricos ficam intocados.
+function _ownGoalCountForTeam(goalLog, team) {
+  return (goalLog||[]).filter(e => e.ownGoal === true && e.team === team).length;
 }
 
 function _goalModalTeamPlayers(context, team) {
@@ -4899,8 +5001,7 @@ function _goalModalTeamPlayers(context, team) {
 function openGoalModal(context, team) {
   const players = _goalModalTeamPlayers(context, team);
   if (!players.length) { showToast('Nenhum jogador nesse time', false); return; }
-  _goalModal = { context, team, players, scorerId: null, assistId: null };
-  document.getElementById('goal-modal-title').textContent = `⚽ Registrar Gol · ${team==='home'?'T. Preto':'T. Azul'}`;
+  _goalModal = { context, team, players, scorerId: null, assistId: null, ownGoal: false };
   _renderGoalModal();
   document.getElementById('goal-modal').style.display = 'flex';
 }
@@ -4922,53 +5023,89 @@ function selectGoalAssist(id) {
   _renderGoalModal();
 }
 
-// Iniciais para o avatar-placeholder do card de jogador (até termos foto real).
+// Liga/desliga "gol contra": troca a lista de jogadores pro time adversário (quem faz
+// contra é do outro time), mas o gol continua valendo pro time do "+" clicado.
+function toggleGoalOwnGoal() {
+  if (!_goalModal) return;
+  _goalModal.ownGoal = !_goalModal.ownGoal;
+  _goalModal.scorerId = null; _goalModal.assistId = null;
+  const oppTeam = _goalModal.team === 'home' ? 'away' : 'home';
+  _goalModal.players = _goalModalTeamPlayers(_goalModal.context, _goalModal.ownGoal ? oppTeam : _goalModal.team);
+  _renderGoalModal();
+}
+
+// Iniciais para o avatar-placeholder do card de jogador (quando não há foto/vídeo).
 function _playerInitials(name) {
   const parts = (name||'').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
   return parts.length === 1 ? parts[0].slice(0,2).toUpperCase() : (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
 }
 
+// Vídeo tem prioridade sobre foto. No grid, só o card selecionado autoplaya — os
+// demais mostram o primeiro frame parado (mais leve pra rede/bateria no campo).
+function _playerMediaHtml(p, selected) {
+  if (p.video) return `<video ${selected?'autoplay':''} muted loop playsinline src="${p.video}"></video>`;
+  if (p.photo) return `<img src="${p.photo}" alt="">`;
+  return _playerInitials(p.name);
+}
+
 function _renderGoalModal() {
   const m = _goalModal; if (!m) return;
   const card = (p, selected, onClick) =>
     `<button type="button" onclick="${onClick}" class="player-card${selected?' active':''}">
-      <span class="player-avatar">${p.photo ? `<img src="${p.photo}" alt="">` : _playerInitials(p.name)}</span>
+      <span class="player-avatar">${_playerMediaHtml(p, selected)}</span>
       <span class="player-card-name">${p.name}</span>
     </button>`;
+  const teamLabel = (m.ownGoal ? (m.team==='home'?'away':'home') : m.team) === 'home' ? 'T. Preto' : 'T. Azul';
+  document.getElementById('goal-modal-title').textContent = m.ownGoal
+    ? `⚠️ Gol Contra · a favor do ${m.team==='home'?'T. Preto':'T. Azul'}`
+    : `⚽ Registrar Gol · ${m.team==='home'?'T. Preto':'T. Azul'}`;
+  document.getElementById('goal-modal-subtitle').textContent = m.ownGoal
+    ? `Selecione o jogador do ${teamLabel} que marcou contra.`
+    : 'Selecione quem marcou e, se houver, quem deu a assistência.';
+  document.getElementById('goal-modal-owngoal-toggle').className = 'att-tab' + (m.ownGoal ? ' active' : '');
+  document.getElementById('goal-modal-scorer-label').textContent = m.ownGoal ? 'Quem marcou contra?' : 'Quem marcou?';
   document.getElementById('goal-modal-scorers').innerHTML =
     m.players.map(p => card(p, m.scorerId===p.id, `selectGoalScorer(${p.id})`)).join('');
-  document.getElementById('goal-modal-assists').innerHTML =
-    `<button type="button" onclick="selectGoalAssist(null)" class="no-assist-card${m.assistId===null?' active':''}">Sem assistência</button>
-    <div class="player-card-grid">` +
-    m.players.filter(p=>p.id!==m.scorerId).map(p => card(p, m.assistId===p.id, `selectGoalAssist(${p.id})`)).join('') +
-    `</div>`;
+  const assistSection = document.getElementById('goal-modal-assist-section');
+  assistSection.style.display = m.ownGoal ? 'none' : '';
+  if (!m.ownGoal) {
+    document.getElementById('goal-modal-assists').innerHTML =
+      `<button type="button" onclick="selectGoalAssist(null)" class="no-assist-card${m.assistId===null?' active':''}">Sem assistência</button>
+      <div class="player-card-grid">` +
+      m.players.filter(p=>p.id!==m.scorerId).map(p => card(p, m.assistId===p.id, `selectGoalAssist(${p.id})`)).join('') +
+      `</div>`;
+  }
   const btn = document.getElementById('goal-modal-confirm-btn');
   btn.disabled = !m.scorerId;
   btn.style.opacity = m.scorerId ? '1' : '.5';
+  btn.textContent = m.ownGoal ? '✅ Confirmar Gol Contra' : '✅ Confirmar Gol';
 }
 
 async function confirmGoalModal() {
   const m = _goalModal; if (!m || !m.scorerId) return;
-  if (m.context === 'pub') await _pubApplyGoal(m.scorerId, m.assistId);
-  else _liveApplyGoal(m.scorerId, m.assistId);
+  if (m.context === 'pub') await _pubApplyGoal(m.scorerId, m.assistId, m.team, m.ownGoal);
+  else _liveApplyGoal(m.scorerId, m.assistId, m.team, m.ownGoal);
   closeGoalModal();
 }
 
 // Aplica um gol marcado via popup (aba "Ao Vivo" logada) — soma no placar de rodState
-// e registra no goalLog (marcador + assistência) para persistir no resultado da rodada.
-function _liveApplyGoal(scorerId, assistId) {
+// e registra no goalLog (marcador + assistência + time beneficiado) para persistir no
+// resultado da rodada. Gol contra NÃO soma em goals[] (sem crédito pessoal de artilheiro).
+function _liveApplyGoal(scorerId, assistId, team, ownGoal) {
   if (rodState.locked) return;
-  let g = rodState.goals.find(g=>g.playerId===scorerId);
-  if (!g) { g={playerId:scorerId,count:0}; rodState.goals.push(g); }
-  g.count += 1;
-  rodState.goalLog = [...(rodState.goalLog||[]), {scorerId, assistId}];
+  if (!ownGoal) {
+    let g = rodState.goals.find(g=>g.playerId===scorerId);
+    if (!g) { g={playerId:scorerId,count:0}; rodState.goals.push(g); }
+    g.count += 1;
+  }
+  rodState.goalLog = [...(rodState.goalLog||[]), {scorerId, assistId: ownGoal ? null : assistId, team, ownGoal: !!ownGoal}];
   renderLiveMatch();
   autoSaveGoals(); renderRodadaGoals();
   _syncLiveGoals();
 }
 
-// Desfaz o último gol marcado pelo time informado (confirma antes, mostrando quem seria removido).
+// Desfaz o último gol marcado a favor do time informado (confirma antes, mostrando quem seria removido).
 function undoLiveGoalTab(team) {
   if (rodState.locked) return;
   const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
@@ -4976,16 +5113,18 @@ function undoLiveGoalTab(team) {
   const reserveId = (team==='home' ? homeReserve : awayReserve)?.id;
   const ids = reserveId ? [...base, reserveId] : base;
   const goalLog = [...(rodState.goalLog||[])];
-  const idx = _lastGoalIndexForTeam(goalLog, ids);
+  const idx = _lastGoalIndexForTeam(goalLog, team, ids);
   if (idx === -1) { showToast('Nenhum gol para desfazer', false); return; }
   const ev = goalLog[idx];
   const scorer = findPlayerById(ev.scorerId);
   const assist = ev.assistId ? findPlayerById(ev.assistId) : null;
-  if (!confirm(`Desfazer o gol de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
+  if (!confirm(`Desfazer o gol${ev.ownGoal?' (gol contra)':''} de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
   goalLog.splice(idx, 1);
   rodState.goalLog = goalLog;
-  const g = rodState.goals.find(g=>g.playerId===ev.scorerId);
-  if (g) { g.count = Math.max(0, g.count-1); if (g.count===0) rodState.goals = rodState.goals.filter(x=>x.playerId!==ev.scorerId); }
+  if (!ev.ownGoal) {
+    const g = rodState.goals.find(g=>g.playerId===ev.scorerId);
+    if (g) { g.count = Math.max(0, g.count-1); if (g.count===0) rodState.goals = rodState.goals.filter(x=>x.playerId!==ev.scorerId); }
+  }
   renderLiveMatch();
   autoSaveGoals(); renderRodadaGoals();
   _syncLiveGoals();
@@ -5292,35 +5431,40 @@ async function pubLiveReset() {
 }
 
 // Aplica um gol marcado via popup (tela pública de login) — soma no placar do liveState
-// e registra no goalLog (marcador + assistência), replicando para a aba "Ao Vivo" logada.
-async function _pubApplyGoal(scorerId, assistId) {
+// e registra no goalLog (marcador + assistência + time beneficiado), replicando para a
+// aba "Ao Vivo" logada. Gol contra NÃO soma em goals[] (sem crédito pessoal de artilheiro).
+async function _pubApplyGoal(scorerId, assistId, team, ownGoal) {
   if (!pubLiveSrv) return;
   const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
-  let g = goals.find(g=>g.playerId===scorerId);
-  if (!g) { g={playerId:scorerId,count:0}; goals.push(g); }
-  g.count += 1;
-  const goalLog = [...(pubLiveSrv.goalLog||[]), {scorerId, assistId}];
+  if (!ownGoal) {
+    let g = goals.find(g=>g.playerId===scorerId);
+    if (!g) { g={playerId:scorerId,count:0}; goals.push(g); }
+    g.count += 1;
+  }
+  const goalLog = [...(pubLiveSrv.goalLog||[]), {scorerId, assistId: ownGoal ? null : assistId, team, ownGoal: !!ownGoal}];
   await _pushLiveState({goals, goalLog});
   renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
 }
 
-// Desfaz o último gol marcado pelo time informado (confirma antes, mostrando quem seria removido).
+// Desfaz o último gol marcado a favor do time informado (confirma antes, mostrando quem seria removido).
 async function undoLiveGoalPub(team) {
   if (!pubLiveSrv) return;
   const ids = [...((team==='home' ? pubLiveSrv.homePlayers : pubLiveSrv.awayPlayers) || [])];
   const reserveId = team==='home' ? pubLiveSrv.homeReserveId : pubLiveSrv.awayReserveId;
   if (reserveId) ids.push(reserveId);
   const goalLog = [...(pubLiveSrv.goalLog||[])];
-  const idx = _lastGoalIndexForTeam(goalLog, ids);
+  const idx = _lastGoalIndexForTeam(goalLog, team, ids);
   if (idx === -1) { showToast('Nenhum gol para desfazer', false); return; }
   const ev = goalLog[idx];
   const scorer = _pubPlayerMap[ev.scorerId];
   const assist = ev.assistId ? _pubPlayerMap[ev.assistId] : null;
-  if (!confirm(`Desfazer o gol de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
+  if (!confirm(`Desfazer o gol${ev.ownGoal?' (gol contra)':''} de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''}?`)) return;
   goalLog.splice(idx, 1);
   const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
-  const g = goals.find(g=>g.playerId===ev.scorerId);
-  if (g) g.count = Math.max(0, g.count-1);
+  if (!ev.ownGoal) {
+    const g = goals.find(g=>g.playerId===ev.scorerId);
+    if (g) g.count = Math.max(0, g.count-1);
+  }
   await _pushLiveState({goals: goals.filter(g=>g.count>0), goalLog});
   renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
 }
@@ -5337,8 +5481,8 @@ function renderPublicLivePanel(d) {
   const cnt = id => (s.goals||[]).find(g=>g.playerId===id)?.count||0;
   const hIds = [...(s.homePlayers||[])]; if (s.homeReserveId) hIds.push(s.homeReserveId);
   const aIds = [...(s.awayPlayers||[])]; if (s.awayReserveId) aIds.push(s.awayReserveId);
-  const hScore = hIds.reduce((a,id)=>a+cnt(id),0);
-  const aScore = aIds.reduce((a,id)=>a+cnt(id),0);
+  const hScore = hIds.reduce((a,id)=>a+cnt(id),0) + _ownGoalCountForTeam(s.goalLog,'home');
+  const aScore = aIds.reduce((a,id)=>a+cnt(id),0) + _ownGoalCountForTeam(s.goalLog,'away');
   const dateLabel = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
   document.getElementById('pub-live-content').innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -5456,9 +5600,9 @@ function saveRodada() {
   const awayPlayerIds = (rodState.rodTeams.away||[]).map(p=>p.id);
   const homeScoreIds = rodState.rodTeams.homeReserve ? [...homePlayerIds, rodState.rodTeams.homeReserve.id] : homePlayerIds;
   const awayScoreIds = rodState.rodTeams.awayReserve ? [...awayPlayerIds, rodState.rodTeams.awayReserve.id] : awayPlayerIds;
-  let hScore = homeScoreIds.reduce((s,pid)=>s+goalCnt(pid),0);
-  let aScore = awayScoreIds.reduce((s,pid)=>s+goalCnt(pid),0);
-  if (rodState.goals.length === 0) {
+  let hScore = homeScoreIds.reduce((s,pid)=>s+goalCnt(pid),0) + _ownGoalCountForTeam(rodState.goalLog,'home');
+  let aScore = awayScoreIds.reduce((s,pid)=>s+goalCnt(pid),0) + _ownGoalCountForTeam(rodState.goalLog,'away');
+  if (rodState.goals.length === 0 && !(rodState.goalLog||[]).some(e=>e.ownGoal)) {
     hScore = hEl?.value !== '' ? (parseInt(hEl?.value)||0) : null;
     aScore = aEl?.value !== '' ? (parseInt(aEl?.value)||0) : null;
   }
@@ -7383,12 +7527,17 @@ document.addEventListener('DOMContentLoaded', () => {
 <!-- ══ MODAL REGISTRAR GOL (AO VIVO — marcador + assistência) ══ -->
 <div id="goal-modal" onclick="if(event.target===this)closeGoalModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:700;align-items:center;justify-content:center;padding:16px">
   <div class="modal-content" onclick="event.stopPropagation()">
-    <div id="goal-modal-title" style="font-size:1.15rem;font-weight:700;color:#f1f5f9;margin-bottom:4px">⚽ Registrar Gol</div>
-    <div style="font-size:.8rem;color:#64748b;margin-bottom:16px">Selecione quem marcou e, se houver, quem deu a assistência.</div>
-    <label class="form-label">Quem marcou? <span style="color:#f87171">*</span></label>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:4px">
+      <div id="goal-modal-title" style="font-size:1.15rem;font-weight:700;color:#f1f5f9">⚽ Registrar Gol</div>
+      <button type="button" onclick="toggleGoalOwnGoal()" id="goal-modal-owngoal-toggle" class="att-tab" style="flex-shrink:0;white-space:nowrap">⚠️ Gol Contra</button>
+    </div>
+    <div id="goal-modal-subtitle" style="font-size:.8rem;color:#64748b;margin-bottom:16px">Selecione quem marcou e, se houver, quem deu a assistência.</div>
+    <label class="form-label" id="goal-modal-scorer-label">Quem marcou? <span style="color:#f87171">*</span></label>
     <div id="goal-modal-scorers" class="player-card-grid" style="margin:8px 0 20px"></div>
-    <label class="form-label">Assistência (opcional)</label>
-    <div id="goal-modal-assists" style="margin:8px 0 4px"></div>
+    <div id="goal-modal-assist-section">
+      <label class="form-label">Assistência (opcional)</label>
+      <div id="goal-modal-assists" style="margin:8px 0 4px"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:18px">
       <button onclick="closeGoalModal()" class="btn-secondary" style="flex:1;padding:10px;font-size:.85rem">Cancelar</button>
       <button onclick="confirmGoalModal()" id="goal-modal-confirm-btn" disabled style="flex:1;padding:10px;border-radius:10px;background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.4);color:#4ade80;cursor:pointer;font-family:inherit;font-weight:700;font-size:.88rem;opacity:.5">✅ Confirmar Gol</button>

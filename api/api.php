@@ -76,6 +76,7 @@ if ($action === 'public') {
         'position' => $p['position'] ?? '',
         'overall'  => $p['overall']  ?? 60,
         'photo'    => $p['photo']    ?? null,
+        'video'    => $p['video']    ?? null,
     ], $d['players'] ?? []);
     // Mapa id -> nome para resolver participantes e responsável pela louça
     $nameById = [];
@@ -271,6 +272,92 @@ if ($action === 'get_confirmations') {
     );
     $stmt->execute([$date]);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
+// ── UPLOAD PLAYER VIDEO (admin) ──────────────────────────
+if ($action === 'upload_player_video' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    // $_FILES vem vazio quando o upload excede upload_max_filesize/post_max_size do PHP —
+    // sem essa checagem específica, o erro genérico de "nenhum arquivo" confunde o usuário.
+    if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        http_response_code(413);
+        echo json_encode(['error' => 'Arquivo excede o limite de upload do servidor']);
+        exit;
+    }
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nenhum arquivo enviado ou erro no upload']);
+        exit;
+    }
+    $file = $_FILES['file'];
+    $maxBytes = 8 * 1024 * 1024;
+    if ($file['size'] > $maxBytes) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Vídeo maior que 8MB']);
+        exit;
+    }
+    $allowedExt = ['mp4' => 'video/mp4', 'webm' => 'video/webm', 'mov' => 'video/quicktime'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!isset($allowedExt[$ext])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Formato inválido — use mp4, webm ou mov']);
+        exit;
+    }
+    $mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file['tmp_name']);
+    if (!$mime || strpos($mime, 'video/') !== 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'O arquivo não parece ser um vídeo válido']);
+        exit;
+    }
+    $playerId = preg_replace('/[^0-9]/', '', (string) ($_POST['playerId'] ?? ''));
+    if (!$playerId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'playerId obrigatório']);
+        exit;
+    }
+    $dir = __DIR__ . '/uploads/players';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Não foi possível criar o diretório de upload']);
+        exit;
+    }
+    if (!is_writable($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Diretório de upload sem permissão de escrita']);
+        exit;
+    }
+    $filename = $playerId . '_' . time() . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Falha ao salvar o arquivo']);
+        exit;
+    }
+    echo json_encode(['ok' => true, 'url' => '/api/uploads/players/' . $filename]);
+    exit;
+}
+
+// ── DELETE PLAYER VIDEO (admin) ──────────────────────────
+if ($action === 'delete_player_video' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $url  = $body['url'] ?? '';
+    if ($url) {
+        $uploadsDir = realpath(__DIR__ . '/uploads/players');
+        $filename   = basename(parse_url($url, PHP_URL_PATH) ?: '');
+        if ($uploadsDir && $filename) {
+            $target = $uploadsDir . '/' . $filename;
+            if (file_exists($target) && strpos(realpath($target) ?: '', $uploadsDir) === 0) {
+                @unlink($target);
+            }
+        }
+    }
+    // Idempotente: arquivo já ausente não é erro.
+    echo json_encode(['ok' => true]);
     exit;
 }
 
