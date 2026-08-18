@@ -796,6 +796,7 @@
         <div class="tarifa-row"><div style="flex:1"><div style="font-size:.82rem;font-weight:700;color:#4ade80">📆 Mensal</div><div style="font-size:.68rem;color:#475569;margin-top:2px">Por mês · titulares</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:.77rem;color:#64748b">R$</span><input type="number" id="fee-mensal" value="150" min="0" step="10" class="input-field" style="width:100px"></div></div>
         <div class="tarifa-row"><div style="flex:1"><div style="font-size:.82rem;font-weight:700;color:#fbbf24">💵 Avulso</div><div style="font-size:.68rem;color:#475569;margin-top:2px">Por jogo · eventuais</div></div><div style="display:flex;align-items:center;gap:6px"><span style="font-size:.77rem;color:#64748b">R$</span><input type="number" id="fee-avulso" value="50" min="0" step="5" class="input-field" style="width:100px"></div></div>
       </div>
+      <div class="tarifa-row" style="margin-bottom:14px"><div style="flex:1"><div style="font-size:.82rem;font-weight:700;color:#94a3b8">🧤 Goleiro isento</div><div style="font-size:.68rem;color:#475569;margin-top:2px">Não cobra mensalidade/avulso de goleiros</div></div><input type="checkbox" id="fee-goleiro-isento" style="width:20px;height:20px;accent-color:#22c55e;cursor:pointer"></div>
       <button onclick="applyFees()" class="btn-primary">💾 Salvar Tarifas e Atualizar Jogadores</button>
       <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.06);padding-top:12px">
         <div style="font-size:.75rem;font-weight:700;color:#94a3b8;margin-bottom:8px">📋 Histórico de Cobranças Mensais</div>
@@ -1261,7 +1262,7 @@ const App = {
   loucaCycleStart: null,
   loucaOverrides: {}, // { playerId: true|false } — marcação manual de "já lavou" no ciclo atual
   avulsoOrder: [],
-  config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0 },
+  config: { logo: null, teamName: 'Fut Segunda', tabTitle: 'Fut Segunda — Manager', initialBalance: 0, goleiroIsento: true },
   dataLoaded: false,
 };
 
@@ -1287,8 +1288,9 @@ function playerTypeBadges(p, small) {
   return p.isIsento ? base + `<span class="badge badge-isento" style="${s}">Isento</span>` : base;
 }
 function getAttendanceCount(id) { return App.attendances.filter(a => a.players.includes(id)).length; }
+function isFeeExempt(p) { return p.isIsento || (App.config.goleiroIsento && p.position === 'Goleiro'); }
 function getFeePending(p) {
-  if (p.isIsento || p.position === 'Goleiro') return 0;
+  if (isFeeExempt(p)) return 0;
   if (p.isRegular) {
     // mensalidades: soma das cobranças ainda não quitadas (status por cobrança)
     return App.chargeHistory.reduce((s, ch) => {
@@ -1318,7 +1320,7 @@ function autoGenerateMonthlyCharges() {
   const today = new Date();
   const monthStr = today.toISOString().slice(0, 7);
   if (App.chargeHistory.find(c => c.month === monthStr)) return;
-  const mensalistas = App.players.filter(p => p.isRegular && !p.isIsento && p.position !== 'Goleiro');
+  const mensalistas = App.players.filter(p => p.isRegular && !isFeeExempt(p));
   if (!mensalistas.length) return;
   const charges = mensalistas.map(p => ({ playerId: p.id, amount: p.monthlyFee, paid: false, paidDate: null }));
   App.chargeHistory.push({ month: monthStr, date: today.toISOString().split('T')[0], charges });
@@ -2216,7 +2218,7 @@ function renderPlayerList() {
             <span class="stat-chip" style="color:#60a5fa">🧠 ${p.attributes.tactical}</span>
             <span class="stat-chip" style="color:#fbbf24">⚡ ${p.attributes.technical}</span>
             ${playerTypeBadges(p)}
-            ${p.isIsento?'<span style="font-size:.65rem;color:#64748b">Sem cobrança</span>':`<span style="font-size:.65rem;color:#334155">R$ ${p.monthlyFee}</span>`}
+            ${isFeeExempt(p)?'<span style="font-size:.65rem;color:#64748b">Sem cobrança</span>':`<span style="font-size:.65rem;color:#334155">R$ ${p.monthlyFee}</span>`}
           </div>
         </div>
       </div>
@@ -2501,8 +2503,10 @@ function showFinanceTab(tab) {
     if (lbl) lbl.textContent = `R$ ${(App.config.initialBalance || 0).toFixed(2)}`;
     const fm = document.getElementById('fee-mensal');
     const fa = document.getElementById('fee-avulso');
+    const fg = document.getElementById('fee-goleiro-isento');
     if (fm) fm.value = App.fees.mensal;
     if (fa) fa.value = App.fees.avulso;
+    if (fg) fg.checked = App.config.goleiroIsento !== false;
   }
 }
 
@@ -2612,6 +2616,8 @@ function markExpensePaid(id) {
 }
 
 function deleteExpense(id) {
+  const e = App.expenses.find(x => x.id === id);
+  if (!confirm(`Excluir a despesa "${e ? e.description : ''}"?`)) return;
   App.expenses = App.expenses.filter(e => e.id !== id);
   renderExpenses();
   renderDashboard();
@@ -2672,6 +2678,110 @@ function saveEditExpense() {
   const notes  = document.getElementById('em-exp-notes').value.trim();
   if (!desc || isNaN(amount) || amount <= 0) { alert('Preencha a descrição e um valor válido.'); return; }
   e.description = desc; e.amount = amount; e.date = date; e.category = cat; e.notes = notes;
+  closeExpModal(); renderExpenses(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
+function deleteLancamento(id) {
+  const l = (App.lancamentos || []).find(x => x.id === id);
+  if (!l) return;
+  if (l.paid) { showToast('Lançamento já quitado não pode ser excluído.', false); return; }
+  if (!confirm(`Excluir o lançamento de ${l.name} · R$ ${l.amount.toFixed(2)}?`)) return;
+  App.lancamentos = App.lancamentos.filter(x => x.id !== id);
+  renderLancamentos(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
+function openEditLancamento(id) {
+  const l = (App.lancamentos || []).find(x => x.id === id);
+  if (!l || l.paid) return;
+  const types = ['Mensalidade','Jogo Avulso','Tira Gosto','Contribuição'];
+  const typeOpts = types.map(t => `<option value="${t}"${l.type===t?' selected':''}>${t}</option>`).join('');
+  const isGuest = l.playerId == null;
+  document.getElementById('edit-modal-content').innerHTML = `
+    <h3 style="margin:0 0 16px;color:#e2e8f0;font-size:1rem">✏️ Editar Lançamento</h3>
+    <input type="hidden" id="em-lan-id" value="${l.id}">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">${isGuest ? 'Nome (convidado)' : 'Jogador'}</label>
+        ${isGuest
+          ? `<input id="em-lan-name" value="${l.name.replace(/"/g,'&quot;')}" class="input-field" style="width:100%">`
+          : `<input value="${l.name.replace(/"/g,'&quot;')}" class="input-field" style="width:100%" disabled>`}
+      </div>
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Tipo</label>
+        <select id="em-lan-type" class="input-field" style="width:100%">${typeOpts}</select></div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Valor (R$)</label>
+          <input id="em-lan-amount" type="number" step="0.01" min="0.01" value="${l.amount.toFixed(2)}" class="input-field" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Data</label>
+          <input id="em-lan-date" type="date" value="${l.date}" class="input-field" style="width:100%"></div>
+      </div>
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Observações</label>
+        <input id="em-lan-notes" value="${(l.notes||'').replace(/"/g,'&quot;')}" class="input-field" style="width:100%"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="saveEditLancamento()" class="btn-primary" style="flex:1">💾 Salvar</button>
+        <button onclick="closeExpModal()" class="btn-secondary">✕ Cancelar</button>
+      </div>
+    </div>`;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+}
+
+function saveEditLancamento() {
+  const id = parseInt(document.getElementById('em-lan-id').value, 10);
+  const l = (App.lancamentos || []).find(x => x.id === id);
+  if (!l || l.paid) return;
+  const amount = parseFloat(document.getElementById('em-lan-amount').value);
+  const date   = document.getElementById('em-lan-date').value;
+  const notes  = document.getElementById('em-lan-notes').value.trim();
+  if (isNaN(amount) || amount <= 0) { alert('Informe um valor válido.'); return; }
+  if (!date) { alert('Informe a data.'); return; }
+  const nameEl = document.getElementById('em-lan-name');
+  if (nameEl) {
+    const name = nameEl.value.trim();
+    if (!name) { alert('Informe o nome do convidado.'); return; }
+    l.name = name;
+  }
+  l.type   = document.getElementById('em-lan-type').value;
+  l.amount = amount;
+  l.date   = date;
+  l.notes  = notes;
+  closeExpModal(); renderLancamentos(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
+}
+
+function openEditRecurring(id) {
+  const r = App.recurringExpenses.find(x => x.id === id);
+  if (!r) return;
+  const cats = ['Janta','Campo','Equipamento','Aluguel','Outros'];
+  const catOpts = cats.map(c => `<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('');
+  document.getElementById('edit-modal-content').innerHTML = `
+    <h3 style="margin:0 0 16px;color:#e2e8f0;font-size:1rem">✏️ Editar Despesa Recorrente</h3>
+    <input type="hidden" id="em-rec-id" value="${r.id}">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Descrição</label>
+        <input id="em-rec-desc" value="${r.description.replace(/"/g,'&quot;')}" class="input-field" style="width:100%"></div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Valor (R$/mês)</label>
+          <input id="em-rec-amount" type="number" step="0.01" min="0.01" value="${r.amount.toFixed(2)}" class="input-field" style="width:100%"></div>
+        <div style="flex:1"><label style="font-size:.72rem;color:#475569;display:block;margin-bottom:4px">Categoria</label>
+          <select id="em-rec-cat" class="input-field" style="width:100%">${catOpts}</select></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:#94a3b8"><input type="checkbox" id="em-rec-active" ${r.active?'checked':''}> Ativa</label>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button onclick="saveEditRecurring()" class="btn-primary" style="flex:1">💾 Salvar</button>
+        <button onclick="closeExpModal()" class="btn-secondary">✕ Cancelar</button>
+      </div>
+    </div>`;
+  document.getElementById('edit-modal-overlay').style.display = 'flex';
+}
+
+function saveEditRecurring() {
+  const id = parseInt(document.getElementById('em-rec-id').value, 10);
+  const r = App.recurringExpenses.find(x => x.id === id);
+  if (!r) return;
+  const desc   = document.getElementById('em-rec-desc').value.trim();
+  const amount = parseFloat(document.getElementById('em-rec-amount').value);
+  if (!desc || isNaN(amount) || amount <= 0) { alert('Preencha a descrição e um valor válido.'); return; }
+  r.description = desc;
+  r.amount      = amount;
+  r.category    = document.getElementById('em-rec-cat').value;
+  r.active      = document.getElementById('em-rec-active').checked;
   closeExpModal(); renderExpenses(); renderDashboard(); updateFinHeaderBalance(); scheduleSync();
 }
 
@@ -3023,7 +3133,7 @@ function getCaixaTotal() {
 function buildReceberItems() {
   const items = [];
   App.players.forEach(p => {
-    const skipFee = p.isIsento || p.position === 'Goleiro';
+    const skipFee = isFeeExempt(p);
     if (!skipFee) {
       if (p.isRegular) {
         // Mensalidades: cada cobrança tem seu próprio status (paid)
@@ -3082,7 +3192,8 @@ function buildReceberItems() {
     items.push({
       key:`lan-${l.id}`, group:'receber', status:l.paid?'pago':'pendente', badge, icon,
       name:l.name, apelido:(l.playerId==null?'convidado':''), desc:`${l.type} · ${fmtBR(l.date)}${l.notes?' · '+l.notes:''}`, date:l.date, amount:l.amount,
-      paidDate:l.paidDate, settle: l.paid ? undefined : { type:'manual', lancId:l.id }
+      paidDate:l.paidDate, settle: l.paid ? undefined : { type:'manual', lancId:l.id },
+      edit: l.paid ? undefined : { type:'manual', id:l.id }
     });
   });
   return items;
@@ -3096,14 +3207,16 @@ function buildPagarItems() {
     items.push({
       key:`exp-${e.id}`, group:'pagar', status:e.paid?'pago':'pendente', badge:'despesa', icon:LANC_CAT_ICON[e.category]||'📌',
       name:e.description, apelido:e.recurringRef?'recorrente':'', desc:`${e.category} · ${e.date?fmtBR(e.date):'sem data'}${e.notes?' · '+e.notes:''}`, date:e.date||'', amount:e.amount,
-      paidDate:e.paidDate, settle: e.paid ? undefined : { type:'expense', expId:e.id }
+      paidDate:e.paidDate, settle: e.paid ? undefined : { type:'expense', expId:e.id },
+      edit: { type:'expense', id:e.id }
     });
   });
   (App.recurringExpenses || []).filter(r => r.active && r.lastPaidMonth !== curMonth).forEach(r => {
     items.push({
       key:`rec-${r.id}`, group:'pagar', status:'pendente', badge:'despesa', icon:LANC_CAT_ICON[r.category]||'📌',
       name:r.description, apelido:'recorrente', desc:`${r.category} · 🔁 Recorrente · ${monthLabelBR(curMonth)}`, date:curMonth+'-01', amount:r.amount,
-      settle:{ type:'recurring', recId:r.id }
+      settle:{ type:'recurring', recId:r.id },
+      edit: { type:'recurring', id:r.id }
     });
   });
   return items;
@@ -3128,6 +3241,35 @@ function lancPasses(it) {
   return true;
 }
 
+function editActionsHTML(it) {
+  if (!it.edit) return '';
+  const btnStyle = 'padding:5px 9px;border-radius:8px;font-size:.72rem;cursor:pointer;font-family:inherit;border:1px solid';
+  const pauseBtn = it.edit.type === 'recurring'
+    ? `<button onclick="toggleRecurringActive(${it.edit.id})" title="Pausar/Retomar" style="${btnStyle} rgba(96,165,250,0.25);background:rgba(96,165,250,0.1);color:#60a5fa">⏸</button>`
+    : '';
+  return `<div style="display:flex;gap:5px;margin-top:4px">
+    <button onclick="editItem('${it.key}')" title="Editar" style="${btnStyle} rgba(96,165,250,0.25);background:rgba(96,165,250,0.1);color:#60a5fa">✏️</button>
+    ${pauseBtn}
+    <button onclick="deleteItem('${it.key}')" title="Excluir" style="${btnStyle} rgba(248,113,113,0.22);background:rgba(248,113,113,0.1);color:#f87171">🗑️</button>
+  </div>`;
+}
+
+function editItem(key) {
+  const it = _lancItemMap[key]; if (!it || !it.edit) return;
+  const { type, id } = it.edit;
+  if (type === 'manual') openEditLancamento(id);
+  else if (type === 'expense') openEditExpense(id);
+  else if (type === 'recurring') openEditRecurring(id);
+}
+
+function deleteItem(key) {
+  const it = _lancItemMap[key]; if (!it || !it.edit) return;
+  const { type, id } = it.edit;
+  if (type === 'manual') deleteLancamento(id);
+  else if (type === 'expense') deleteExpense(id);
+  else if (type === 'recurring') deleteRecurringExpense(id);
+}
+
 function lancItemRow(it) {
   const displayName = it.apelido
     ? `${it.name} <span style="color:#64748b;font-weight:400;font-size:.72rem">(${it.apelido})</span>`
@@ -3150,6 +3292,7 @@ function lancItemRow(it) {
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
         <span style="font-weight:800;font-size:.92rem;color:${accent}">${sign}R$ ${it.amount.toFixed(2)}</span>
         <span style="padding:3px 9px;font-size:.66rem;border-radius:7px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.22);color:#4ade80;font-weight:600;white-space:nowrap">${pillTxt}${pillDate}</span>
+        ${editActionsHTML(it)}
       </div>
     </div>`;
   }
@@ -3168,6 +3311,7 @@ function lancItemRow(it) {
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0">
       <span style="font-weight:800;font-size:.92rem;color:${accent}">${sign}R$ ${it.amount.toFixed(2)}</span>
       <button onclick="settleOne('${it.key}')" class="link-tag" style="padding:4px 11px;font-size:.7rem;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.25);color:#4ade80;font-weight:600">✓ Quitar</button>
+      ${editActionsHTML(it)}
     </div>
   </div>`;
 }
@@ -3448,7 +3592,7 @@ function saveLancamento() {
 
 // ── Geração de mensalidades (modal) ──
 function _mensalistasDoMes() {
-  return App.players.filter(p => p.isRegular && !p.isIsento && p.position !== 'Goleiro');
+  return App.players.filter(p => p.isRegular && !isFeeExempt(p));
 }
 function openMensalistasModal() {
   const modal = document.getElementById('mensalistas-modal');
@@ -3565,10 +3709,11 @@ function _afterPay() {
 // ═══════════════════════════════════════════════════════
 function applyFees() {
   App.fees.mensal=parseFloat(document.getElementById('fee-mensal').value)||150; App.fees.avulso=parseFloat(document.getElementById('fee-avulso').value)||50;
+  App.config.goleiroIsento = document.getElementById('fee-goleiro-isento')?.checked !== false;
   App.players.forEach(p=>{ if(!p.isIsento) p.monthlyFee=p.isRegular?App.fees.mensal:App.fees.avulso; });
-  renderPlayerList(); renderFinancialStatus(); renderDashboard();
+  renderPlayerList(); renderFinancialStatus(); renderDashboard(); renderLancamentos();
   scheduleSync();
-  alert(`Tarifas salvas!\nMensal: R$ ${App.fees.mensal}  ·  Avulso: R$ ${App.fees.avulso}`);
+  alert(`Tarifas salvas!\nMensal: R$ ${App.fees.mensal}  ·  Avulso: R$ ${App.fees.avulso}\nGoleiro isento: ${App.config.goleiroIsento ? 'Sim' : 'Não'}`);
 }
 function renderPaymentSelect() {
   const sel=document.getElementById('payment-player');
@@ -7315,6 +7460,7 @@ function restoreAppSnapshot(data) {
   if (data.loucaOverrides && typeof data.loucaOverrides === 'object') App.loucaOverrides = data.loucaOverrides;
   if (Array.isArray(data.avulsoOrder)) App.avulsoOrder = data.avulsoOrder;
   if (data.config)            App.config            = data.config;
+  if (App.config.goleiroIsento === undefined) App.config.goleiroIsento = true;
   if (data.chargeHistory)     App.chargeHistory     = data.chargeHistory;
   if (data.lancamentos)       App.lancamentos       = data.lancamentos;
 }
