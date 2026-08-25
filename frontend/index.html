@@ -6371,7 +6371,10 @@ async function aiApprove() {
       body:    JSON.stringify({ id: _aiProposal.id, items: ids }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao aplicar');
+    // Este servidor devolve 200 mesmo quando o PHP seta 4xx, então res.ok mente.
+    // Aqui um falso "deu certo" faria o admin achar que a rodada foi atualizada.
+    if (!res.ok || data.error) throw new Error(data.error || 'Erro ao aplicar');
+    if (!data.ok) throw new Error('A proposta não foi aplicada — tente de novo.');
     _aiProposal = null;
     _renderAiProposal();
     // recarrega as confirmações: _applyConfirmations() cuida de presença e tira gosto
