@@ -951,6 +951,7 @@
           <button onclick="buildRodadaPoll()" style="font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(37,211,102,0.1);border:1px solid rgba(37,211,102,0.22);color:#25d366;cursor:pointer;font-family:inherit">📋 WA</button>
           <button id="btn-gen-links" onclick="gerarLinksRodada()" style="display:none;font-size:.73rem;padding:5px 10px;border-radius:9px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.28);color:#60a5fa;cursor:pointer;font-family:inherit">🔗 Links</button>
         </div>
+        <div id="rod-ai-panel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)"></div>
         <div id="rod-confirm-panel" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)"></div>
       </div>
 
@@ -6168,6 +6169,7 @@ async function loadConfirmations(date) {
     _confRowsByPlayer = {};
     (rows || []).forEach(r => { _confRowsByPlayer[Number(r.player_id)] = r; });
     _renderConfirmations(rows, date);
+    loadAiProposals(date);   // fila de revisão da leitura por IA (mesmo polling de 20s)
     // importação automática: aplica as respostas assim que chegam
     if (App.auth.role === 'admin' && _applyConfirmations(rows)) {
       renderRodadaPresenca();
@@ -6268,6 +6270,130 @@ function _renderConfirmations(rows, date) {
           <span style="font-size:.7rem;color:${color[r.status]}">${icon[r.status]} ${label[r.status]}</span>
         </div>`).join('')}
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  LEITURA POR IA DA LISTA DO GRUPO (fila de revisão)
+// ═══════════════════════════════════════════════════════
+// O cron do servidor lê a lista repostada no grupo e deixa uma PROPOSTA de mudanças.
+// Nada entra na rodada sem o admin aprovar aqui.
+let _aiProposal = null;
+
+// Nome não reconhecido vem da mensagem do grupo (texto de terceiro, passado por um LLM):
+// nunca injetar cru no HTML do painel do admin.
+function _aiEsc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+async function loadAiProposals(date) {
+  const panel = document.getElementById('rod-ai-panel');
+  if (!panel) return;
+  if (!date || App.auth?.role !== 'admin') { panel.style.display = 'none'; return; }
+  try {
+    const res = await fetch(`${SERVER_CONFIG.apiUrl}?action=ai_proposals&date=${date}`, {
+      headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+    });
+    if (!res.ok) { panel.style.display = 'none'; return; }
+    const data = await res.json();
+    _aiProposal = data.proposal || null;
+    _renderAiProposal();
+  } catch {
+    panel.style.display = 'none';
+  }
+}
+
+function _renderAiProposal() {
+  const panel = document.getElementById('rod-ai-panel');
+  if (!panel) return;
+  const p = _aiProposal;
+  if (!p || (!p.items.length && !p.unmatched.length)) { panel.style.display = 'none'; return; }
+
+  const icon  = { pending:'⏳', football:'⚽', football_dinner:'⚽🍖', dinner_only:'🍖', no:'❌' };
+  const color = { pending:'#64748b', football:'#4ade80', football_dinner:'#fbbf24', dinner_only:'#a78bfa', no:'#f87171' };
+  const label = { pending:'Pendente', football:'Vai jogar', football_dinner:'Jogar+Janta', dinner_only:'Só Janta', no:'Não vai' };
+  // hora crua do servidor — sem conta de fuso, que só daria "há -3h"
+  const hora = (p.created_at || '').slice(11, 16);
+  const quem = p.sender_name ? ` · ${p.sender_name}` : '';
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="font-size:.68rem;color:#c084fc;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+      🤖 A IA leu uma lista no grupo${quem}${hora ? ' · ' + hora : ''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;max-height:170px;overflow-y:auto;margin-bottom:8px">
+      ${p.items.map(it => `
+        <label style="display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:6px;background:rgba(192,132,252,0.05);cursor:pointer">
+          <input type="checkbox" class="ai-item" value="${it.player_id}" checked onchange="_aiUpdateCount()" style="accent-color:#c084fc">
+          <span style="font-size:.78rem;color:#e2e8f0;flex:1">${it.player_name}</span>
+          <span style="font-size:.68rem;color:${color[it.from_status]}">${icon[it.from_status]}</span>
+          <span style="font-size:.68rem;color:#64748b">→</span>
+          <span style="font-size:.7rem;color:${color[it.to_status]}">${icon[it.to_status]} ${label[it.to_status]}</span>
+        </label>`).join('')}
+    </div>
+    ${p.unmatched.length ? `
+      <div style="font-size:.7rem;color:#fbbf24;margin-bottom:8px;line-height:1.5">
+        ⚠️ Não reconheci: ${p.unmatched.map(u => `<b>${_aiEsc(u.raw)}</b> (${_aiEsc(u.reason)})`).join(' · ')}
+      </div>` : ''}
+    <div style="display:flex;gap:8px">
+      <button id="ai-approve-btn" onclick="aiApprove()" ${p.items.length ? '' : 'disabled'}
+              style="flex:1;padding:6px 10px;border-radius:8px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.3);color:#4ade80;cursor:pointer;font-size:.73rem;font-family:inherit;font-weight:700">
+        ✓ Aprovar (${p.items.length})
+      </button>
+      <button onclick="aiReject()" style="padding:6px 12px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;cursor:pointer;font-size:.73rem;font-family:inherit">
+        ✕ Descartar
+      </button>
+    </div>`;
+}
+
+function _aiSelectedIds() {
+  return [...document.querySelectorAll('.ai-item:checked')].map(c => Number(c.value));
+}
+
+function _aiUpdateCount() {
+  const btn = document.getElementById('ai-approve-btn');
+  if (!btn) return;
+  const n = _aiSelectedIds().length;
+  btn.textContent = `✓ Aprovar (${n})`;
+  btn.disabled = n === 0;
+}
+
+async function aiApprove() {
+  if (!_aiProposal) return;
+  const ids = _aiSelectedIds();
+  if (!ids.length) return;
+  const btn = document.getElementById('ai-approve-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Aplicando…'; }
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=ai_approve', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+      body:    JSON.stringify({ id: _aiProposal.id, items: ids }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao aplicar');
+    _aiProposal = null;
+    _renderAiProposal();
+    // recarrega as confirmações: _applyConfirmations() cuida de presença e tira gosto
+    loadConfirmations(document.getElementById('rod-date')?.value);
+  } catch (e) {
+    alert(e.message);
+    _aiUpdateCount();
+  }
+}
+
+async function aiReject() {
+  if (!_aiProposal) return;
+  if (!confirm('Descartar a leitura da IA? A rodada fica como está.')) return;
+  try {
+    await fetch(SERVER_CONFIG.apiUrl + '?action=ai_reject', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
+      body:    JSON.stringify({ id: _aiProposal.id }),
+    });
+  } catch {}
+  _aiProposal = null;
+  _renderAiProposal();
 }
 
 async function importConfirmations(date) {

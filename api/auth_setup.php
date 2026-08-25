@@ -103,6 +103,53 @@ try {
     ");
     echo '<p class="ok">✅ Tabela <code>whatsapp_sent</code> criada/verificada.</p>';
 
+    // ── Leitura por IA da lista do grupo ──────────────────────────────
+    // Mensagens cruas recebidas pelo webhook da Evolution (rastro/depuração).
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS wa_inbox (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            wa_msg_id   VARCHAR(96)  NOT NULL,
+            chat_jid    VARCHAR(64)  NOT NULL,
+            sender_name VARCHAR(100) NULL,
+            body        TEXT         NOT NULL,
+            status      ENUM('new','skipped','parsed','error') NOT NULL DEFAULT 'new',
+            parse_error VARCHAR(255) NULL,
+            received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            parsed_at   DATETIME NULL,
+            UNIQUE KEY uq_msg (wa_msg_id),
+            INDEX idx_status (status, received_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+    echo '<p class="ok">✅ Tabela <code>wa_inbox</code> criada/verificada.</p>';
+
+    // Propostas de mudança que a IA montou, aguardando aprovação do admin.
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS ai_confirm_proposals (
+            id          INT AUTO_INCREMENT PRIMARY KEY,
+            inbox_id    INT  NOT NULL,
+            rodada_date DATE NOT NULL,
+            status      ENUM('pending','approved','rejected','superseded') NOT NULL DEFAULT 'pending',
+            model       VARCHAR(64)  NULL,
+            items       LONGTEXT NOT NULL,
+            unmatched   LONGTEXT NULL,
+            created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            decided_at  DATETIME NULL,
+            decided_by  VARCHAR(64) NULL,
+            INDEX idx_status (status, rodada_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ");
+    echo '<p class="ok">✅ Tabela <code>ai_confirm_proposals</code> criada/verificada.</p>';
+
+    // A IA precisa confirmar quem NÃO tem WhatsApp cadastrado (suplente que entra no
+    // lugar de alguém). Esses não recebem link, então a linha nasce sem telefone.
+    // No MySQL o índice UNIQUE aceita vários NULL, então uq_rodada_phone continua valendo.
+    try {
+        $pdo->exec("ALTER TABLE presence_confirmations MODIFY phone CHAR(11) NULL");
+        echo '<p class="ok">✅ Coluna <code>phone</code> de <code>presence_confirmations</code> agora aceita NULL.</p>';
+    } catch (PDOException $e) {
+        echo '<p class="warn">⚠️ Não consegui alterar <code>presence_confirmations.phone</code>: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    }
+
     echo '<hr>';
 
     // ── Usuários (reset completo: força role admin + senha correta) ──

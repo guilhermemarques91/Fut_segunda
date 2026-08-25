@@ -20,3 +20,16 @@ define('EVOLUTION_GROUP_JID', '');  // ex: [email protected] (use wa_list_groups
 define('WA_QUIET_SECONDS', 90);     // janela de silêncio p/ consolidar o envio
 define('WA_CRON_KEY', '');          // segredo p/ chamar o cron via HTTP (?key=...)
 define('SITE_URL', '');             // ex: https://fut.barleiseca.com.br (sem barra final)
+
+// ── IA local (Ollama) que lê a lista repostada no grupo ──────────────────
+// Roda na mesma máquina da Evolution, exposta pelo mesmo Cloudflare Tunnel.
+// Deixe OLLAMA_URL vazio para desligar a leitura por IA (nada quebra).
+define('OLLAMA_URL',   '');                    // ex: https://ollama.guimarques.dev.br
+define('OLLAMA_MODEL', 'qwen2.5:7b-instruct'); // ollama pull qwen2.5:7b-instruct
+define('OLLAMA_TIMEOUT', 180);                 // seg. — inferência local em CPU é lenta
+// O Ollama está atrás do Cloudflare Access. Crie um Service Token em
+// Zero Trust → Access controls → Service auth e libere-o na policy do app.
+define('CF_ACCESS_CLIENT_ID',     '');         // ....access
+define('CF_ACCESS_CLIENT_SECRET', '');
+define('WA_WEBHOOK_KEY', '');                  // ?key=... que a Evolution manda no webhook
+define('AI_CONFIRM_ENABLED', true);            // desliga a leitura por IA sem mexer em código

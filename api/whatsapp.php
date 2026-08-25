@@ -183,6 +183,33 @@ function wa_send_group_text($text) {
     return ['ok' => ($code >= 200 && $code < 300), 'code' => $code, 'err' => $err, 'res' => $res];
 }
 
+// Registra o webhook de mensagens recebidas na instância (Evolution v2).
+// Só MESSAGES_UPSERT: é o único evento que interessa p/ ler a lista do grupo.
+function wa_set_webhook($hookUrl) {
+    if (!wa_cfg('EVOLUTION_URL') || !wa_cfg('EVOLUTION_INSTANCE') || !wa_cfg('EVOLUTION_APIKEY')) {
+        return ['ok' => false, 'err' => 'not_configured'];
+    }
+    $url = rtrim(wa_cfg('EVOLUTION_URL'), '/') . '/webhook/set/' . rawurlencode(wa_cfg('EVOLUTION_INSTANCE'));
+    $payload = json_encode(['webhook' => [
+        'enabled'        => true,
+        'url'            => $hookUrl,
+        'events'         => ['MESSAGES_UPSERT'],
+    ]], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'apikey: ' . wa_cfg('EVOLUTION_APIKEY')],
+        CURLOPT_POSTFIELDS     => $payload,
+    ]);
+    $res  = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    return ['ok' => ($code >= 200 && $code < 300), 'code' => $code, 'err' => $err, 'url' => $hookUrl, 'res' => $res];
+}
+
 // Lista os grupos da instância (para descobrir o JID na configuração).
 function wa_list_groups() {
     if (!wa_cfg('EVOLUTION_URL') || !wa_cfg('EVOLUTION_INSTANCE') || !wa_cfg('EVOLUTION_APIKEY')) {

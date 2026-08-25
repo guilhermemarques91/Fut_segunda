@@ -480,6 +480,84 @@ if ($action === 'wa_list_groups') {
     exit;
 }
 
+// ── WHATSAPP: registrar o webhook na Evolution (admin) ──
+// Evita ter que configurar na mão — igual wa_list_groups facilita achar o JID.
+if ($action === 'wa_set_webhook') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    require_once __DIR__ . '/whatsapp.php';
+    if (!wa_cfg('SITE_URL') || !wa_cfg('WA_WEBHOOK_KEY')) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Configure SITE_URL e WA_WEBHOOK_KEY no config.php do servidor']);
+        exit;
+    }
+    $hook = rtrim(wa_cfg('SITE_URL'), '/') . '/api/wa_webhook.php?key=' . rawurlencode(wa_cfg('WA_WEBHOOK_KEY'));
+    echo json_encode(wa_set_webhook($hook));
+    exit;
+}
+
+// ── IA: propostas de confirmação lidas do grupo (admin) ──
+if ($action === 'ai_proposals') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    $date = $_GET['date'] ?? '';
+    if (!$date || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        http_response_code(400); echo json_encode(['error' => 'Data inválida']); exit;
+    }
+    // A tabela pode não existir ainda (auth_setup.php não rodado) — não quebra o app.
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT p.id, p.rodada_date, p.model, p.items, p.unmatched, p.created_at, i.sender_name
+             FROM ai_confirm_proposals p
+             LEFT JOIN wa_inbox i ON i.id = p.inbox_id
+             WHERE p.status = 'pending' AND p.rodada_date = ?
+             ORDER BY p.id DESC LIMIT 1"
+        );
+        $stmt->execute([$date]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        echo json_encode(['proposal' => null]);
+        exit;
+    }
+    if (!$row) { echo json_encode(['proposal' => null]); exit; }
+    echo json_encode(['proposal' => [
+        'id'          => (int)$row['id'],
+        'rodada_date' => $row['rodada_date'],
+        'model'       => $row['model'],
+        'sender_name' => $row['sender_name'],
+        'created_at'  => $row['created_at'],
+        'items'       => json_decode($row['items'], true) ?: [],
+        'unmatched'   => json_decode($row['unmatched'] ?? '[]', true) ?: [],
+    ]]);
+    exit;
+}
+
+// ── IA: aprovar proposta (admin) ──
+if ($action === 'ai_approve' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    require_once __DIR__ . '/ai_parse.php';
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id   = (int)($body['id'] ?? 0);
+    if (!$id) { http_response_code(400); echo json_encode(['error' => 'Proposta inválida']); exit; }
+    // items = subconjunto de player_id que o admin deixou marcado (ausente = todos)
+    $only = isset($body['items']) && is_array($body['items']) ? $body['items'] : null;
+    $res  = ai_apply_proposal($pdo, $id, $session['username'] ?? '', $only);
+    if (empty($res['ok'])) { http_response_code(400); echo json_encode(['error' => $res['err'] ?? 'Falha ao aplicar']); exit; }
+    echo json_encode($res);
+    exit;
+}
+
+// ── IA: descartar proposta (admin) ──
+if ($action === 'ai_reject' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') { http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit; }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id   = (int)($body['id'] ?? 0);
+    if (!$id) { http_response_code(400); echo json_encode(['error' => 'Proposta inválida']); exit; }
+    $pdo->prepare("UPDATE ai_confirm_proposals SET status = 'rejected', decided_at = NOW(), decided_by = ?
+                   WHERE id = ? AND status = 'pending'")
+        ->execute([$session['username'] ?? '', $id]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // ── GET — carrega todos os dados ─────────────────────────
 $method = $_SERVER['REQUEST_METHOD'];
 
