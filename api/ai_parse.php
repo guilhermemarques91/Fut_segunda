@@ -172,6 +172,8 @@ REGRAS IMPORTANTES:
 2. Inclua também os nomes das seções de suplentes/reservas, que não são numeradas.
 3. Não invente nomes que não estão na mensagem e não corrija a grafia.
 4. Ignore títulos, datas, separadores, legendas e o link de confirmação.
+5. Cabeçalho de seção NÃO é pessoa: "MENSALISTAS", "Suplentes", "Reservas",
+   "AVULSOS" e parecidos nunca viram objeto.
 
 EXEMPLOS
 Entrada: "1. Felipe Campovilla✅🥩"
@@ -198,7 +200,7 @@ function ai_ollama_extract($text) {
     if (!ai_configured()) return ['ok' => false, 'err' => 'not_configured'];
 
     $url = rtrim(ai_cfg('OLLAMA_URL'), '/') . '/api/chat';
-    $payload = json_encode([
+    $body = [
         'model'    => ai_cfg('OLLAMA_MODEL'),
         'stream'   => false,
         'format'   => ai_ollama_schema(),
@@ -207,7 +209,11 @@ function ai_ollama_extract($text) {
             ['role' => 'system', 'content' => ai_ollama_system_prompt()],
             ['role' => 'user',   'content' => $text],
         ],
-    ], JSON_UNESCAPED_UNICODE);
+    ];
+    // Medido no gemma4:12b: 204s com thinking, 44s sem, com resultado idêntico.
+    // Segmentar linha e ver emoji não precisa de raciocínio — só custa tempo de cron.
+    if (!ai_cfg('AI_THINK', false)) $body['think'] = false;
+    $payload = json_encode($body, JSON_UNESCAPED_UNICODE);
 
     // O Ollama fica atrás do Cloudflare Access — autenticação é por service token.
     $headers = ['Content-Type: application/json'];
@@ -216,18 +222,33 @@ function ai_ollama_extract($text) {
         $headers[] = 'CF-Access-Client-Secret: ' . ai_cfg('CF_ACCESS_CLIENT_SECRET');
     }
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => (int) ai_cfg('OLLAMA_TIMEOUT', 180),
-        CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_POSTFIELDS     => $payload,
-    ]);
-    $res  = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
+    $post = function ($payload) use ($url, $headers) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => (int) ai_cfg('OLLAMA_TIMEOUT', 600),
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_POSTFIELDS     => $payload,
+        ]);
+        $r = ['res' => curl_exec($ch), 'code' => curl_getinfo($ch, CURLINFO_HTTP_CODE), 'err' => curl_error($ch)];
+        curl_close($ch);
+        return $r;
+    };
+
+    $out  = $post($payload);
+    $res  = $out['res'];
+    $code = $out['code'];
+    $err  = $out['err'];
+
+    // Modelo sem suporte a thinking recusa o parâmetro — tenta de novo sem ele.
+    if ($code >= 400 && stripos((string)$res, 'think') !== false && isset($body['think'])) {
+        unset($body['think']);
+        $out  = $post(json_encode($body, JSON_UNESCAPED_UNICODE));
+        $res  = $out['res'];
+        $code = $out['code'];
+        $err  = $out['err'];
+    }
 
     if ($code < 200 || $code >= 300) {
         return ['ok' => false, 'err' => 'ollama http ' . $code . ($err ? " ($err)" : '')];

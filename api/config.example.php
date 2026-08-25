@@ -25,8 +25,11 @@ define('SITE_URL', '');             // ex: https://fut.barleiseca.com.br (sem ba
 // Roda na mesma máquina da Evolution, exposta pelo mesmo Cloudflare Tunnel.
 // Deixe OLLAMA_URL vazio para desligar a leitura por IA (nada quebra).
 define('OLLAMA_URL',   '');                    // ex: https://ollama.guimarques.dev.br
-define('OLLAMA_MODEL', 'qwen2.5:7b-instruct'); // ollama pull qwen2.5:7b-instruct
-define('OLLAMA_TIMEOUT', 180);                 // seg. — inferência local em CPU é lenta
+define('OLLAMA_MODEL', 'gemma4:12b');          // testado: 21/21 na lista real do grupo
+define('OLLAMA_TIMEOUT', 600);                 // seg. — medido ~45s no gemma4:12b
+// Desligar o "thinking" do modelo: medido 204s -> 44s, com resultado idêntico.
+// Só ligue se trocar por um modelo que dependa de raciocínio para ler a lista.
+define('AI_THINK', false);
 // O Ollama está atrás do Cloudflare Access. Crie um Service Token em
 // Zero Trust → Access controls → Service auth e libere-o na policy do app.
 define('CF_ACCESS_CLIENT_ID',     '');         // ....access

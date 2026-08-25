@@ -83,13 +83,29 @@ try {
         exit(0);
     }
 
+    // Execução anterior que morreu no meio deixaria a linha presa em 'processing'.
+    $pdo->exec("UPDATE wa_inbox SET status = 'new'
+                WHERE status = 'processing' AND parsed_at < (NOW() - INTERVAL 30 MINUTE)");
+
     // ── 1 mensagem por execução: se a inferência estiver lenta, não empilha ──
+    // A inferência local passa de 40s e o cron roda de minuto em minuto, então duas
+    // execuções se cruzam. Reserva antes de trabalhar: quem perder o UPDATE desiste.
     $row = $pdo->query("SELECT id, body, sender_name FROM wa_inbox
                         WHERE status = 'new' ORDER BY id ASC LIMIT 1")
                ->fetch(PDO::FETCH_ASSOC);
 
+    if ($row && !$dryRun) {
+        $claim = $pdo->prepare("UPDATE wa_inbox SET status = 'processing', parsed_at = NOW()
+                                WHERE id = ? AND status = 'new'");
+        $claim->execute([(int)$row['id']]);
+        if ($claim->rowCount() !== 1) {
+            $out['skipped'][] = 'outra execução já pegou a mensagem';
+            $row = null;
+        }
+    }
+
     if (!$row) {
-        $out['skipped'][] = 'nada novo na inbox';
+        if (!$out['skipped']) $out['skipped'][] = 'nada novo na inbox';
     } else {
         $inboxId = (int)$row['id'];
         $out['processed'] = $inboxId;

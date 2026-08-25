@@ -112,7 +112,7 @@ try {
             chat_jid    VARCHAR(64)  NOT NULL,
             sender_name VARCHAR(100) NULL,
             body        TEXT         NOT NULL,
-            status      ENUM('new','skipped','parsed','error') NOT NULL DEFAULT 'new',
+            status      ENUM('new','processing','skipped','parsed','error') NOT NULL DEFAULT 'new',
             parse_error VARCHAR(255) NULL,
             received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             parsed_at   DATETIME NULL,

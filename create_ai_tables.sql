@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS wa_inbox (
   chat_jid    VARCHAR(64)  NOT NULL,
   sender_name VARCHAR(100) NULL,
   body        TEXT         NOT NULL,
-  status      ENUM('new','skipped','parsed','error') NOT NULL DEFAULT 'new',
+  status      ENUM('new','processing','skipped','parsed','error') NOT NULL DEFAULT 'new',
   parse_error VARCHAR(255) NULL,
   received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   parsed_at   DATETIME NULL,
@@ -37,3 +37,9 @@ CREATE TABLE IF NOT EXISTS ai_confirm_proposals (
 -- no lugar de alguem). Esses nunca receberam link, entao a linha nasce sem telefone.
 -- No MySQL o indice UNIQUE aceita varios NULL, entao uq_rodada_phone continua valendo.
 ALTER TABLE presence_confirmations MODIFY phone CHAR(11) NULL;
+
+-- Se voce ja rodou este arquivo ANTES de 2026-08-25, rode so esta linha:
+-- o cron precisa marcar a mensagem como 'processing' enquanto a IA trabalha,
+-- senao duas execucoes do cron pegam a mesma mensagem (a inferencia passa de 40s).
+ALTER TABLE wa_inbox
+  MODIFY status ENUM('new','processing','skipped','parsed','error') NOT NULL DEFAULT 'new';
