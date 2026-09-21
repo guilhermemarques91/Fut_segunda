@@ -2395,66 +2395,38 @@ function renderAvailablePlayers() {
 function updateTeamCount() { const n=document.querySelectorAll('.team-check:checked').length; const el=document.getElementById('team-selected-count'); if (el) el.textContent=`${n} selecionados${n>=14?' ✓':' (mín. 14)'}`; }
 function selectAllTeam() { document.querySelectorAll('.team-check').forEach(cb=>cb.checked=true); updateTeamCount(); }
 function clearAllTeam()  { document.querySelectorAll('.team-check').forEach(cb=>cb.checked=false); updateTeamCount(); }
+// Divide TODOS os jogadores em dois times (sem reservas/banco): os 2 melhores goleiros abrem
+// cada time e o resto é distribuído por posição/OVR, sempre no time com menos jogadores.
+function _splitAllIntoTwoTeams(sel) {
+  const sgk = sel.filter(p => p.position === 'Goleiro').sort((a, b) => b.overall - a.overall);
+  const home = sgk[0] ? [sgk[0]] : [], away = sgk[1] ? [sgk[1]] : [];
+  const rest = [...sgk.slice(2), ...sel.filter(p => p.position !== 'Goleiro')]
+    .sort((a, b) => (POS_ORDER[a.position] ?? 4) - (POS_ORDER[b.position] ?? 4) || b.overall - a.overall);
+  rest.forEach(p => { if (home.length <= away.length) home.push(p); else away.push(p); });
+  return { home, away };
+}
 function generateTeams() {
   const checked = document.querySelectorAll('.team-check:checked');
   if (checked.length < 14) return alert('Selecione pelo menos 14 jogadores.');
   const sel = Array.from(checked).map(cb => findPlayerById(cb.value)).filter(Boolean);
   if (sel.length < 14) { alert('Erro ao identificar jogadores.'); return; }
+  if (sel.filter(p => p.position === 'Goleiro').length < 2) return alert('Precisa de pelo menos 2 goleiros.');
 
-  const gks   = sel.filter(p => p.position === 'Goleiro');
-  const field = sel.filter(p => p.position !== 'Goleiro');
-  if (gks.length < 2) return alert('Precisa de pelo menos 2 goleiros.');
-
-  // Sort GKs by OVR; best two start, rest go to pool
-  const sgk = [...gks].sort((a, b) => b.overall - a.overall);
-  const home = [sgk[0]], away = [sgk[1]];
-  const pool = sgk.slice(2).sort((a, b) => b.overall - a.overall); // extra GKs go to pool
-
-  // Distribute field players evenly by position
-  const byPos = {};
-  field.forEach(p => { if (!byPos[p.position]) byPos[p.position] = []; byPos[p.position].push(p); });
-  ['Defesa', 'Meio', 'Ataque'].forEach(pos => {
-    (byPos[pos] || []).sort((a, b) => b.overall - a.overall).forEach(p => {
-      if (home.length <= away.length) home.push(p); else away.push(p);
-    });
-  });
-
-  // Any unassigned field players go to pool
-  const assigned = new Set([...home, ...away]);
-  field.filter(p => !assigned.has(p)).forEach(p => pool.push(p));
-  pool.sort((a, b) => b.overall - a.overall);
-
-  // Trim starters to 7 per team; excess goes back to pool
-  while (home.length > 7) pool.unshift(home.pop());
-  while (away.length > 7) pool.unshift(away.pop());
-
-  // Fill up to 7 from pool if short
-  while (home.length < 7 && pool.length) home.push(pool.shift());
-  while (away.length < 7 && pool.length) away.push(pool.shift());
-
-  // Assign 1 reserve per team from remaining pool
-  const homeReserve = pool.shift() || null;
-  const awayReserve = pool.shift() || null;
-
-  App.teams = { home, away, homeReserve, awayReserve, bench: pool };
+  const { home, away } = _splitAllIntoTwoTeams(sel);
+  App.teams = { home, away, homeReserve: null, awayReserve: null };
   renderTeams();
 }
 function renderTeams() {
   const out = document.getElementById('team-output');
-  const { home, away, homeReserve, awayReserve, bench } = App.teams;
+  const { home, away } = App.teams;
   if (!home || !home.length) { out.innerHTML = '<div class="empty-state">Nenhum time gerado</div>'; return; }
 
-  const rt = (label, css, players, reserve) => {
+  const rt = (label, css, players) => {
     const tot = players.reduce((s, p) => s + p.overall, 0);
     const avg = Math.round(tot / players.length);
     const secs = ['Goleiro','Defesa','Meio','Ataque']
       .map(pos => [pos, players.filter(p => p.position === pos)])
       .filter(([, a]) => a.length);
-    const reserveHtml = reserve
-      ? `<div style="border-top:1px solid rgba(255,255,255,0.07);margin-top:8px;padding-top:8px;display:flex;align-items:center;justify-content:space-between">
-           <span style="font-size:.65rem;font-weight:700;color:#f59e0b;letter-spacing:.06em">RESERVA</span>
-           <span style="font-size:.76rem;color:#94a3b8">${reserve.name} <span style="color:#475569;font-size:.67rem">(${reserve.overall})</span> <span style="color:${POS_COLOR[reserve.position]||'#94a3b8'};font-size:.65rem">${reserve.position}</span></span>
-         </div>` : '';
     return `<div class="team-block ${css}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <span style="font-weight:700;font-size:.88rem">${label}</span>
@@ -2463,23 +2435,16 @@ function renderTeams() {
       <div style="display:flex;flex-direction:column;gap:5px">
         ${secs.map(([pos, a]) => `<div style="font-size:.76rem"><span style="color:${POS_COLOR[pos]||'#94a3b8'};font-weight:700">${pos}</span><span style="color:#94a3b8;margin-left:6px">${a.map(p => `${p.name} <span style="color:#475569;font-size:.68rem">(${p.overall})</span>`).join(', ')}</span></div>`).join('')}
       </div>
-      ${reserveHtml}
       <div style="border-top:1px solid rgba(255,255,255,0.07);margin-top:10px;padding-top:8px;display:flex;justify-content:space-between;font-size:.76rem;font-weight:700">
         <span style="color:#64748b">Total OVR</span><span>${tot}</span>
       </div>
     </div>`;
   };
 
-  const benchHtml = bench && bench.length
-    ? `<div style="margin-top:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:.65rem;font-weight:700;color:#475569;letter-spacing:.06em;white-space:nowrap">FORA DO TIME</span>
-        ${bench.map(p => `<span style="background:rgba(255,255,255,0.06);border-radius:8px;padding:2px 9px;font-size:.74rem;color:#475569">${p.name} <span style="font-size:.63rem">(${p.overall})</span></span>`).join('')}
-       </div>` : '';
-
   out.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    ${rt('⬛🟡 TIME PRETO E AMARELO', 'team-preto-amarelo', home, homeReserve)}
-    ${rt('🔵 TIME AZUL', 'team-azul', away, awayReserve)}
-  </div>${benchHtml}`;
+    ${rt('⬛🟡 TIME PRETO E AMARELO', 'team-preto-amarelo', home)}
+    ${rt('🔵 TIME AZUL', 'team-azul', away)}
+  </div>`;
 
   const saveRow = document.getElementById('team-save-row');
   if (saveRow) saveRow.style.display = 'block';
@@ -4024,11 +3989,14 @@ function loadRodadaDate() {
   }
 
   if (th) {
+    // Não há mais reservas: quem estava salvo como reserva (dados antigos) entra no time.
+    const hRes = th.homeReserve ? findPlayerById(th.homeReserve) : null;
+    const aRes = th.awayReserve ? findPlayerById(th.awayReserve) : null;
     rodState.rodTeams = {
-      home: th.home.map(id => findPlayerById(id)).filter(Boolean),
-      away: th.away.map(id => findPlayerById(id)).filter(Boolean),
-      homeReserve: th.homeReserve ? findPlayerById(th.homeReserve) : null,
-      awayReserve: th.awayReserve ? findPlayerById(th.awayReserve) : null,
+      home: [...th.home.map(id => findPlayerById(id)).filter(Boolean), ...(hRes ? [hRes] : [])],
+      away: [...th.away.map(id => findPlayerById(id)).filter(Boolean), ...(aRes ? [aRes] : [])],
+      homeReserve: null,
+      awayReserve: null,
     };
     rodState.teamsGenerated = true;
   } else {
@@ -4331,29 +4299,8 @@ function generateRodadaTeams() {
   if (rodState.locked) return;
   const sel = rodState.confirmedIds.map(id => findPlayerById(id)).filter(Boolean);
   if (sel.length < 4) return alert('Confirme pelo menos 4 jogadores para gerar os times.');
-  const gks  = sel.filter(p => p.position === 'Goleiro');
-  const field = sel.filter(p => p.position !== 'Goleiro');
-  const sgk  = [...gks].sort((a,b) => b.overall - a.overall);
-  const home = sgk.length >= 1 ? [sgk[0]] : [];
-  const away = sgk.length >= 2 ? [sgk[1]] : [];
-  const pool = sgk.slice(2);
-  const byPos = {};
-  field.forEach(p => { if (!byPos[p.position]) byPos[p.position] = []; byPos[p.position].push(p); });
-  ['Defesa','Meio','Ataque'].forEach(pos => {
-    (byPos[pos]||[]).sort((a,b) => b.overall - a.overall).forEach(p => {
-      if (home.length <= away.length) home.push(p); else away.push(p);
-    });
-  });
-  const assigned = new Set([...home, ...away]);
-  field.filter(p => !assigned.has(p)).forEach(p => pool.push(p));
-  pool.sort((a,b) => b.overall - a.overall);
-  while (home.length > 7) pool.unshift(home.pop());
-  while (away.length > 7) pool.unshift(away.pop());
-  while (home.length < 7 && pool.length) home.push(pool.shift());
-  while (away.length < 7 && pool.length) away.push(pool.shift());
-  const homeReserve = pool.shift() || null;
-  const awayReserve = pool.shift() || null;
-  rodState.rodTeams = { home, away, homeReserve, awayReserve };
+  const { home, away } = _splitAllIntoTwoTeams(sel);
+  rodState.rodTeams = { home, away, homeReserve: null, awayReserve: null };
   rodState.teamsGenerated = true;
   rodState.teamsEditMode = false;
   const editBtn = document.getElementById('rod-edit-teams-btn');
@@ -4449,6 +4396,13 @@ function toggleTeamsEditMode() {
   if (rodState.teamsEditMode && !rodState.teamsGenerated) {
     rodState.rodTeams = { home: [], away: [], homeReserve: null, awayReserve: null };
     rodState.teamsGenerated = true;
+  }
+  if (!rodState.teamsEditMode) {
+    // Ao concluir, todo confirmado que ficou no "banco" entra no time com menos jogadores.
+    const t = rodState.rodTeams;
+    const inTeam = new Set([...t.home, ...t.away].map(p => p.id));
+    rodState.confirmedIds.map(id => findPlayerById(id)).filter(p => p && !inTeam.has(p.id))
+      .forEach(p => { (t.home.length <= t.away.length ? t.home : t.away).push(p); });
   }
   const btn = document.getElementById('rod-edit-teams-btn');
   if (btn) btn.textContent = rodState.teamsEditMode ? '✅ Concluir' : '✏️ Editar';
