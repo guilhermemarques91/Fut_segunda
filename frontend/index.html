@@ -7163,17 +7163,9 @@ async function doLogout() {
       headers: _authHeaders(),
     });
   } catch {}
-  App.auth = { token: null, role: null, username: null };
-  localStorage.removeItem('fut_token');
-  localStorage.removeItem('fut_role');
-  localStorage.removeItem('fut_username');
-  document.getElementById('login-screen').style.display = 'flex';
+  _showLoginScreen();
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
-  document.getElementById('nav-logout').style.display  = 'none';
-  document.getElementById('mnav-logout').style.display = 'none';
-  loadPublicHistory();
-  startPubLivePoll();
 }
 
 function togglePubRod(id) {
@@ -7372,8 +7364,10 @@ async function checkStoredSession() {
     const res = await fetch(SERVER_CONFIG.apiUrl + '?action=validate', {
       headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': token },
     });
-    if (!res.ok) throw new Error('invalid');
     const data = await res.json();
+    // O Hostgator devolve HTTP 200 mesmo em erro (headers já enviados por config.php),
+    // então token expirado chega como 200 + {"error":...}: o corpo é que manda, não res.ok.
+    if (!res.ok || data.error || !data.ok) throw new Error('invalid');
     // Fallback para localStorage se o servidor não retornar role (compatibilidade)
     const resolvedRole     = data.role     || role;
     const resolvedUsername = data.username || username;
@@ -7381,13 +7375,22 @@ async function checkStoredSession() {
     App.auth = { token, role: resolvedRole, username: resolvedUsername };
     onLoginSuccess();
   } catch {
-    localStorage.removeItem('fut_token');
-    localStorage.removeItem('fut_role');
-    localStorage.removeItem('fut_username');
-    document.getElementById('login-screen').style.display = 'flex';
-    loadPublicHistory();
-    startPubLivePoll();
+    _showLoginScreen();
   }
+}
+
+// Limpa a sessão salva e volta pra tela de login (sessão expirada/inválida ou logout).
+function _showLoginScreen() {
+  App.auth = { token: null, role: null, username: null };
+  App.dataLoaded = false;
+  localStorage.removeItem('fut_token');
+  localStorage.removeItem('fut_role');
+  localStorage.removeItem('fut_username');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('nav-logout').style.display  = 'none';
+  document.getElementById('mnav-logout').style.display = 'none';
+  loadPublicHistory();
+  startPubLivePoll();
 }
 
 // ── Gestão de usuários (admin) ───────────────────────────
@@ -7576,8 +7579,14 @@ async function loadFromServer() {
     const res = await fetch(SERVER_CONFIG.apiUrl, {
       headers: { 'X-Api-Key': SERVER_CONFIG.apiKey, 'X-Auth-Token': App.auth.token },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    // Status HTTP não é confiável aqui (ver checkStoredSession): erro vem como 200 + {"error":...}.
+    // Tratar isso como "banco vazio" liberava o sync com dados zerados — nunca marcar dataLoaded.
+    if (data && data.error) {
+      if (/token/i.test(data.error)) { _showLoginScreen(); showToast('Sessão expirada — entre novamente', false); return; }
+      throw new Error(data.error);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     if (data && Object.keys(data).length > 0) {
       restoreAppSnapshot(data);
       _seedAvulsoOrder();
