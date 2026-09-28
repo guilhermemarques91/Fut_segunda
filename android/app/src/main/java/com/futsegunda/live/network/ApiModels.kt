@@ -23,12 +23,59 @@ data class LoginResponse(
 data class ValidateResponse(val ok: Boolean = false, val role: String? = null, val username: String? = null)
 
 @Serializable
+data class PlayerAttributes(
+    val physical: Int = 60,
+    val tactical: Int = 60,
+    val technical: Int = 60,
+)
+
+@Serializable
+data class PlayerPayment(
+    val type: String = "",
+    val amount: Double = 0.0,
+    val date: String = "",
+)
+
+/**
+ * Espelha o objeto `player` do painel web exatamente (mesmos nomes de campo —
+ * frontend/index.html:2149, `savePlayer()`) — os dois lados leem/escrevem a
+ * mesma sub-chave `players[]` do JSON, então o formato precisa bater.
+ */
+@Serializable
 data class PlayerDto(
     val id: Int,
     val name: String,
+    val apelido: String? = null,
+    val whatsapp: String? = null,
     val position: String? = null,
+    val attributes: PlayerAttributes = PlayerAttributes(),
     val overall: Int? = null,
+    val isRegular: Boolean = true,
+    val isIsento: Boolean = false,
+    val monthlyFee: Double? = null,
+    val balance: Double = 0.0,
+    val payments: List<PlayerPayment> = emptyList(),
+    val dinnerDebt: Double = 0.0,
+    val lastRating: String? = null,
     val photo: String? = null,
+    val video: String? = null,
+)
+
+/** Corpo de player_save — igual a PlayerDto, mas `id` nulo = criar (servidor calcula o id). */
+@Serializable
+data class PlayerDraftDto(
+    val id: Int? = null,
+    val name: String,
+    val apelido: String? = null,
+    val whatsapp: String? = null,
+    val position: String? = null,
+    val attributes: PlayerAttributes = PlayerAttributes(),
+    val overall: Int? = null,
+    val isRegular: Boolean = true,
+    val isIsento: Boolean = false,
+    val monthlyFee: Double? = null,
+    val photo: String? = null,
+    val video: String? = null,
 )
 
 @Serializable
@@ -114,4 +161,87 @@ data class AppReleaseInfo(
 data class AppReleasesResponse(
     val android: AppReleaseInfo? = null,
     val wear: AppReleaseInfo? = null,
+)
+
+@Serializable
+data class FeesDto(
+    val mensal: Double = 150.0,
+    val avulso: Double = 50.0,
+)
+
+/** Resumo de uma partida — o bastante pro Dashboard/Histórico; cresce nas próximas fases. */
+@Serializable
+data class ResultDto(
+    val id: Int? = null,
+    val date: String? = null,
+    val homeTeam: String? = null,
+    val awayTeam: String? = null,
+    val homeScore: Int? = null,
+    val awayScore: Int? = null,
+    val pending: Boolean = false,
+    val motm: Int? = null,
+)
+
+/**
+ * Espelha o GET sem `action` (api.php, o mesmo que `loadFromServer()` do
+ * painel web lê) — cresce a cada fase conforme mais telas precisarem de
+ * mais sub-chaves do blob. Leitura não tem risco de concorrência (só a
+ * escrita virou granular), então continua sendo "traga tudo de uma vez".
+ */
+@Serializable
+data class AppSnapshotDto(
+    val players: List<PlayerDto> = emptyList(),
+    val fees: FeesDto = FeesDto(),
+    val results: List<ResultDto> = emptyList(),
+)
+
+@Serializable
+data class PlayerSaveRequest(
+    val clientEventId: String,
+    val player: PlayerDraftDto,
+)
+
+@Serializable
+data class PlayerSaveResponse(
+    val ok: Boolean = false,
+    val duplicate: Boolean = false,
+    val error: String? = null,
+    val players: List<PlayerDto> = emptyList(),
+)
+
+@Serializable
+data class PlayerDeleteRequest(val id: Int)
+
+@Serializable
+data class PlayerDeleteResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val players: List<PlayerDto> = emptyList(),
+)
+
+@Serializable
+data class PlayerRateRequest(
+    val clientEventId: String,
+    val id: Int,
+    val attributes: PlayerAttributes,
+)
+
+@Serializable
+data class DeletePhotoRequest(val url: String)
+
+@Serializable
+data class UploadPhotoResponse(
+    val ok: Boolean = false,
+    val url: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class FeesSaveRequest(val fees: FeesDto)
+
+@Serializable
+data class FeesSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val fees: FeesDto = FeesDto(),
 )

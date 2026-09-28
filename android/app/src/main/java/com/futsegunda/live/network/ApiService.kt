@@ -1,12 +1,15 @@
 package com.futsegunda.live.network
 
+import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Query
 
 /**
@@ -62,6 +65,63 @@ interface ApiService {
     @POST("api.php")
     suspend fun livePeriod(
         @Query("action") action: String = "live_period",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    /** GET sem `action` — o mesmo blob inteiro que o `loadFromServer()` do painel web lê. */
+    @GET("api.php")
+    suspend fun fullData(
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun playerSave(
+        @Query("action") action: String = "player_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun playerDelete(
+        @Query("action") action: String = "player_delete",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun playerRate(
+        @Query("action") action: String = "player_rate",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @Multipart
+    @POST("api.php")
+    suspend fun uploadPlayerPhoto(
+        @Query("action") action: String = "upload_player_photo",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Part file: MultipartBody.Part,
+        @Part("playerId") playerId: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun deletePlayerPhoto(
+        @Query("action") action: String = "delete_player_photo",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun feesSave(
+        @Query("action") action: String = "fees_save",
         @Header("X-Api-Key") apiKey: String,
         @Header("X-Auth-Token") authToken: String,
         @Body body: RequestBody,

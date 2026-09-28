@@ -63,6 +63,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
+    // Imagens (foto de jogador, logo)
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Rede — sem converter factory: JsonCodec (kotlinx.serialization) serializa/desserializa
     // RequestBody/ResponseBody à mão (ver network/JsonCodec.kt).
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
