@@ -1,5 +1,6 @@
 package com.futsegunda.live.network
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -203,6 +204,10 @@ data class AppSnapshotDto(
     val expenses: List<ExpenseDto> = emptyList(),
     val recurringExpenses: List<RecurringExpenseDto> = emptyList(),
     val chargeHistory: List<ChargeHistoryDto> = emptyList(),
+    val config: ConfigDto = ConfigDto(),
+    val loucaRotation: List<Int> = emptyList(),
+    val loucaCycleStart: String? = null,
+    val loucaOverrides: Map<String, Boolean> = emptyMap(),
 )
 
 // ── Financeiro (Fase 3) ──────────────────────────────────
@@ -502,3 +507,64 @@ data class FeesSaveResponse(
     val error: String? = null,
     val fees: FeesDto = FeesDto(),
 )
+
+// ── Config (Fase 4) ───────────────────────────────────────
+
+@Serializable
+data class ConfigDto(
+    val logo: String? = null,
+    val teamName: String = "Fut Segunda",
+    val tabTitle: String = "Fut Segunda — Manager",
+    val initialBalance: Double = 0.0,
+    val goleiroIsento: Boolean = true,
+)
+
+@Serializable
+data class ConfigSaveRequest(val config: ConfigDto)
+
+@Serializable
+data class ConfigSaveResponse(val ok: Boolean = false, val error: String? = null, val config: ConfigDto = ConfigDto())
+
+@Serializable
+data class UploadLogoResponse(val ok: Boolean = false, val url: String? = null, val error: String? = null)
+
+@Serializable
+data class LoucaRotationSaveRequest(
+    val loucaRotation: List<Int>,
+    val loucaCycleStart: String? = null,
+    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+)
+
+@Serializable
+data class LoucaRotationSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val loucaRotation: List<Int> = emptyList(),
+    val loucaCycleStart: String? = null,
+    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+)
+
+// ── Usuários (já granular no backend — só faltava a tela) ──
+
+@Serializable
+data class UserDto(
+    val id: Int,
+    val username: String,
+    val role: String,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class CreateUserRequest(val username: String, val password: String, val role: String)
+
+@Serializable
+data class CreateUserResponse(val ok: Boolean = false, val error: String? = null, val id: Int? = null)
+
+@Serializable
+data class UpdateUserRoleRequest(val id: Int, val role: String)
+
+@Serializable
+data class DeleteUserRequest(val id: Int)
+
+@Serializable
+data class SimpleOkResponse(val ok: Boolean = false, val error: String? = null)

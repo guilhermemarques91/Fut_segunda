@@ -258,4 +258,65 @@ interface ApiService {
         @Header("X-Auth-Token") authToken: String,
         @Body body: RequestBody,
     ): Response<ResponseBody>
+
+    // ── Config (Fase 4) ──────────────────────────────────
+
+    @POST("api.php")
+    suspend fun configSave(
+        @Query("action") action: String = "config_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @Multipart
+    @POST("api.php")
+    suspend fun uploadLogo(
+        @Query("action") action: String = "upload_logo",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Part file: MultipartBody.Part,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun loucaRotationSave(
+        @Query("action") action: String = "louca_rotation_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    // ── Usuários — já granular no backend (list_users/create_user/
+    // update_user_role/delete_user), só faltava a tela nativa (Fase 4).
+
+    @GET("api.php")
+    suspend fun listUsers(
+        @Query("action") action: String = "list_users",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun createUser(
+        @Query("action") action: String = "create_user",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun updateUserRole(
+        @Query("action") action: String = "update_user_role",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun deleteUser(
+        @Query("action") action: String = "delete_user",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
 }

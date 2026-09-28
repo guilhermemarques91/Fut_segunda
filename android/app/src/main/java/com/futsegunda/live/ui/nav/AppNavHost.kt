@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.futsegunda.live.ui.LiveMatchScreen
 import com.futsegunda.live.ui.WebPanelScreen
+import com.futsegunda.live.ui.config.ConfigScreen
 import com.futsegunda.live.ui.dashboard.DashboardScreen
 import com.futsegunda.live.ui.financeiro.FinanceiroScreen
 import com.futsegunda.live.ui.historico.HistoricoScreen
@@ -37,6 +38,9 @@ fun AppNavHost(navController: NavHostController, onLogout: () -> Unit) {
         }
         composable(AppDestination.Historico.route) {
             HistoricoScreen()
+        }
+        composable(AppDestination.Config.route) {
+            ConfigScreen()
         }
         composable(AppDestination.WebFallback.route) {
             WebPanelScreen()

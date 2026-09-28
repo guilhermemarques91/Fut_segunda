@@ -6,14 +6,16 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
- * Rotas do NavHost. Cresce a cada fase — Config ainda não tem tela nativa
- * (ver `WebFallback`, que abre o painel web de verdade dentro de um
- * WebView só pro que ainda não foi portado).
+ * Rotas do NavHost. Todas as seções do painel web já têm tela nativa desde
+ * a Fase 4 — `WebFallback` fica só pro que segue sendo web-only de propósito
+ * (publicar `.apk` em Config/"Builds para Download": não faz sentido subir
+ * um build a partir do próprio celular).
  */
 sealed class AppDestination(val route: String, val label: String, val icon: ImageVector) {
     data object Dashboard : AppDestination("dashboard", "Dashboard", Icons.Filled.Home)
@@ -22,6 +24,7 @@ sealed class AppDestination(val route: String, val label: String, val icon: Imag
     data object Players : AppDestination("players", "Jogadores", Icons.Filled.People)
     data object Financeiro : AppDestination("financeiro", "Financeiro", Icons.Filled.AttachMoney)
     data object Historico : AppDestination("historico", "Histórico", Icons.Filled.History)
+    data object Config : AppDestination("config", "Configurações", Icons.Filled.Settings)
     data object WebFallback : AppDestination("web_fallback", "Painel completo (web)", Icons.Filled.Web)
 }
 
@@ -31,6 +34,7 @@ val DRAWER_DESTINATIONS = listOf(
     AppDestination.Players,
     AppDestination.Financeiro,
     AppDestination.Historico,
+    AppDestination.Config,
     AppDestination.WebFallback,
 )
 
