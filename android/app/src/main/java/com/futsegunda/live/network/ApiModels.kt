@@ -193,6 +193,148 @@ data class AppSnapshotDto(
     val players: List<PlayerDto> = emptyList(),
     val fees: FeesDto = FeesDto(),
     val results: List<ResultDto> = emptyList(),
+    val attendances: List<AttendanceDto> = emptyList(),
+    val teamHistory: List<TeamHistoryDto> = emptyList(),
+    val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
+    val lockedRodadas: List<String> = emptyList(),
+    val avulsoOrder: List<Int> = emptyList(),
+)
+
+// ── Rodada (Fase 2) — espelham attendances[]/teamHistory[]/dinnerHistory[]
+// do painel web (frontend/index.html, autoSavePresenca/autoSaveTeams/
+// autoSaveDinnerData) exatamente pelos mesmos nomes de campo.
+
+@Serializable
+data class AttendanceDto(
+    val date: String,
+    val opponent: String? = null,
+    val players: List<Int> = emptyList(),
+    val noShow: List<Int> = emptyList(),
+    val manual: List<Int> = emptyList(),
+)
+
+@Serializable
+data class TeamHistoryDto(
+    val id: Int? = null,
+    val date: String,
+    val opponent: String? = null,
+    val home: List<Int> = emptyList(),
+    val away: List<Int> = emptyList(),
+    val homeReserve: Int? = null,
+    val awayReserve: Int? = null,
+)
+
+@Serializable
+data class DinnerHistoryDto(
+    val id: Int? = null,
+    val date: String,
+    val meal: String? = null,
+    val total: Double = 0.0,
+    val share: Double = 0.0,
+    val realShare: Double = 0.0,
+    val participants: List<Int> = emptyList(),
+    val paidBy: List<Int> = emptyList(),
+    val closed: Boolean = false,
+    val loucaResponsavel: Int? = null,
+)
+
+@Serializable
+data class AttendanceSaveRequest(
+    val date: String,
+    val opponent: String? = null,
+    val players: List<Int> = emptyList(),
+    val noShow: List<Int> = emptyList(),
+    val manual: List<Int> = emptyList(),
+)
+
+@Serializable
+data class AttendanceSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val attendances: List<AttendanceDto> = emptyList(),
+)
+
+@Serializable
+data class AvulsoOrderSaveRequest(val order: List<Int>)
+
+@Serializable
+data class AvulsoOrderSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val avulsoOrder: List<Int> = emptyList(),
+)
+
+@Serializable
+data class TeamHistorySaveRequest(
+    val date: String,
+    val opponent: String? = null,
+    val home: List<Int>,
+    val away: List<Int>,
+    val homeReserve: Int? = null,
+    val awayReserve: Int? = null,
+)
+
+@Serializable
+data class TeamHistorySaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val teamHistory: List<TeamHistoryDto> = emptyList(),
+    val results: List<ResultDto> = emptyList(),
+)
+
+@Serializable
+data class DinnerSaveRequest(
+    val date: String,
+    val meal: String? = null,
+    val total: Double = 0.0,
+    val participants: List<Int> = emptyList(),
+    val loucaResponsavel: Int? = null,
+)
+
+@Serializable
+data class DinnerSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
+)
+
+@Serializable
+data class LockedRodadasSaveRequest(val date: String, val locked: Boolean)
+
+@Serializable
+data class LockedRodadasSaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val lockedRodadas: List<String> = emptyList(),
+)
+
+@Serializable
+data class RodadaDeleteRequest(val date: String, val password: String)
+
+@Serializable
+data class RodadaDeleteResponse(val ok: Boolean = false, val error: String? = null)
+
+/** Corpo de `action=live_update` pra iniciar a partida a partir dos times da Rodada — espelha startPartida() do painel web. */
+@Serializable
+data class GoalCountDto(val playerId: Int, val count: Int)
+
+@Serializable
+data class LiveStartRequest(
+    val active: Boolean = true,
+    val date: String,
+    val homePlayers: List<Int>,
+    val awayPlayers: List<Int>,
+    val homeReserveId: Int? = null,
+    val awayReserveId: Int? = null,
+    val goals: List<GoalCountDto> = emptyList(),
+    val goalLog: List<GoalLogEntry> = emptyList(),
+    val periodo: Int = 1,
+    val t1ms: Long? = null,
+    val timerRunning: Boolean = false,
+    val timerElapsed: Long = 0,
+    val timerStartedAt: Long? = null,
+    val intervaloStart: Long? = null,
+    val intervaloMs: Long? = null,
 )
 
 @Serializable
