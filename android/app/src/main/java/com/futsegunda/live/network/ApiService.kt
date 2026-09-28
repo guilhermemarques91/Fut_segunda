@@ -184,4 +184,78 @@ interface ApiService {
         @Header("X-Api-Key") apiKey: String,
         @Body body: RequestBody,
     ): Response<ResponseBody>
+
+    // ── Financeiro (Fase 3) ──────────────────────────────
+
+    @POST("api.php")
+    suspend fun lancamentoSave(
+        @Query("action") action: String = "lancamento_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun lancamentoDelete(
+        @Query("action") action: String = "lancamento_delete",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun lancamentoBulkQuitar(
+        @Query("action") action: String = "lancamento_bulk_quitar",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun expenseSave(
+        @Query("action") action: String = "expense_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun expenseDelete(
+        @Query("action") action: String = "expense_delete",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun recurringExpenseSave(
+        @Query("action") action: String = "recurring_expense_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun recurringExpenseDelete(
+        @Query("action") action: String = "recurring_expense_delete",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun chargeHistorySave(
+        @Query("action") action: String = "charge_history_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun resultSave(
+        @Query("action") action: String = "result_save",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
 }

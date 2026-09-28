@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import com.futsegunda.live.ui.LiveMatchScreen
 import com.futsegunda.live.ui.WebPanelScreen
 import com.futsegunda.live.ui.dashboard.DashboardScreen
+import com.futsegunda.live.ui.financeiro.FinanceiroScreen
 import com.futsegunda.live.ui.players.PlayersScreen
 import com.futsegunda.live.ui.rodada.RodadaScreen
 
@@ -29,6 +30,9 @@ fun AppNavHost(navController: NavHostController, onLogout: () -> Unit) {
         }
         composable(AppDestination.Players.route) {
             PlayersScreen()
+        }
+        composable(AppDestination.Financeiro.route) {
+            FinanceiroScreen()
         }
         composable(AppDestination.WebFallback.route) {
             WebPanelScreen()

@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.futsegunda.live.network.ResultDto
 import com.futsegunda.live.ui.theme.AccentCard
+import com.futsegunda.live.ui.theme.FutGreenStart
+import com.futsegunda.live.ui.theme.FutRed
 import com.futsegunda.live.viewmodel.DashboardViewModel
 
 @Composable
@@ -37,6 +39,21 @@ fun DashboardScreen(vm: DashboardViewModel = viewModel()) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(label = "Atletas", value = state.playerCount.toString(), modifier = Modifier.weight(1f))
                 StatCard(label = "Partidas", value = state.matchCount.toString(), modifier = Modifier.weight(1f))
+            }
+        }
+        item {
+            AccentCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("Caixa total", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "R$ %.2f".format(state.caixaTotal),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (state.caixaTotal >= 0) FutGreenStart else FutRed,
+                    )
+                }
             }
         }
         item {

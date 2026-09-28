@@ -180,6 +180,7 @@ data class ResultDto(
     val awayScore: Int? = null,
     val pending: Boolean = false,
     val motm: Int? = null,
+    val goals: List<GoalCountDto> = emptyList(),
 )
 
 /**
@@ -198,7 +199,121 @@ data class AppSnapshotDto(
     val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
     val lockedRodadas: List<String> = emptyList(),
     val avulsoOrder: List<Int> = emptyList(),
+    val lancamentos: List<LancamentoDto> = emptyList(),
+    val expenses: List<ExpenseDto> = emptyList(),
+    val recurringExpenses: List<RecurringExpenseDto> = emptyList(),
+    val chargeHistory: List<ChargeHistoryDto> = emptyList(),
 )
+
+// ── Financeiro (Fase 3) ──────────────────────────────────
+
+@Serializable
+data class LancamentoDto(
+    val id: Int? = null,
+    val playerId: Int? = null,
+    val name: String,
+    val type: String,
+    val amount: Double,
+    val date: String,
+    val notes: String? = null,
+    val paid: Boolean = false,
+    val paidDate: String? = null,
+)
+
+@Serializable
+data class ExpenseDto(
+    val id: Int? = null,
+    val date: String,
+    val description: String,
+    val category: String? = null,
+    val amount: Double,
+    val paid: Boolean = false,
+    val paidDate: String? = null,
+    val notes: String? = null,
+)
+
+@Serializable
+data class RecurringExpenseDto(
+    val id: Int? = null,
+    val description: String,
+    val category: String? = null,
+    val amount: Double,
+    val active: Boolean = true,
+    val lastPaidMonth: String? = null,
+)
+
+@Serializable
+data class ChargeEntryDto(
+    val playerId: Int,
+    val amount: Double,
+    val paid: Boolean = false,
+    val paidDate: String? = null,
+)
+
+@Serializable
+data class ChargeHistoryDto(
+    val month: String,
+    val date: String? = null,
+    val charges: List<ChargeEntryDto> = emptyList(),
+)
+
+@Serializable
+data class LancamentoSaveRequest(val lancamento: LancamentoDto)
+
+@Serializable
+data class LancamentoSaveResponse(val ok: Boolean = false, val error: String? = null, val lancamentos: List<LancamentoDto> = emptyList())
+
+@Serializable
+data class IdRequest(val id: Int)
+
+@Serializable
+data class LancamentoBulkQuitarRequest(val ids: List<Int>)
+
+@Serializable
+data class LancamentoBulkQuitarResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val lancamentos: List<LancamentoDto> = emptyList(),
+    val players: List<PlayerDto> = emptyList(),
+)
+
+@Serializable
+data class ExpenseSaveRequest(val expense: ExpenseDto)
+
+@Serializable
+data class ExpenseSaveResponse(val ok: Boolean = false, val error: String? = null, val expenses: List<ExpenseDto> = emptyList())
+
+@Serializable
+data class RecurringExpenseSaveRequest(val recurringExpense: RecurringExpenseDto)
+
+@Serializable
+data class RecurringExpenseSaveResponse(val ok: Boolean = false, val error: String? = null, val recurringExpenses: List<RecurringExpenseDto> = emptyList())
+
+@Serializable
+data class ChargeGenerateRequest(val op: String = "generate")
+
+@Serializable
+data class ChargePayRequest(val op: String = "pay", val month: String, val playerId: Int)
+
+@Serializable
+data class ChargeHistorySaveResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val chargeHistory: List<ChargeHistoryDto> = emptyList(),
+    val players: List<PlayerDto> = emptyList(),
+)
+
+@Serializable
+data class ResultSaveRequest(
+    val date: String,
+    val homeScore: Int? = null,
+    val awayScore: Int? = null,
+    val motm: Int? = null,
+    val pending: Boolean? = null,
+)
+
+@Serializable
+data class ResultSaveResponse(val ok: Boolean = false, val error: String? = null, val results: List<ResultDto> = emptyList())
 
 // ── Rodada (Fase 2) — espelham attendances[]/teamHistory[]/dinnerHistory[]
 // do painel web (frontend/index.html, autoSavePresenca/autoSaveTeams/
