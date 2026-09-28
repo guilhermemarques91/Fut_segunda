@@ -8,6 +8,7 @@ import com.futsegunda.live.data.TokenStore
 import com.futsegunda.live.data.cache.AppDataCache
 import com.futsegunda.live.data.repository.ConfigRepository
 import com.futsegunda.live.data.repository.FinResult
+import com.futsegunda.live.domain.LoucaRotation
 import com.futsegunda.live.network.ConfigDto
 import com.futsegunda.live.network.DinnerHistoryDto
 import com.futsegunda.live.network.PlayerDto
@@ -38,31 +39,14 @@ data class ConfigUiState(
     val error: String? = null,
     val toast: String? = null,
 ) {
-    /** Mesma lógica de _loucaWashedMapInCycle() do painel web — 1º registro de tira-gosto
-     * de cada responsável dentro do ciclo atual, o mais antigo primeiro. */
-    fun washedMap(excludeDate: String? = null): Map<Int, DinnerHistoryDto> {
-        val cycleStart = loucaCycleStart ?: "0000-00-00"
-        val map = LinkedHashMap<Int, DinnerHistoryDto>()
-        dinnerHistory
-            .filter { it.loucaResponsavel != null && it.date > cycleStart && it.date != excludeDate }
-            .sortedBy { it.date }
-            .forEach { d -> d.loucaResponsavel?.let { id -> if (id !in map) map[id] = d } }
-        return map
-    }
+    fun washedMap(excludeDate: String? = null): Map<Int, DinnerHistoryDto> =
+        LoucaRotation.washedMap(dinnerHistory, loucaCycleStart, excludeDate)
 
-    /** Override manual tem prioridade sobre a detecção automática — mesma regra do painel web. */
-    fun isWashed(id: Int, derivedMap: Map<Int, DinnerHistoryDto>): Boolean {
-        val key = id.toString()
-        if (loucaOverrides.containsKey(key)) return loucaOverrides[key] == true
-        return derivedMap.containsKey(id)
-    }
+    fun isWashed(id: Int, derivedMap: Map<Int, DinnerHistoryDto>): Boolean =
+        LoucaRotation.isWashed(id, loucaOverrides, derivedMap)
 
     val nextLoucaId: Int?
-        get() {
-            if (loucaRotation.isEmpty()) return null
-            val derived = washedMap()
-            return loucaRotation.firstOrNull { !isWashed(it, derived) } ?: loucaRotation.first()
-        }
+        get() = LoucaRotation.nextResponsavel(loucaRotation, loucaOverrides, washedMap())
 }
 
 /**

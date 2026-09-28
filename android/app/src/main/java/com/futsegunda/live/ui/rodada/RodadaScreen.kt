@@ -1,5 +1,6 @@
 package com.futsegunda.live.ui.rodada
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -149,6 +152,10 @@ private fun TiraGostoTab(vm: RodadaViewModel) {
                 color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.titleSmall,
             )
         }
+        if (state.loucaRotation.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            LoucaResponsavelPicker(vm = vm)
+        }
         Spacer(Modifier.height(8.dp))
         Text("Participantes", style = MaterialTheme.typography.titleSmall)
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -166,6 +173,39 @@ private fun TiraGostoTab(vm: RodadaViewModel) {
                             enabled = !state.locked,
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Espelha o `rod-louça-select` do painel web (updateLoucaSelectInRodada) — quem
+ * lava a louça desta rodada, com a "próxima vez" da fila pré-selecionada. */
+@Composable
+private fun LoucaResponsavelPicker(vm: RodadaViewModel) {
+    val state by vm.state.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
+    val current = state.loucaResponsavelId ?: state.suggestedLoucaResponsavel
+    val currentName = current?.let { id -> state.allPlayers.find { it.id == id }?.name }
+    val isSuggestion = state.loucaResponsavelId == null && current != null
+
+    Column {
+        Text("🧹 Responsável pela louça", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = (currentName ?: "Ninguém selecionado") + if (isSuggestion) " (sugestão)" else "",
+                onValueChange = {},
+                readOnly = true,
+                enabled = !state.locked,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (!state.locked) {
+                Box(modifier = Modifier.fillMaxSize().clickable { expanded = true })
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                state.loucaRotation.forEach { id ->
+                    val name = state.allPlayers.find { it.id == id }?.name ?: return@forEach
+                    DropdownMenuItem(text = { Text(name) }, onClick = { vm.setLoucaResponsavel(id); expanded = false })
                 }
             }
         }

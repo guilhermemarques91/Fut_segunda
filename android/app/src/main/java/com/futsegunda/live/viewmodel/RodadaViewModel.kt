@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.futsegunda.live.data.cache.AppDataCache
 import com.futsegunda.live.data.repository.RodadaRepository
 import com.futsegunda.live.data.repository.RodadaResult
+import com.futsegunda.live.domain.LoucaRotation
 import com.futsegunda.live.domain.splitAllIntoTwoTeams
 import com.futsegunda.live.network.AttendanceSaveRequest
+import com.futsegunda.live.network.DinnerHistoryDto
 import com.futsegunda.live.network.DinnerSaveRequest
 import com.futsegunda.live.network.GoalCountDto
 import com.futsegunda.live.network.LiveStartRequest
@@ -44,6 +46,10 @@ data class RodadaUiState(
     val meal: String = "",
     val dinnerTotalText: String = "",
     val loucaResponsavelId: Int? = null,
+    val loucaRotation: List<Int> = emptyList(),
+    val loucaCycleStart: String? = null,
+    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+    val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
     val saving: Boolean = false,
     val startingMatch: Boolean = false,
     val error: String? = null,
@@ -55,6 +61,14 @@ data class RodadaUiState(
             if (total <= 0 || dinnerIds.isEmpty()) return 0.0
             val real = total / dinnerIds.size
             return ceil(real / 5.0) * 5.0
+        }
+
+    /** Sugestão de próximo responsável pela louça — mesma lógica de updateLoucaSelectInRodada(date)
+     * do painel web, excluindo a própria data da rodada atual do cálculo de "já lavou". */
+    val suggestedLoucaResponsavel: Int?
+        get() {
+            val derived = LoucaRotation.washedMap(dinnerHistory, loucaCycleStart, excludeDate = date)
+            return LoucaRotation.nextResponsavel(loucaRotation, loucaOverrides, derived)
         }
 }
 
@@ -102,6 +116,10 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
             dinnerIds = din?.participants ?: _state.value.dinnerIds,
             meal = din?.meal ?: _state.value.meal,
             loucaResponsavelId = din?.loucaResponsavel ?: _state.value.loucaResponsavelId,
+            loucaRotation = snapshot?.loucaRotation ?: _state.value.loucaRotation,
+            loucaCycleStart = snapshot?.loucaCycleStart ?: _state.value.loucaCycleStart,
+            loucaOverrides = snapshot?.loucaOverrides ?: _state.value.loucaOverrides,
+            dinnerHistory = snapshot?.dinnerHistory ?: _state.value.dinnerHistory,
         )
     }
 
