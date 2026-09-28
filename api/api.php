@@ -620,6 +620,250 @@ if ($action === 'upload_app_release' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── GRANULAR — helpers de idempotência genérica ──────────
+// Usado pelas actions abaixo (player_save, player_rate, etc.) — igual em
+// espírito ao clientEventId dos live_*, mas como agora são muitas actions
+// diferentes (não só 3), a lista de ids já aplicados fica numa chave só
+// (_appliedWriteIds) em vez de uma por action.
+function _alreadyApplied($d, $clientEventId) {
+    return in_array($clientEventId, $d['_appliedWriteIds'] ?? [], true);
+}
+function _markApplied(&$d, $clientEventId) {
+    $ids = $d['_appliedWriteIds'] ?? [];
+    $ids[] = $clientEventId;
+    $d['_appliedWriteIds'] = array_slice($ids, -500);
+}
+
+// ── JOGADORES: salvar (criar ou atualizar) — admin ───────
+// Mesma receita do live_goal_add: lock da linha, merge raso na sub-chave
+// (não substitui o objeto inteiro — uma tela que só manda `name` não pode
+// apagar `attributes`/`balance` de quem já existia), id novo calculado no
+// servidor (nunca confia em id vindo do cliente, evita colisão se dois
+// dispositivos criarem ao mesmo tempo).
+if ($action === 'player_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $clientEventId = trim($body['clientEventId'] ?? '');
+    $player = $body['player'] ?? null;
+    if (!$clientEventId || !is_array($player) || trim($player['name'] ?? '') === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'clientEventId e player.name são obrigatórios']);
+        exit;
+    }
+    $d = _liveEventLock($pdo);
+    if (_alreadyApplied($d, $clientEventId)) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => true, 'players' => $d['players'] ?? []]);
+        exit;
+    }
+    $players = $d['players'] ?? [];
+    $id = $player['id'] ?? null;
+    if ($id === null) {
+        $maxId = 0;
+        foreach ($players as $p) $maxId = max($maxId, (int) ($p['id'] ?? 0));
+        $player['id']         = $maxId + 1;
+        $player['balance']    = $player['balance']    ?? 0;
+        $player['payments']   = $player['payments']   ?? [];
+        $player['dinnerDebt'] = $player['dinnerDebt'] ?? 0;
+        $player['lastRating'] = $player['lastRating'] ?? null;
+        $players[] = $player;
+    } else {
+        $found = false;
+        foreach ($players as $i => $p) {
+            if ((int) ($p['id'] ?? -1) === (int) $id) {
+                $players[$i] = array_merge($p, $player);
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            $pdo->rollBack();
+            http_response_code(404);
+            echo json_encode(['error' => 'Jogador não encontrado']);
+            exit;
+        }
+    }
+    $d['players'] = $players;
+    _markApplied($d, $clientEventId);
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'duplicate' => false, 'players' => $players]);
+    exit;
+}
+
+// ── JOGADORES: remover — admin ───────────────────────────
+if ($action === 'player_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int) ($body['id'] ?? 0);
+    if (!$id) {
+        http_response_code(400); echo json_encode(['error' => 'id obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['players'] = array_values(array_filter($d['players'] ?? [], fn($p) => (int) ($p['id'] ?? -1) !== $id));
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'players' => $d['players']]);
+    exit;
+}
+
+// ── JOGADORES: rating rápido (endpoint fino) — admin ─────
+// Separado do player_save geral de propósito: a tela de "avaliação rápida"
+// só deve mexer nos 3 atributos + overall + data, nunca no resto da ficha.
+if ($action === 'player_rate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $clientEventId = trim($body['clientEventId'] ?? '');
+    $id    = (int) ($body['id'] ?? 0);
+    $attrs = $body['attributes'] ?? null;
+    if (!$clientEventId || !$id || !is_array($attrs)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'clientEventId, id e attributes são obrigatórios']);
+        exit;
+    }
+    $d = _liveEventLock($pdo);
+    if (_alreadyApplied($d, $clientEventId)) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => true, 'players' => $d['players'] ?? []]);
+        exit;
+    }
+    $players = $d['players'] ?? [];
+    $phy = max(1, min(99, (int) ($attrs['physical']  ?? 60)));
+    $tac = max(1, min(99, (int) ($attrs['tactical']  ?? 60)));
+    $tec = max(1, min(99, (int) ($attrs['technical'] ?? 60)));
+    // Mesma fórmula do calcOverall() do painel web (frontend/index.html) — precisa
+    // bater exatamente, senão o overall diverge entre o app e o painel.
+    $overall = (int) round($phy * 0.3 + $tac * 0.35 + $tec * 0.35);
+    $found = false;
+    foreach ($players as $i => $p) {
+        if ((int) ($p['id'] ?? -1) === $id) {
+            $players[$i]['attributes'] = ['physical' => $phy, 'tactical' => $tac, 'technical' => $tec];
+            $players[$i]['overall']    = $overall;
+            $players[$i]['lastRating'] = date('Y-m-d');
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        $pdo->rollBack();
+        http_response_code(404);
+        echo json_encode(['error' => 'Jogador não encontrado']);
+        exit;
+    }
+    $d['players'] = $players;
+    _markApplied($d, $clientEventId);
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'duplicate' => false, 'players' => $players]);
+    exit;
+}
+
+// ── UPLOAD PLAYER PHOTO (admin) ───────────────────────────
+// Clone de upload_player_video trocando a whitelist pra imagem — substitui
+// a foto em data-URI inline (usada pelo painel web) por um arquivo de
+// verdade, pra não inflar ainda mais o JSON granular.
+if ($action === 'upload_player_photo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        http_response_code(413);
+        echo json_encode(['error' => 'Arquivo excede o limite de upload do servidor']);
+        exit;
+    }
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nenhum arquivo enviado ou erro no upload']);
+        exit;
+    }
+    $file = $_FILES['file'];
+    $maxBytes = 5 * 1024 * 1024;
+    if ($file['size'] > $maxBytes) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Imagem maior que 5MB']);
+        exit;
+    }
+    $allowedExt = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!isset($allowedExt[$ext])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Formato inválido — use jpg, png ou webp']);
+        exit;
+    }
+    $mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file['tmp_name']);
+    if (!$mime || strpos($mime, 'image/') !== 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'O arquivo não parece ser uma imagem válida']);
+        exit;
+    }
+    $playerId = preg_replace('/[^0-9]/', '', (string) ($_POST['playerId'] ?? ''));
+    if (!$playerId) {
+        http_response_code(400);
+        echo json_encode(['error' => 'playerId obrigatório']);
+        exit;
+    }
+    $dir = __DIR__ . '/uploads/players';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Não foi possível criar o diretório de upload']);
+        exit;
+    }
+    if (!is_writable($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Diretório de upload sem permissão de escrita']);
+        exit;
+    }
+    $filename = $playerId . '_photo_' . time() . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Falha ao salvar o arquivo']);
+        exit;
+    }
+    echo json_encode(['ok' => true, 'url' => '/api/uploads/players/' . $filename]);
+    exit;
+}
+
+// ── DELETE PLAYER PHOTO (admin) — best-effort, idempotente ─
+if ($action === 'delete_player_photo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $url  = $body['url'] ?? '';
+    if ($url) {
+        $uploadsDir = realpath(__DIR__ . '/uploads/players');
+        $filename   = basename(parse_url($url, PHP_URL_PATH) ?: '');
+        if ($uploadsDir && $filename) {
+            $target = $uploadsDir . '/' . $filename;
+            if (file_exists($target) && strpos(realpath($target) ?: '', $uploadsDir) === 0) {
+                @unlink($target);
+            }
+        }
+    }
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── TARIFAS (mensal/avulso + isenção de goleiro) — admin ──
+if ($action === 'fees_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $fees = $body['fees'] ?? null;
+    if (!is_array($fees)) {
+        http_response_code(400); echo json_encode(['error' => 'fees obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['fees'] = array_merge($d['fees'] ?? [], $fees);
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'fees' => $d['fees']]);
+    exit;
+}
+
 // ── Actions somente para admin ───────────────────────────
 if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
