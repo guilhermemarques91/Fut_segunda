@@ -3,6 +3,12 @@ name: Deploy to Hostgator
 on:
   push:
     branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'api/**'
+      - 'confirmar.php'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: {}
 
 jobs:
   deploy:
@@ -11,24 +17,33 @@ jobs:
       - name: Checkout repositório
         uses: actions/checkout@v4
 
+      # O repo organiza o código como frontend/ + api/ + confirmar.php, mas o
+      # doc root do Hostgator espera index.html/.htaccess/robots.txt direto na
+      # raiz e api/*.php numa subpasta — essa etapa remonta isso num diretório
+      # à parte antes do deploy, ao invés de mandar o repo cru (que nunca
+      # colocava o index.html no lugar certo). Cópia explícita (allowlist), não
+      # "tudo menos X" — assim nenhum script solto (Python, SQL de setup,
+      # esqueleto morto em src//main.py/index.ts) nem api/config.php (nem
+      # existe no CI, já que é gitignored) vai parar no servidor.
+      - name: Monta a estrutura que o servidor espera
+        run: |
+          set -e
+          mkdir -p deploy/api/releases
+          cp frontend/index.html deploy/index.html
+          cp frontend/.htaccess  deploy/.htaccess
+          cp frontend/robots.txt deploy/robots.txt
+          cp confirmar.php       deploy/confirmar.php
+          cp api/*.php           deploy/api/
+          cp api/releases/.htaccess deploy/api/releases/.htaccess
+          rm -f deploy/api/config.php   # nunca existe no checkout (gitignored) — só por garantia
+          find deploy -type f | sort
+
       - name: Deploy via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server:          ${{ secrets.FTP_SERVER }}
-          username:        ${{ secrets.FTP_USERNAME }}
-          password:        ${{ secrets.FTP_PASSWORD }}
-          server-dir:      ${{ secrets.FTP_SERVER_DIR }}
+          server:                ${{ secrets.FTP_SERVER }}
+          username:              ${{ secrets.FTP_USERNAME }}
+          password:              ${{ secrets.FTP_PASSWORD }}
+          server-dir:            ${{ secrets.FTP_SERVER_DIR }}
+          local-dir:             ./deploy/
           dangerous-clean-slate: false
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            **/.claude/**
-            **/src/**
-            **/services/**
-            api/config.php
-            main.py
-            index.ts
-            package.json
-            package-lock.json
-            README.md

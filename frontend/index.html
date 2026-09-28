@@ -1202,6 +1202,19 @@
       <div id="user-create-msg" style="display:none;margin-top:8px;font-size:.8rem;padding:8px 12px;border-radius:8px"></div>
     </div>
   </div>
+
+  <!-- Builds dos apps (Android/Watch) — visível somente para admin -->
+  <div class="card" id="card-app-releases" style="display:none;margin-top:18px">
+    <div class="card-title"><div class="card-title-bar"></div>📱 Apps — Builds para Download</div>
+    <div style="font-size:.78rem;color:#64748b;margin-bottom:14px">
+      Publica o .apk aqui pra quem for marcar gol baixar direto no celular/relógio
+      (sem precisar de cabo). O link de download funciona sem login — é só abrir
+      no navegador do aparelho.
+    </div>
+    <div class="grid-2" style="align-items:start;gap:16px" id="app-releases-grid">
+      <!-- preenchido por renderAppReleasesCard() -->
+    </div>
+  </div>
 </div>
 
 </div><!-- /main -->
@@ -6653,6 +6666,16 @@ function renderConfigSection() {
       cardUsers.style.display = 'none';
     }
   }
+  // Card de builds dos apps — só para admin
+  const cardAppReleases = document.getElementById('card-app-releases');
+  if (cardAppReleases) {
+    if (App.auth.role === 'admin') {
+      cardAppReleases.style.display = 'block';
+      loadAppReleases();
+    } else {
+      cardAppReleases.style.display = 'none';
+    }
+  }
   renderLoucaRotation();
 }
 
@@ -7123,6 +7146,8 @@ function applyRoleRestrictions() {
   // Garante visibilidade do card de usuários imediatamente ao autenticar
   const cardUsers = document.getElementById('card-users');
   if (cardUsers) cardUsers.style.display = isAdmin ? 'block' : 'none';
+  const cardAppReleases = document.getElementById('card-app-releases');
+  if (cardAppReleases) cardAppReleases.style.display = isAdmin ? 'block' : 'none';
   const btnLinks = document.getElementById('btn-gen-links');
   if (btnLinks) btnLinks.style.display = isAdmin ? '' : 'none';
   // Mostra/esconde os itens de navegação conforme o papel. IMPORTANTE: precisa
@@ -7488,6 +7513,110 @@ function showUserMsg(msg, ok) {
   clearTimeout(el._t);
   // Some sozinho só quando é sucesso; erros ficam visíveis até a próxima ação.
   if (ok) el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ── Builds dos apps (Android/Watch) — admin ──────────────
+const APP_RELEASE_PLATFORMS = [
+  { key: 'android', label: '📱 Android', hint: 'Celular — app nativo com a aba Ao Vivo + Painel completo' },
+  { key: 'wear',     label: '⌚ Galaxy Watch', hint: 'Relógio — instala via ADB (Depurar via Wi-Fi), não dá pra tocar e instalar direto' },
+];
+let _appReleasesMeta = {};
+
+async function loadAppReleases() {
+  if (App.auth.role !== 'admin') return;
+  try {
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=app_version', { headers: { 'X-Api-Key': SERVER_CONFIG.apiKey }, cache: 'no-store' });
+    _appReleasesMeta = await res.json().catch(() => ({}));
+  } catch (e) { _appReleasesMeta = {}; }
+  renderAppReleasesCard();
+}
+
+function renderAppReleasesCard() {
+  const grid = document.getElementById('app-releases-grid');
+  if (!grid) return;
+  grid.innerHTML = APP_RELEASE_PLATFORMS.map(p => {
+    const info = _appReleasesMeta[p.key];
+    const downloadUrl = SERVER_CONFIG.apiUrl.replace('/api.php', '/download_release.php') + '?platform=' + p.key;
+    return `
+    <div class="card" style="margin:0;background:rgba(255,255,255,0.02)">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:2px">${p.label}</div>
+      <div style="font-size:.7rem;color:#475569;margin-bottom:12px">${p.hint}</div>
+      ${info ? `
+        <div style="font-size:.8rem;color:#cbd5e1;margin-bottom:4px">Versão publicada: <strong style="color:#4ade80">${info.versionName}</strong> <span style="color:#475569">(build ${info.versionCode})</span></div>
+        <div style="font-size:.72rem;color:#475569;margin-bottom:2px">${new Date(info.uploadedAt.replace(' ','T')).toLocaleString('pt-BR')} · ${(info.size/1024/1024).toFixed(1)}MB${info.uploadedBy ? ' · por '+info.uploadedBy : ''}</div>
+        ${info.notes ? `<div style="font-size:.75rem;color:#94a3b8;margin:6px 0;white-space:pre-wrap">${info.notes}</div>` : ''}
+        <div style="display:flex;gap:8px;margin:10px 0 16px">
+          <a href="${downloadUrl}" class="btn-secondary" style="text-decoration:none;text-align:center;flex:1;font-size:.78rem" target="_blank">⬇ Baixar</a>
+          <button onclick="copyAppReleaseLink('${p.key}')" class="btn-secondary" style="font-size:.78rem">🔗 Copiar link</button>
+        </div>
+      ` : `<div class="empty-state" style="padding:14px;margin:8px 0 16px;font-size:.78rem">Nenhuma build publicada ainda</div>`}
+      <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:12px">
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Publicar nova build</div>
+        <div class="space-y" style="gap:8px">
+          <input type="file" accept=".apk" id="app-release-file-${p.key}" class="input-field" style="font-size:.76rem;padding:8px">
+          <div class="form-grid-2">
+            <input type="text" id="app-release-name-${p.key}" class="input-field" placeholder="Versão (ex: 1.1)">
+            <input type="number" id="app-release-code-${p.key}" class="input-field" placeholder="Build (ex: 2)" min="1">
+          </div>
+          <textarea id="app-release-notes-${p.key}" class="input-field" placeholder="O que mudou nessa versão (opcional)" rows="2" style="font-size:.78rem"></textarea>
+          <button onclick="uploadAppRelease('${p.key}')" class="btn-primary" id="app-release-btn-${p.key}" style="width:100%;font-size:.82rem">⬆ Publicar</button>
+        </div>
+        <div id="app-release-msg-${p.key}" style="display:none;margin-top:8px;font-size:.78rem;padding:8px 12px;border-radius:8px"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function copyAppReleaseLink(platform) {
+  const url = SERVER_CONFIG.apiUrl.replace('/api.php', '/download_release.php') + '?platform=' + platform;
+  navigator.clipboard?.writeText(url).then(
+    () => showToast('Link copiado — manda pro WhatsApp de quem vai instalar', true),
+    () => showToast(url, true),
+  );
+}
+
+async function uploadAppRelease(platform) {
+  const fileInput = document.getElementById(`app-release-file-${platform}`);
+  const file = fileInput?.files?.[0];
+  const versionName = (document.getElementById(`app-release-name-${platform}`)?.value || '').trim();
+  const versionCode = document.getElementById(`app-release-code-${platform}`)?.value || '';
+  const notes = document.getElementById(`app-release-notes-${platform}`)?.value || '';
+  const msgEl = document.getElementById(`app-release-msg-${platform}`);
+  const btn = document.getElementById(`app-release-btn-${platform}`);
+
+  const showMsg = (msg, ok) => {
+    if (!msgEl) return;
+    msgEl.textContent = msg; msgEl.style.display = 'block';
+    msgEl.style.background = ok ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)';
+    msgEl.style.border = ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(248,113,113,0.2)';
+    msgEl.style.color = ok ? '#4ade80' : '#f87171';
+  };
+
+  if (!file) return showMsg('Selecione o arquivo .apk', false);
+  if (!file.name.toLowerCase().endsWith('.apk')) return showMsg('O arquivo precisa ser um .apk', false);
+  if (!versionName) return showMsg('Informe o nome da versão (ex: 1.1)', false);
+  if (!versionCode || Number(versionCode) <= 0) return showMsg('Informe o número da build (ex: 2)', false);
+
+  btn.disabled = true; btn.textContent = '⏳ Enviando…';
+  try {
+    const form = new FormData();
+    form.append('apk', file);
+    form.append('platform', platform);
+    form.append('versionName', versionName);
+    form.append('versionCode', versionCode);
+    form.append('notes', notes);
+    const res = await fetch(SERVER_CONFIG.apiUrl + '?action=upload_app_release', {
+      method: 'POST', headers: _authHeaders(), body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Falha ao publicar (HTTP ${res.status}).`);
+    _appReleasesMeta[platform] = data.meta;
+    renderAppReleasesCard();
+    showToast(`Build ${versionName} publicada!`, true);
+  } catch (e) {
+    showMsg(e.message, false);
+    btn.disabled = false; btn.textContent = '⬆ Publicar';
+  }
 }
 
 function setSyncStatus(status, msg) {

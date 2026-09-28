@@ -105,6 +105,16 @@ if ($action === 'public') {
     exit;
 }
 
+// ── VERSÃO DOS APPS (Android/Watch) — sem token, só API key ──
+// Os apps consultam isso pra saber se existe build mais nova que a instalada
+// (BuildConfig.VERSION_CODE local vs o que foi publicado aqui pelo painel).
+if ($action === 'app_version') {
+    $metaFile = __DIR__ . '/releases/meta.json';
+    $meta = is_file($metaFile) ? (json_decode(file_get_contents($metaFile), true) ?: new stdClass()) : new stdClass();
+    echo json_encode($meta);
+    exit;
+}
+
 // ── LOGIN (não exige token) ──────────────────────────────
 if ($action === 'login') {
     $body     = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -165,6 +175,181 @@ $session = getSession($pdo, $authToken);
 if (!$session) {
     http_response_code(401);
     echo json_encode(['error' => 'Token inválido ou expirado']);
+    exit;
+}
+
+// ── LIVE EVENTS (autenticado — evita 2 dispositivos se atropelarem) ──
+// Ao contrário de `live_update` (que sobrescreve o liveState inteiro com o
+// que o cliente tinha em cache), estas actions fazem um read-modify-write
+// atômico no servidor, uma única mudança por vez, e são idempotentes via
+// `clientEventId` — reenviar o mesmo evento (ex.: fila offline do relógio
+// depois de recuperar conexão) nunca duplica o efeito.
+function _liveEventLock($pdo) {
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare('SELECT data FROM app_data WHERE id = 1 FOR UPDATE');
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        // Garante que a linha exista antes de travar
+        $pdo->prepare('INSERT INTO app_data (id, data) VALUES (1, ?) ON DUPLICATE KEY UPDATE id = id')
+            ->execute([json_encode(new stdClass())]);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+    return json_decode($row['data'], true) ?? [];
+}
+
+function _liveEventSave($pdo, $d) {
+    $pdo->prepare('UPDATE app_data SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1')
+        ->execute([json_encode($d, JSON_UNESCAPED_UNICODE)]);
+    $pdo->commit();
+}
+
+function _liveEventNowMs() { return (int) round(microtime(true) * 1000); }
+
+if ($action === 'live_goal_add' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $clientEventId = trim($body['clientEventId'] ?? '');
+    $team = $body['team'] ?? '';
+    if (!$clientEventId || !in_array($team, ['home', 'away'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'clientEventId e team (home/away) são obrigatórios']);
+        exit;
+    }
+    $d = _liveEventLock($pdo);
+    $live = $d['liveState'] ?? [];
+    $goalLog = $live['goalLog'] ?? [];
+    $already = null;
+    foreach ($goalLog as $e) { if (($e['clientEventId'] ?? null) === $clientEventId) { $already = $e; break; } }
+    if (!$already) {
+        $entry = [
+            'clientEventId' => $clientEventId,
+            'scorerId'      => $body['scorerId'] ?? null,
+            'assistId'      => (!empty($body['ownGoal'])) ? null : ($body['assistId'] ?? null),
+            'team'          => $team,
+            'ownGoal'       => !empty($body['ownGoal']),
+            'minute'        => $body['minute'] ?? null,
+            'source'        => $body['source'] ?? 'web',
+            'at'            => $body['at'] ?? _liveEventNowMs(),
+        ];
+        $goalLog[] = $entry;
+        $live['goalLog'] = $goalLog;
+        $d['liveState'] = $live;
+        _liveEventSave($pdo, $d);
+        echo json_encode(['ok' => true, 'duplicate' => false, 'goalLog' => $goalLog]);
+    } else {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => true, 'goalLog' => $goalLog]);
+    }
+    exit;
+}
+
+if ($action === 'live_goal_undo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $clientEventId = trim($body['clientEventId'] ?? '');
+    $team = $body['team'] ?? '';
+    if (!$clientEventId || !in_array($team, ['home', 'away'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'clientEventId e team (home/away) são obrigatórios']);
+        exit;
+    }
+    $d = _liveEventLock($pdo);
+    $live = $d['liveState'] ?? [];
+    $goalLog = $live['goalLog'] ?? [];
+    // Idempotência: se este undo (mesmo clientEventId) já foi aplicado antes, não desfaz de novo.
+    $undoneIds = $live['undoneEventIds'] ?? [];
+    if (in_array($clientEventId, $undoneIds, true)) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => true, 'goalLog' => $goalLog]);
+        exit;
+    }
+    $idx = null;
+    for ($i = count($goalLog) - 1; $i >= 0; $i--) {
+        if (($goalLog[$i]['team'] ?? null) === $team) { $idx = $i; break; }
+    }
+    if ($idx === null) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => false, 'goalLog' => $goalLog]);
+        exit;
+    }
+    array_splice($goalLog, $idx, 1);
+    $undoneIds[] = $clientEventId;
+    $live['goalLog'] = $goalLog;
+    $live['undoneEventIds'] = array_slice($undoneIds, -200); // não deixa crescer sem limite
+    $d['liveState'] = $live;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'duplicate' => false, 'goalLog' => $goalLog]);
+    exit;
+}
+
+if ($action === 'live_period' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $clientEventId = trim($body['clientEventId'] ?? '');
+    $event = $body['event'] ?? '';
+    $validEvents = ['start_t1', 'end_t1', 'start_t2', 'end_t2', 'reset'];
+    if (!$clientEventId || !in_array($event, $validEvents, true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'clientEventId e event válido são obrigatórios']);
+        exit;
+    }
+    $d = _liveEventLock($pdo);
+    $live = $d['liveState'] ?? [];
+    $appliedIds = $live['appliedPeriodEventIds'] ?? [];
+    if (in_array($clientEventId, $appliedIds, true)) {
+        $pdo->rollBack();
+        echo json_encode(['ok' => true, 'duplicate' => true, 'liveState' => $live]);
+        exit;
+    }
+    $at = $body['at'] ?? _liveEventNowMs();
+    // Elapsed do tempo corrente até agora, considerando se estava rodando.
+    $elapsedNow = (int) ($live['timerElapsed'] ?? 0);
+    if (!empty($live['timerRunning']) && !empty($live['timerStartedAt'])) {
+        $elapsedNow += max(0, $at - (int) $live['timerStartedAt']);
+    }
+    switch ($event) {
+        case 'start_t1':
+            $live['periodo'] = 1;
+            $live['timerRunning'] = true;
+            $live['timerStartedAt'] = $at;
+            $live['timerElapsed'] = $live['timerElapsed'] ?? 0;
+            break;
+        case 'end_t1':
+            $live['t1ms'] = $elapsedNow;
+            $live['timerRunning'] = false;
+            $live['timerStartedAt'] = null;
+            $live['timerElapsed'] = $elapsedNow;
+            $live['intervaloStart'] = $at;
+            break;
+        case 'start_t2':
+            $live['periodo'] = 2;
+            $live['intervaloMs'] = !empty($live['intervaloStart']) ? max(0, $at - (int) $live['intervaloStart']) : ($live['intervaloMs'] ?? 0);
+            $live['intervaloStart'] = null;
+            $live['timerElapsed'] = 0;
+            $live['timerStartedAt'] = $at;
+            $live['timerRunning'] = true;
+            break;
+        case 'end_t2':
+            $live['timerRunning'] = false;
+            $live['timerStartedAt'] = null;
+            $live['timerElapsed'] = $elapsedNow;
+            $live['t2ended'] = true;
+            break;
+        case 'reset':
+            $live['periodo'] = null;
+            $live['timerRunning'] = false;
+            $live['timerStartedAt'] = null;
+            $live['timerElapsed'] = 0;
+            $live['t1ms'] = null;
+            $live['intervaloStart'] = null;
+            $live['intervaloMs'] = null;
+            $live['t2ended'] = false;
+            break;
+    }
+    $appliedIds[] = $clientEventId;
+    $live['appliedPeriodEventIds'] = array_slice($appliedIds, -200);
+    $d['liveState'] = $live;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'duplicate' => false, 'liveState' => $live]);
     exit;
 }
 
@@ -358,6 +543,80 @@ if ($action === 'delete_player_video' && $_SERVER['REQUEST_METHOD'] === 'POST') 
     }
     // Idempotente: arquivo já ausente não é erro.
     echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── PUBLICAR BUILD DO APP (admin) — Android ou Watch ─────
+// Guarda o .apk em releases/<platform>-latest.apk (sobrescreve a anterior) e
+// atualiza releases/meta.json com a versão publicada. O download em si é
+// servido por download_release.php (sem token — precisa abrir direto do
+// navegador do celular/relógio).
+if ($action === 'upload_app_release' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        http_response_code(413);
+        echo json_encode(['error' => 'Arquivo excede o limite de upload do servidor']);
+        exit;
+    }
+    if (!isset($_FILES['apk']) || $_FILES['apk']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nenhum arquivo enviado ou erro no upload']);
+        exit;
+    }
+    $platform = $_POST['platform'] ?? '';
+    if (!in_array($platform, ['android', 'wear'], true)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'platform deve ser "android" ou "wear"']);
+        exit;
+    }
+    $file = $_FILES['apk'];
+    $maxBytes = 150 * 1024 * 1024;
+    if ($file['size'] > $maxBytes) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Arquivo maior que 150MB']);
+        exit;
+    }
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if ($ext !== 'apk') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Envie um arquivo .apk']);
+        exit;
+    }
+    $versionCode = (int) ($_POST['versionCode'] ?? 0);
+    $versionName = trim($_POST['versionName'] ?? '');
+    $notes       = trim($_POST['notes'] ?? '');
+    if ($versionCode <= 0 || !$versionName) {
+        http_response_code(400);
+        echo json_encode(['error' => 'versionCode e versionName são obrigatórios']);
+        exit;
+    }
+    $dir = __DIR__ . '/releases';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Não foi possível criar o diretório de releases']);
+        exit;
+    }
+    $filename = $platform . '-latest.apk';
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Falha ao salvar o arquivo']);
+        exit;
+    }
+    $metaFile = $dir . '/meta.json';
+    $meta = is_file($metaFile) ? (json_decode(file_get_contents($metaFile), true) ?: []) : [];
+    $meta[$platform] = [
+        'versionCode' => $versionCode,
+        'versionName' => $versionName,
+        'notes'       => $notes,
+        'fileName'    => $filename,
+        'size'        => $file['size'],
+        'uploadedAt'  => date('Y-m-d H:i:s'),
+        'uploadedBy'  => $session['username'],
+    ];
+    file_put_contents($metaFile, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    echo json_encode(['ok' => true, 'meta' => $meta[$platform]]);
     exit;
 }
 
