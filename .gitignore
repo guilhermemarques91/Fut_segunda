@@ -6,3 +6,4 @@ api/config.php
 api/uploads/
 api/releases/*
 !api/releases/.htaccess
+/builds/

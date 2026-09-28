@@ -38,10 +38,14 @@ sobem quando o relógio pegar rede de novo (ex.: WiFi de casa).
 
 ```bash
 cd wearos
-./gradlew assembleRelease
+./gradlew copyReleaseApk
 adb connect <ip-do-relogio>:5555
-adb install app/build/outputs/apk/release/app-release.apk
+adb install ../builds/app-fut-watch-<versionName>.apk
 ```
+
+`copyReleaseApk` roda o `assembleRelease` por baixo e copia o resultado pra
+`builds/app-fut-watch-<versionName>.apk` (na raiz do repo) — mesmo esquema
+do app do celular. Tem `copyDebugApk` equivalente pra build de debug.
 
 Wear OS não deixa instalar um `.apk` "tocando no arquivo" como no Android
 normal — o caminho de sideload é sempre via `adb install` (por isso o

@@ -24,14 +24,19 @@ mudança — veja o "Fase 0" no plano.
 
 ```bash
 cd android
-./gradlew assembleRelease
+./gradlew copyReleaseApk
 ```
 
 (No Windows sem `JAVA_HOME`/`ANDROID_HOME` configurados globalmente, defina
 antes: `$env:JAVA_HOME`/`$env:ANDROID_HOME` apontando pro JDK 17 e pro SDK.)
 
-O APK sai em `app/build/outputs/apk/release/app-release.apk`. Ele é
-assinado com a **keystore de debug** (configurado assim de propósito em
+`copyReleaseApk` já roda o `assembleRelease` por baixo e copia o resultado
+pra `builds/app-fut-android-<versionName>.apk` (na raiz do repo, fora do
+`android/`) — não precisa mais caçar dentro de
+`app/build/outputs/apk/release/`. Tem o equivalente `copyDebugApk` pra
+build de debug (`builds/app-fut-android-<versionName>-debug.apk`).
+
+O APK sai assinado com a **keystore de debug** (configurado assim de propósito em
 `app/build.gradle.kts` — sem isso o Android recusa instalar um APK sem
 assinatura nenhuma). Pra instalar, copie o arquivo pro celular e abra,
 habilitando "Instalar apps de fontes desconhecidas" quando pedir. Antes de

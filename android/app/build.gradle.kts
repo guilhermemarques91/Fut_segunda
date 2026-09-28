@@ -84,3 +84,22 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// ── Copia o APK pra uma pasta na raiz do projeto, já com nome fixo
+// (app-fut-android-<versão>[-debug].apk) — em vez de caçar dentro de
+// app/build/outputs/apk/.../  toda vez que gera uma build nova.
+val distDir = rootProject.projectDir.parentFile?.resolve("builds") ?: rootProject.projectDir.resolve("builds")
+
+tasks.register<Copy>("copyReleaseApk") {
+    dependsOn("assembleRelease")
+    from(layout.buildDirectory.dir("outputs/apk/release")) { include("app-release.apk") }
+    into(distDir)
+    rename { "app-fut-android-${android.defaultConfig.versionName}.apk" }
+}
+
+tasks.register<Copy>("copyDebugApk") {
+    dependsOn("assembleDebug")
+    from(layout.buildDirectory.dir("outputs/apk/debug")) { include("app-debug.apk") }
+    into(distDir)
+    rename { "app-fut-android-${android.defaultConfig.versionName}-debug.apk" }
+}

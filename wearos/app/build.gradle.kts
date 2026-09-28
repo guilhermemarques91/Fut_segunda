@@ -78,3 +78,21 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+
+// ── Copia o APK pra pasta builds/ na raiz do projeto, nome fixo
+// (app-fut-watch-<versão>[-debug].apk) — mesmo esquema do app/build.gradle.kts do celular.
+val distDir = rootProject.projectDir.parentFile?.resolve("builds") ?: rootProject.projectDir.resolve("builds")
+
+tasks.register<Copy>("copyReleaseApk") {
+    dependsOn("assembleRelease")
+    from(layout.buildDirectory.dir("outputs/apk/release")) { include("app-release.apk") }
+    into(distDir)
+    rename { "app-fut-watch-${android.defaultConfig.versionName}.apk" }
+}
+
+tasks.register<Copy>("copyDebugApk") {
+    dependsOn("assembleDebug")
+    from(layout.buildDirectory.dir("outputs/apk/debug")) { include("app-debug.apk") }
+    into(distDir)
+    rename { "app-fut-watch-${android.defaultConfig.versionName}-debug.apk" }
+}
