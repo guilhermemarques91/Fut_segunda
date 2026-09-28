@@ -1367,6 +1367,114 @@ if ($action === 'result_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── CONFIG: identidade visual (nome/título/tarifa inicial) — admin ─
+// Merge raso, mesmo padrão de fees_save — nunca troca o objeto config
+// inteiro, só os campos mandados (ex.: salvar só o nome não apaga o logo).
+if ($action === 'config_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $config = $body['config'] ?? null;
+    if (!is_array($config)) {
+        http_response_code(400); echo json_encode(['error' => 'config obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['config'] = array_merge($d['config'] ?? [], $config);
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'config' => $d['config']]);
+    exit;
+}
+
+// ── UPLOAD LOGO (admin) — clone de upload_player_photo, sem playerId ─
+// Devolve só a URL; quem grava no config é o config_save logo em seguida
+// (mesmo fluxo de 2 passos de foto de jogador — evita inflar o JSON
+// granular com o logo em data-URI, como o painel web faz hoje).
+if ($action === 'upload_logo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        http_response_code(413);
+        echo json_encode(['error' => 'Arquivo excede o limite de upload do servidor']);
+        exit;
+    }
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Nenhum arquivo enviado ou erro no upload']);
+        exit;
+    }
+    $file = $_FILES['file'];
+    $maxBytes = 5 * 1024 * 1024;
+    if ($file['size'] > $maxBytes) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Imagem maior que 5MB']);
+        exit;
+    }
+    $allowedExt = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'svg' => 'image/svg+xml'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!isset($allowedExt[$ext])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Formato inválido — use jpg, png, webp ou svg']);
+        exit;
+    }
+    if ($ext !== 'svg') {
+        $mime = @finfo_file(finfo_open(FILEINFO_MIME_TYPE), $file['tmp_name']);
+        if (!$mime || strpos($mime, 'image/') !== 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'O arquivo não parece ser uma imagem válida']);
+            exit;
+        }
+    }
+    $dir = __DIR__ . '/uploads/branding';
+    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Não foi possível criar o diretório de upload']);
+        exit;
+    }
+    if (!is_writable($dir)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Diretório de upload sem permissão de escrita']);
+        exit;
+    }
+    $filename = 'logo_' . time() . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $filename)) {
+        http_response_code(500);
+        echo json_encode(['error' => 'Falha ao salvar o arquivo']);
+        exit;
+    }
+    echo json_encode(['ok' => true, 'url' => '/api/uploads/branding/' . $filename]);
+    exit;
+}
+
+// ── ROTAÇÃO DE LOUÇA — admin ─────────────────────────────
+// Substitui as 3 chaves por inteiro (não é merge campo a campo): a tela
+// de Config sempre manda o estado completo (lista reordenada, ciclo,
+// overrides) porque é editada por um admin de cada vez, igual ao painel
+// web hoje — diferente de players[]/lancamentos[] que têm várias telas
+// mexendo em fatias diferentes ao mesmo tempo.
+if ($action === 'louca_rotation_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    if (!isset($body['loucaRotation']) || !is_array($body['loucaRotation'])) {
+        http_response_code(400); echo json_encode(['error' => 'loucaRotation obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['loucaRotation']   = array_values(array_map('intval', $body['loucaRotation']));
+    $d['loucaCycleStart'] = $body['loucaCycleStart'] ?? null;
+    $d['loucaOverrides']  = is_array($body['loucaOverrides'] ?? null) ? $body['loucaOverrides'] : new stdClass();
+    _liveEventSave($pdo, $d);
+    echo json_encode([
+        'ok' => true,
+        'loucaRotation' => $d['loucaRotation'],
+        'loucaCycleStart' => $d['loucaCycleStart'],
+        'loucaOverrides' => $d['loucaOverrides'],
+    ]);
+    exit;
+}
+
 // ── Actions somente para admin ───────────────────────────
 if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
