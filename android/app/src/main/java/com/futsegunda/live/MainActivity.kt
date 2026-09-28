@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +54,8 @@ import com.futsegunda.live.ui.nav.AppDestination
 import com.futsegunda.live.ui.nav.AppNavHost
 import com.futsegunda.live.ui.nav.BOTTOM_BAR_DESTINATIONS
 import com.futsegunda.live.ui.nav.DRAWER_DESTINATIONS
+import com.futsegunda.live.ui.theme.FutSegundaTheme
+import com.futsegunda.live.ui.theme.GradientButton
 import com.futsegunda.live.update.ANDROID_DOWNLOAD_URL
 import com.futsegunda.live.update.UpdateCheckWorker
 import com.futsegunda.live.update.UpdateChecker
@@ -68,7 +69,7 @@ class MainActivity : ComponentActivity() {
         UpdateCheckWorker.schedule(applicationContext)
 
         setContent {
-            MaterialTheme {
+            FutSegundaTheme {
                 Surface(modifier = Modifier, color = MaterialTheme.colorScheme.background) {
                     AppRoot()
                 }
@@ -209,7 +210,7 @@ private fun UpdateBanner(versionName: String, onDismiss: () -> Unit) {
                 )
             }
             Row {
-                Button(onClick = {
+                GradientButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ANDROID_DOWNLOAD_URL)))
                 }) { Text("Atualizar") }
                 IconButton(onClick = onDismiss) {

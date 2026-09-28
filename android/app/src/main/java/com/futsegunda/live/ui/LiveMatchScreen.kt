@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.futsegunda.live.ui.theme.GradientButton
 import com.futsegunda.live.viewmodel.LiveMatchViewModel
 import com.futsegunda.live.viewmodel.TEAM_AWAY
 import com.futsegunda.live.viewmodel.TEAM_HOME
@@ -140,12 +140,12 @@ private fun PeriodControls(periodo: Int?, onEvent: (String) -> Unit) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when (periodo) {
-                null, 0 -> Button(onClick = { onEvent("start_t1") }) { Text("Iniciar 1ºT") }
+                null, 0 -> GradientButton(onClick = { onEvent("start_t1") }) { Text("Iniciar 1ºT") }
                 1 -> OutlinedButton(onClick = { onEvent("end_t1") }) { Text("Encerrar 1ºT") }
                 2 -> OutlinedButton(onClick = { onEvent("end_t2") }) { Text("Encerrar partida") }
             }
             if (periodo == 1) {
-                Button(onClick = { onEvent("start_t2") }) { Text("Iniciar 2ºT") }
+                GradientButton(onClick = { onEvent("start_t2") }) { Text("Iniciar 2ºT") }
             }
         }
     }

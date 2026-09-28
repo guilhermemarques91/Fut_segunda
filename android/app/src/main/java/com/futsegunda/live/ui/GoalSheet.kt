@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.futsegunda.live.network.PlayerDto
+import com.futsegunda.live.ui.theme.GradientButton
 
 /**
  * Espelha o modal "Registrar Gol" do frontend/index.html (openGoalModal /
@@ -103,7 +103,7 @@ fun GoalSheet(
             )
 
             Spacer(Modifier.height(16.dp))
-            Button(
+            GradientButton(
                 onClick = {
                     onConfirm(scorerId, if (ownGoal) null else assistId, ownGoal, minuteText.toIntOrNull())
                 },

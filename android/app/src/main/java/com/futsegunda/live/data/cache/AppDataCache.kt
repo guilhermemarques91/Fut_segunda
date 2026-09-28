@@ -23,7 +23,10 @@ import kotlinx.coroutines.sync.withLock
  * `invalidate()` pra próxima leitura vir atualizada.
  */
 object AppDataCache {
-    private const val MAX_AGE_MS = 15_000L
+    // Curto de propósito: Dashboard/Jogadores fazem polling a cada ~5s (ver
+    // DashboardViewModel/PlayersViewModel) pra refletir mudanças feitas no
+    // painel web sem precisar sair e voltar da tela.
+    private const val MAX_AGE_MS = 5_000L
 
     private val _snapshot = MutableStateFlow<AppSnapshotDto?>(null)
     val snapshot: StateFlow<AppSnapshotDto?> = _snapshot.asStateFlow()

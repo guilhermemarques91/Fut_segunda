@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -24,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.futsegunda.live.ui.theme.GradientButton
 import com.futsegunda.live.viewmodel.LoginViewModel
 
 @Composable
@@ -69,7 +69,7 @@ fun LoginScreen(onLoggedIn: () -> Unit, vm: LoginViewModel = viewModel()) {
         if (state.loading) {
             CircularProgressIndicator()
         } else {
-            Button(onClick = { vm.login(username, password) }, modifier = Modifier.fillMaxWidth()) {
+            GradientButton(onClick = { vm.login(username, password) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Entrar")
             }
         }

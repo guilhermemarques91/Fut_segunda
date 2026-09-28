@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -22,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.futsegunda.live.domain.calcOverall
 import com.futsegunda.live.network.PlayerDto
+import com.futsegunda.live.ui.theme.GradientButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +44,7 @@ fun PlayerRatingSheet(player: PlayerDto, onDismiss: () -> Unit, onConfirm: (phys
             RatingSlider("⚡ Técnico", technical) { technical = it }
 
             Spacer(Modifier.height(12.dp))
-            Button(
+            GradientButton(
                 onClick = { onConfirm(physical.toInt(), tactical.toInt(), technical.toInt()) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Salvar avaliação") }

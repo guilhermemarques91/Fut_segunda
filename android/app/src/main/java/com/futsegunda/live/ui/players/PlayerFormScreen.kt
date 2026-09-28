@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.futsegunda.live.domain.calcOverall
+import com.futsegunda.live.ui.theme.GradientButton
 import com.futsegunda.live.viewmodel.PLAYER_POSITIONS
 import com.futsegunda.live.viewmodel.PlayersViewModel
 
@@ -171,7 +171,7 @@ fun PlayerFormScreen(vm: PlayersViewModel) {
             state.error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
 
             item {
-                Button(
+                GradientButton(
                     onClick = { vm.save() },
                     enabled = !state.saving,
                     modifier = Modifier.fillMaxWidth(),

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.futsegunda.live.network.ResultDto
+import com.futsegunda.live.ui.theme.AccentCard
 import com.futsegunda.live.viewmodel.DashboardViewModel
 
 @Composable
@@ -52,7 +52,7 @@ fun DashboardScreen(vm: DashboardViewModel = viewModel()) {
 
 @Composable
 private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
+    AccentCard(modifier = modifier) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(value, style = MaterialTheme.typography.headlineMedium)
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -62,7 +62,7 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 
 @Composable
 private fun ResultRow(r: ResultDto) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    AccentCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

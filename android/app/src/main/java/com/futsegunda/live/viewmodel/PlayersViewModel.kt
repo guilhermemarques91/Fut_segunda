@@ -12,10 +12,13 @@ import com.futsegunda.live.network.PlayerAttributes
 import com.futsegunda.live.network.PlayerDraftDto
 import com.futsegunda.live.network.PlayerDto
 import com.futsegunda.live.util.PhotoResizer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+private const val POLL_INTERVAL_MS = 5_000L
 
 data class PlayerFormState(
     val id: Int? = null,
@@ -56,11 +59,20 @@ class PlayersViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<PlayersUiState> = _state.asStateFlow()
 
     init {
-        viewModelScope.launch { refresh() }
+        // Polling automático (mesmo padrão do LiveMatchViewModel, a cada 5s) — reflete
+        // edições feitas no painel web sem precisar sair e voltar da tela. O TTL curto
+        // do AppDataCache evita rebuscar à toa se outra tela já atualizou há pouco.
+        viewModelScope.launch {
+            while (true) {
+                refresh()
+                delay(POLL_INTERVAL_MS)
+            }
+        }
     }
 
+    /** `force` força ignorar o cache (ex.: pull-to-refresh); polling automático usa false. */
     suspend fun refresh(force: Boolean = false) {
-        _state.value = _state.value.copy(loading = true)
+        if (_state.value.players.isEmpty()) _state.value = _state.value.copy(loading = true)
         val snapshot = AppDataCache.ensureFresh(getApplication(), force)
         _state.value = _state.value.copy(loading = false, players = snapshot?.players ?: _state.value.players)
     }

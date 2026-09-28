@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -48,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.futsegunda.live.network.PlayerDto
+import com.futsegunda.live.ui.theme.AccentCard
 import com.futsegunda.live.viewmodel.PLAYER_POSITIONS
 import com.futsegunda.live.viewmodel.PlayersViewModel
 
@@ -142,7 +142,7 @@ fun PlayersScreen(vm: PlayersViewModel = viewModel()) {
 
 @Composable
 private fun PlayerRow(player: PlayerDto, onRate: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onEdit)) {
+    AccentCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onEdit)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
