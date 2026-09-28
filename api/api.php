@@ -1075,6 +1075,298 @@ if ($action === 'rodada_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── FINANCEIRO: lançamento manual (receita/despesa) — admin ──
+// Sempre nasce pendente (paid=false), igual ao saveLancamento() do painel
+// web — a baixa é feita à parte por lancamento_bulk_quitar.
+if ($action === 'lancamento_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $lanc = $body['lancamento'] ?? null;
+    if (!is_array($lanc) || trim($lanc['name'] ?? '') === '' || (float) ($lanc['amount'] ?? 0) <= 0) {
+        http_response_code(400); echo json_encode(['error' => 'name e amount (>0) são obrigatórios']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $list = $d['lancamentos'] ?? [];
+    $id = $lanc['id'] ?? null;
+    if ($id === null) {
+        $maxId = 0; foreach ($list as $l) $maxId = max($maxId, (int) ($l['id'] ?? 0));
+        $lanc['id'] = $maxId + 1;
+        $lanc['paid'] = false;
+        $lanc['paidDate'] = null;
+        $list[] = $lanc;
+    } else {
+        $found = false;
+        foreach ($list as $i => $l) {
+            if ((int) ($l['id'] ?? -1) === (int) $id) { $list[$i] = array_merge($l, $lanc); $found = true; break; }
+        }
+        if (!$found) { $pdo->rollBack(); http_response_code(404); echo json_encode(['error' => 'Lançamento não encontrado']); exit; }
+    }
+    $d['lancamentos'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'lancamentos' => $list]);
+    exit;
+}
+
+if ($action === 'lancamento_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int) ($body['id'] ?? 0);
+    if (!$id) { http_response_code(400); echo json_encode(['error' => 'id obrigatório']); exit; }
+    $d = _liveEventLock($pdo);
+    $d['lancamentos'] = array_values(array_filter($d['lancamentos'] ?? [], fn($l) => (int) ($l['id'] ?? -1) !== $id));
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'lancamentos' => $d['lancamentos']]);
+    exit;
+}
+
+// ── FINANCEIRO: quitar lançamentos em massa — admin ──────
+// Mesma receita do settleItem(type='manual') do painel web: marca pago +,
+// se tiver playerId, credita no player.payments/balance.
+if ($action === 'lancamento_bulk_quitar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $ids = $body['ids'] ?? [];
+    if (!is_array($ids) || !count($ids)) {
+        http_response_code(400); echo json_encode(['error' => 'ids obrigatório']); exit;
+    }
+    $today = date('Y-m-d');
+    $d = _liveEventLock($pdo);
+    $list = $d['lancamentos'] ?? [];
+    $players = $d['players'] ?? [];
+    $playersById = [];
+    foreach ($players as $i => $p) { $playersById[(int) $p['id']] = $i; }
+    foreach ($list as $i => $l) {
+        if (!in_array((int) ($l['id'] ?? -1), array_map('intval', $ids), true)) continue;
+        if (!empty($l['paid'])) continue;
+        $list[$i]['paid'] = true;
+        $list[$i]['paidDate'] = $today;
+        $pid = $l['playerId'] ?? null;
+        if ($pid !== null && isset($playersById[(int) $pid])) {
+            $pi = $playersById[(int) $pid];
+            $players[$pi]['payments'] = $players[$pi]['payments'] ?? [];
+            $players[$pi]['payments'][] = ['type' => $l['type'] ?? 'Lançamento', 'amount' => $l['amount'], 'date' => $today];
+            $players[$pi]['balance'] = ($players[$pi]['balance'] ?? 0) + $l['amount'];
+        }
+    }
+    $d['lancamentos'] = $list;
+    $d['players'] = $players;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'lancamentos' => $list, 'players' => $players]);
+    exit;
+}
+
+// ── FINANCEIRO: despesas avulsas — admin ─────────────────
+if ($action === 'expense_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $exp = $body['expense'] ?? null;
+    if (!is_array($exp) || trim($exp['description'] ?? '') === '' || (float) ($exp['amount'] ?? 0) <= 0) {
+        http_response_code(400); echo json_encode(['error' => 'description e amount (>0) são obrigatórios']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $list = $d['expenses'] ?? [];
+    $id = $exp['id'] ?? null;
+    if ($id === null) {
+        $maxId = 0; foreach ($list as $e) $maxId = max($maxId, (int) ($e['id'] ?? 0));
+        $exp['id'] = $maxId + 1;
+        $exp['paid'] = $exp['paid'] ?? false;
+        $exp['paidDate'] = !empty($exp['paid']) ? date('Y-m-d') : null;
+        $list[] = $exp;
+    } else {
+        $found = false;
+        foreach ($list as $i => $e) {
+            if ((int) ($e['id'] ?? -1) === (int) $id) {
+                $wasPaid = !empty($e['paid']);
+                $list[$i] = array_merge($e, $exp);
+                if (!$wasPaid && !empty($exp['paid'])) $list[$i]['paidDate'] = date('Y-m-d');
+                $found = true; break;
+            }
+        }
+        if (!$found) { $pdo->rollBack(); http_response_code(404); echo json_encode(['error' => 'Despesa não encontrada']); exit; }
+    }
+    $d['expenses'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'expenses' => $list]);
+    exit;
+}
+
+if ($action === 'expense_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int) ($body['id'] ?? 0);
+    if (!$id) { http_response_code(400); echo json_encode(['error' => 'id obrigatório']); exit; }
+    $d = _liveEventLock($pdo);
+    $d['expenses'] = array_values(array_filter($d['expenses'] ?? [], fn($e) => (int) ($e['id'] ?? -1) !== $id));
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'expenses' => $d['expenses']]);
+    exit;
+}
+
+// ── FINANCEIRO: despesas recorrentes — admin ─────────────
+if ($action === 'recurring_expense_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $rec = $body['recurringExpense'] ?? null;
+    if (!is_array($rec) || trim($rec['description'] ?? '') === '' || (float) ($rec['amount'] ?? 0) <= 0) {
+        http_response_code(400); echo json_encode(['error' => 'description e amount (>0) são obrigatórios']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $list = $d['recurringExpenses'] ?? [];
+    $id = $rec['id'] ?? null;
+    if ($id === null) {
+        $maxId = 0; foreach ($list as $r) $maxId = max($maxId, (int) ($r['id'] ?? 0));
+        $rec['id'] = $maxId + 1;
+        $rec['active'] = $rec['active'] ?? true;
+        $rec['lastPaidMonth'] = null;
+        $list[] = $rec;
+    } else {
+        $found = false;
+        foreach ($list as $i => $r) {
+            if ((int) ($r['id'] ?? -1) === (int) $id) { $list[$i] = array_merge($r, $rec); $found = true; break; }
+        }
+        if (!$found) { $pdo->rollBack(); http_response_code(404); echo json_encode(['error' => 'Despesa recorrente não encontrada']); exit; }
+    }
+    $d['recurringExpenses'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'recurringExpenses' => $list]);
+    exit;
+}
+
+if ($action === 'recurring_expense_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int) ($body['id'] ?? 0);
+    if (!$id) { http_response_code(400); echo json_encode(['error' => 'id obrigatório']); exit; }
+    $d = _liveEventLock($pdo);
+    $d['recurringExpenses'] = array_values(array_filter($d['recurringExpenses'] ?? [], fn($r) => (int) ($r['id'] ?? -1) !== $id));
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'recurringExpenses' => $d['recurringExpenses']]);
+    exit;
+}
+
+// ── FINANCEIRO: mensalidades do mês — admin ──────────────
+// op=generate: 1 cobrança por mensalista não-isento pro mês corrente (uma
+// vez só, igual confirmMensalistas() do painel web). op=pay: marca 1
+// cobrança paga e credita o player (mesma receita do settleItem
+// type='feecharge').
+if ($action === 'charge_history_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $op = $body['op'] ?? '';
+    $d = _liveEventLock($pdo);
+    $chargeHistory = $d['chargeHistory'] ?? [];
+
+    if ($op === 'generate') {
+        $month = date('Y-m');
+        if (array_filter($chargeHistory, fn($c) => ($c['month'] ?? null) === $month)) {
+            $pdo->rollBack();
+            http_response_code(409); echo json_encode(['error' => 'Mensalidades deste mês já foram geradas']); exit;
+        }
+        $players = $d['players'] ?? [];
+        $charges = [];
+        foreach ($players as $p) {
+            if (empty($p['isRegular']) || !empty($p['isIsento'])) continue;
+            $charges[] = ['playerId' => $p['id'], 'amount' => $p['monthlyFee'] ?? 0, 'paid' => false, 'paidDate' => null];
+        }
+        if (!count($charges)) {
+            $pdo->rollBack();
+            http_response_code(400); echo json_encode(['error' => 'Nenhum mensalista cadastrado']); exit;
+        }
+        $chargeHistory[] = ['month' => $month, 'date' => date('Y-m-d'), 'charges' => $charges];
+        $d['chargeHistory'] = $chargeHistory;
+        _liveEventSave($pdo, $d);
+        echo json_encode(['ok' => true, 'chargeHistory' => $chargeHistory]);
+        exit;
+    }
+
+    if ($op === 'pay') {
+        $month = $body['month'] ?? '';
+        $playerId = (int) ($body['playerId'] ?? 0);
+        $today = date('Y-m-d');
+        $found = false;
+        foreach ($chargeHistory as $ci => $ch) {
+            if (($ch['month'] ?? null) !== $month) continue;
+            foreach ($ch['charges'] as $xi => $c) {
+                if ((int) ($c['playerId'] ?? -1) === $playerId) {
+                    $chargeHistory[$ci]['charges'][$xi]['paid'] = true;
+                    $chargeHistory[$ci]['charges'][$xi]['paidDate'] = $today;
+                    $amount = $c['amount'] ?? 0;
+                    $players = $d['players'] ?? [];
+                    foreach ($players as $pi => $p) {
+                        if ((int) $p['id'] === $playerId) {
+                            $players[$pi]['payments'] = $players[$pi]['payments'] ?? [];
+                            $players[$pi]['payments'][] = ['type' => 'Mensalidade', 'amount' => $amount, 'date' => $today];
+                            $players[$pi]['balance'] = ($players[$pi]['balance'] ?? 0) + $amount;
+                            break;
+                        }
+                    }
+                    $d['players'] = $players;
+                    $found = true;
+                    break 2;
+                }
+            }
+        }
+        if (!$found) {
+            $pdo->rollBack();
+            http_response_code(404); echo json_encode(['error' => 'Cobrança não encontrada']); exit;
+        }
+        $d['chargeHistory'] = $chargeHistory;
+        _liveEventSave($pdo, $d);
+        echo json_encode(['ok' => true, 'chargeHistory' => $chargeHistory, 'players' => $d['players']]);
+        exit;
+    }
+
+    $pdo->rollBack();
+    http_response_code(400); echo json_encode(['error' => 'op deve ser "generate" ou "pay"']); exit;
+}
+
+// ── HISTÓRICO: editar um resultado manualmente — admin ───
+if ($action === 'result_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date = trim($body['date'] ?? '');
+    if (!$date) { http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit; }
+    $d = _liveEventLock($pdo);
+    $results = $d['results'] ?? [];
+    $idx = null;
+    foreach ($results as $i => $r) { if (($r['date'] ?? null) === $date) { $idx = $i; break; } }
+    $patch = array_intersect_key($body, array_flip(['homeScore', 'awayScore', 'motm', 'pending']));
+    if ($idx !== null) {
+        $results[$idx] = array_merge($results[$idx], $patch);
+    } else {
+        $maxId = 0; foreach ($results as $r) $maxId = max($maxId, (int) ($r['id'] ?? 0));
+        $results[] = array_merge([
+            'id' => $maxId + 1, 'date' => $date,
+            'homeTeam' => 'T. Preto e Amarelo', 'awayTeam' => 'T. Azul',
+            'homeScore' => null, 'awayScore' => null, 'pending' => true,
+            'goals' => [], 'goalLog' => [], 'motm' => null,
+            'homePlayerIds' => [], 'awayPlayerIds' => [],
+        ], $patch);
+    }
+    $d['results'] = $results;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'results' => $results]);
+    exit;
+}
+
 // ── Actions somente para admin ───────────────────────────
 if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
