@@ -864,6 +864,217 @@ if ($action === 'fees_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// ── RODADA: presença — admin ─────────────────────────────
+// Upsert por data (mesma semântica do autoSavePresenca() do painel web).
+if ($action === 'attendance_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date = trim($body['date'] ?? '');
+    if (!$date) {
+        http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit;
+    }
+    $entry = [
+        'date'     => $date,
+        'opponent' => $body['opponent'] ?? '',
+        'players'  => $body['players']  ?? [],
+        'noShow'   => $body['noShow']   ?? [],
+        'manual'   => $body['manual']   ?? [],
+        'imported' => $body['imported'] ?? new stdClass(),
+    ];
+    $d = _liveEventLock($pdo);
+    $list = $d['attendances'] ?? [];
+    $idx = null;
+    foreach ($list as $i => $a) { if (($a['date'] ?? null) === $date) { $idx = $i; break; } }
+    if ($idx !== null) { $list[$idx] = array_merge($list[$idx], $entry); } else { $list[] = $entry; }
+    $d['attendances'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'attendances' => $list]);
+    exit;
+}
+
+// ── RODADA: reordenar fila de avulsos — admin ────────────
+if ($action === 'avulso_order_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body  = json_decode(file_get_contents('php://input'), true) ?? [];
+    $order = $body['order'] ?? null;
+    if (!is_array($order)) {
+        http_response_code(400); echo json_encode(['error' => 'order obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['avulsoOrder'] = $order;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'avulsoOrder' => $order]);
+    exit;
+}
+
+// ── RODADA: times — admin ────────────────────────────────
+// Upsert por data em teamHistory[] e espelha em results[] (pendente até ter
+// gols), igual ao autoSaveTeams() do painel web — os dois sempre andam
+// juntos lá, então ficam atômicos aqui também.
+if ($action === 'team_history_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date = trim($body['date'] ?? '');
+    $home = $body['home'] ?? [];
+    $away = $body['away'] ?? [];
+    if (!$date) {
+        http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+
+    $teamHistory = $d['teamHistory'] ?? [];
+    $idx = null;
+    foreach ($teamHistory as $i => $t) { if (($t['date'] ?? null) === $date) { $idx = $i; break; } }
+    $entry = [
+        'date'        => $date,
+        'opponent'    => $body['opponent'] ?? ($idx !== null ? ($teamHistory[$idx]['opponent'] ?? '') : ''),
+        'home'        => $home,
+        'away'        => $away,
+        'homeReserve' => $body['homeReserve'] ?? null,
+        'awayReserve' => $body['awayReserve'] ?? null,
+    ];
+    if ($idx !== null) {
+        $teamHistory[$idx] = array_merge($teamHistory[$idx], $entry);
+    } else {
+        $maxId = 0; foreach ($teamHistory as $t) $maxId = max($maxId, (int) ($t['id'] ?? 0));
+        $entry['id'] = $maxId + 1;
+        $teamHistory[] = $entry;
+    }
+    $d['teamHistory'] = $teamHistory;
+
+    $results = $d['results'] ?? [];
+    $ridx = null;
+    foreach ($results as $i => $r) { if (($r['date'] ?? null) === $date) { $ridx = $i; break; } }
+    if ($ridx !== null) {
+        $results[$ridx]['homePlayerIds'] = $home;
+        $results[$ridx]['awayPlayerIds'] = $away;
+    } else {
+        $maxRid = 0; foreach ($results as $r) $maxRid = max($maxRid, (int) ($r['id'] ?? 0));
+        $results[] = [
+            'id' => $maxRid + 1, 'date' => $date,
+            'homeTeam' => 'T. Preto e Amarelo', 'awayTeam' => 'T. Azul',
+            'homeScore' => null, 'awayScore' => null, 'pending' => true,
+            'goals' => [], 'goalLog' => [], 'motm' => null,
+            'homePlayerIds' => $home, 'awayPlayerIds' => $away,
+        ];
+    }
+    $d['results'] = $results;
+
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'teamHistory' => $teamHistory, 'results' => $results]);
+    exit;
+}
+
+// ── RODADA: tira-gosto — admin ───────────────────────────
+// Upsert por data. NÃO reproduz a baixa de débito de fecharTiraGosto() do
+// painel web (mexe em player.dinnerDebt + despesa vinculada, junto com o
+// Financeiro que só chega na Fase 3) — "closed"/"paidBy" ficam como estavam;
+// fechar de vez com o débito ainda é só pelo painel web por enquanto.
+if ($action === 'dinner_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date = trim($body['date'] ?? '');
+    if (!$date) {
+        http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit;
+    }
+    $participants = $body['participants'] ?? [];
+    $total        = (float) ($body['total'] ?? 0);
+    $cnt          = count($participants);
+    $realShare    = ($cnt > 0 && $total > 0) ? $total / $cnt : 0;
+    $share        = $total > 0 ? (ceil($realShare / 5) * 5) : 0;
+
+    $d = _liveEventLock($pdo);
+    $list = $d['dinnerHistory'] ?? [];
+    $idx = null;
+    foreach ($list as $i => $h) { if (($h['date'] ?? null) === $date) { $idx = $i; break; } }
+    $entry = [
+        'date'             => $date,
+        'meal'             => $body['meal'] ?? '',
+        'total'            => $total,
+        'share'            => $share,
+        'realShare'        => $realShare,
+        'participants'     => $participants,
+        'loucaResponsavel' => $body['loucaResponsavel'] ?? null,
+    ];
+    if ($idx !== null) {
+        $entry['id']      = $list[$idx]['id'];
+        $entry['paidBy']  = $list[$idx]['paidBy']  ?? [];
+        $entry['closed']  = $list[$idx]['closed']  ?? false;
+        $list[$idx] = array_merge($list[$idx], $entry);
+    } else {
+        $maxId = 0; foreach ($list as $h) $maxId = max($maxId, (int) ($h['id'] ?? 0));
+        $entry['id']     = $maxId + 1;
+        $entry['paidBy'] = [];
+        $entry['closed'] = false;
+        $list[] = $entry;
+    }
+    $d['dinnerHistory'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'dinnerHistory' => $list]);
+    exit;
+}
+
+// ── RODADA: bloquear/reabrir — admin ─────────────────────
+if ($action === 'locked_rodadas_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date   = trim($body['date'] ?? '');
+    $locked = !empty($body['locked']);
+    if (!$date) {
+        http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $list = $d['lockedRodadas'] ?? [];
+    if ($locked) {
+        if (!in_array($date, $list, true)) $list[] = $date;
+    } else {
+        $list = array_values(array_filter($list, fn($x) => $x !== $date));
+    }
+    $d['lockedRodadas'] = $list;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'lockedRodadas' => $list]);
+    exit;
+}
+
+// ── RODADA: excluir (com senha) — admin ──────────────────
+if ($action === 'rodada_delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body     = json_decode(file_get_contents('php://input'), true) ?? [];
+    $date     = trim($body['date'] ?? '');
+    $password = $body['password'] ?? '';
+    if (!$date) {
+        http_response_code(400); echo json_encode(['error' => 'date obrigatório']); exit;
+    }
+    // Confere a senha ANTES de travar a linha — mesma checagem de verify_password.
+    $stmt = $pdo->prepare('SELECT password FROM users WHERE id = ?');
+    $stmt->execute([$session['user_id']]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$user || !password_verify($password, $user['password'])) {
+        http_response_code(401); echo json_encode(['error' => 'Senha incorreta']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $d['attendances']   = array_values(array_filter($d['attendances']   ?? [], fn($a) => ($a['date'] ?? null) !== $date));
+    $d['teamHistory']   = array_values(array_filter($d['teamHistory']   ?? [], fn($t) => ($t['date'] ?? null) !== $date));
+    $d['results']       = array_values(array_filter($d['results']       ?? [], fn($r) => ($r['date'] ?? null) !== $date));
+    $d['dinnerHistory'] = array_values(array_filter($d['dinnerHistory'] ?? [], fn($h) => ($h['date'] ?? null) !== $date));
+    $d['lockedRodadas'] = array_values(array_filter($d['lockedRodadas'] ?? [], fn($x) => $x !== $date));
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // ── Actions somente para admin ───────────────────────────
 if (in_array($action, ['list_users', 'create_user', 'delete_user', 'update_user_role'], true)) {
     if ($session['role'] !== 'admin') {
