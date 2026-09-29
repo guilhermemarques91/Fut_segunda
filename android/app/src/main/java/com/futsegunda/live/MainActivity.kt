@@ -16,34 +16,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -52,15 +47,14 @@ import com.futsegunda.live.network.AppReleaseInfo
 import com.futsegunda.live.ui.LoginScreen
 import com.futsegunda.live.ui.nav.AppDestination
 import com.futsegunda.live.ui.nav.AppNavHost
-import com.futsegunda.live.ui.nav.BOTTOM_BAR_DESTINATIONS
-import com.futsegunda.live.ui.nav.DRAWER_DESTINATIONS
+import com.futsegunda.live.ui.nav.NAV_DESTINATIONS
+import com.futsegunda.live.ui.nav.isRouteAllowedForRole
 import com.futsegunda.live.ui.theme.FutSegundaTheme
 import com.futsegunda.live.ui.theme.GradientButton
 import com.futsegunda.live.update.ANDROID_DOWNLOAD_URL
 import com.futsegunda.live.update.UpdateCheckWorker
 import com.futsegunda.live.update.UpdateChecker
 import com.futsegunda.live.work.SyncWorker
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -110,84 +104,68 @@ private fun AppRoot() {
         updateInfo = try { UpdateChecker.checkForUpdate() } catch (e: Exception) { null }
     }
 
+    // Mesmo destino padrão do onLoginSuccess() do painel web (frontend/index.html):
+    // viewer cai em histórico, o resto cai no dashboard.
+    val startRoute = remember { if (tokenStore.role == "viewer") AppDestination.Historico.route else AppDestination.Dashboard.route }
     val navController = rememberNavController()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = backStackEntry?.destination?.route ?: AppDestination.LiveMatch.route
+    val currentRoute = backStackEntry?.destination?.route ?: startRoute
 
     fun logout() {
         tokenStore.clear()
         loggedIn = false
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Text("Fut Segunda", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
-                DRAWER_DESTINATIONS.forEach { dest ->
-                    NavigationDrawerItem(
-                        icon = { Icon(dest.icon, contentDescription = null) },
-                        label = { Text(dest.label) },
-                        selected = currentRoute == dest.route,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            navController.navigate(dest.route) {
-                                launchSingleTop = true
-                                popUpTo(AppDestination.LiveMatch.route)
-                            }
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                    )
-                }
-                NavigationDrawerItem(
-                    icon = { Icon(Icons.Filled.Logout, contentDescription = null) },
-                    label = { Text("Sair") },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; logout() },
-                    modifier = Modifier.padding(horizontal = 12.dp),
+    Scaffold(
+        topBar = {
+            androidx.compose.foundation.layout.Column {
+                TopAppBar(
+                    title = { Text("Fut Segunda") },
+                    actions = {
+                        IconButton(onClick = ::logout) {
+                            Icon(Icons.Filled.Logout, contentDescription = "Sair")
+                        }
+                    },
                 )
+                updateInfo?.let { info ->
+                    UpdateBanner(versionName = info.versionName, onDismiss = { updateInfo = null })
+                }
             }
         },
-    ) {
-        Scaffold(
-            topBar = {
-                androidx.compose.foundation.layout.Column {
-                    TopAppBar(
-                        title = { Text("Fut Segunda") },
-                        navigationIcon = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Filled.Menu, contentDescription = "Menu")
+        bottomBar = {
+            // Barra única de 7 itens, igual ao `.mobile-bottom-nav` do painel web —
+            // sem gaveta/menu lateral (o painel também não tem uma no mobile).
+            NavigationBar {
+                NAV_DESTINATIONS.forEach { dest ->
+                    NavigationBarItem(
+                        selected = currentRoute == dest.route,
+                        onClick = {
+                            // Mesma trava de showSection() pro role=viewer (frontend/index.html:1357).
+                            if (!isRouteAllowedForRole(dest.route, tokenStore.role)) return@NavigationBarItem
+                            navController.navigate(dest.route) {
+                                launchSingleTop = true
+                                popUpTo(startRoute)
                             }
                         },
+                        icon = { Text(dest.emoji, style = MaterialTheme.typography.titleMedium) },
+                        label = {
+                            // .mnav-btn do painel (frontend/index.html:264) é uma etiqueta minúscula
+                            // (.52rem, maiúscula) numa linha só — replica aqui pra não quebrar em 2 linhas.
+                            Text(
+                                dest.label.uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, letterSpacing = 0.1.sp),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip,
+                            )
+                        },
                     )
-                    updateInfo?.let { info ->
-                        UpdateBanner(versionName = info.versionName, onDismiss = { updateInfo = null })
-                    }
                 }
-            },
-            bottomBar = {
-                NavigationBar {
-                    BOTTOM_BAR_DESTINATIONS.forEach { dest ->
-                        NavigationBarItem(
-                            selected = currentRoute == dest.route,
-                            onClick = {
-                                navController.navigate(dest.route) {
-                                    launchSingleTop = true
-                                    popUpTo(AppDestination.LiveMatch.route)
-                                }
-                            },
-                            icon = { Icon(dest.icon, contentDescription = null) },
-                            label = { Text(dest.label) },
-                        )
-                    }
-                }
-            },
-        ) { padding ->
-            Surface(modifier = Modifier.padding(padding)) {
-                AppNavHost(navController = navController, onLogout = ::logout)
             }
+        },
+    ) { padding ->
+        Surface(modifier = Modifier.padding(padding)) {
+            AppNavHost(navController = navController, startDestination = startRoute, onLogout = ::logout)
         }
     }
 }
