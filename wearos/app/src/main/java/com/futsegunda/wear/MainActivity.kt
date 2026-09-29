@@ -8,10 +8,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.wear.compose.material.MaterialTheme
 import com.futsegunda.wear.data.TokenStore
 import com.futsegunda.wear.ui.LiveScreen
 import com.futsegunda.wear.ui.LoginScreen
+import com.futsegunda.wear.ui.theme.FutSegundaWearTheme
 import com.futsegunda.wear.work.SyncWorker
 
 class MainActivity : ComponentActivity() {
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         SyncWorker.schedule(applicationContext)
 
         setContent {
-            MaterialTheme {
+            FutSegundaWearTheme {
                 AppRoot()
             }
         }

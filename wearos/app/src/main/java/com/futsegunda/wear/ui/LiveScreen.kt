@@ -1,5 +1,6 @@
 package com.futsegunda.wear.ui
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -9,15 +10,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.ListHeader
+import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.futsegunda.wear.network.PlayerDto
+import com.futsegunda.wear.ui.theme.FutAmber
+import com.futsegunda.wear.ui.theme.FutBackground
+import com.futsegunda.wear.ui.theme.FutBlueAccent
+import com.futsegunda.wear.ui.theme.FutRed
+import com.futsegunda.wear.ui.theme.FutTeamPreto
 import com.futsegunda.wear.update.UpdateChecker
 import com.futsegunda.wear.viewmodel.LiveViewModel
 import com.futsegunda.wear.viewmodel.TEAM_AWAY
@@ -25,6 +34,13 @@ import com.futsegunda.wear.viewmodel.TEAM_HOME
 
 private const val HOME_LABEL = "T. Preto"
 private const val AWAY_LABEL = "T. Azul"
+
+private fun periodLabel(periodo: Int?): String = when (periodo) {
+    null, 0 -> "Aguardando início"
+    1 -> "1º Tempo em andamento"
+    2 -> "2º Tempo em andamento"
+    else -> "Encerrado"
+}
 
 @Composable
 fun LiveScreen(vm: LiveViewModel = viewModel()) {
@@ -50,7 +66,19 @@ fun LiveScreen(vm: LiveViewModel = viewModel()) {
     }
 
     ScalingLazyColumn(modifier = Modifier.fillMaxSize()) {
-        item { ListHeader { Text("Fut Segunda") } }
+        item {
+            ListHeader {
+                Column {
+                    Text("Fut Segunda")
+                    if (state.hasActiveMatch) {
+                        Text(
+                            periodLabel(state.live?.periodo),
+                            style = MaterialTheme.typography.caption2,
+                        )
+                    }
+                }
+            }
+        }
 
         newVersion?.let { v ->
             item {
@@ -73,20 +101,25 @@ fun LiveScreen(vm: LiveViewModel = viewModel()) {
         }
 
         if (state.pendingCount > 0) {
-            item { Text("${state.pendingCount} gol(s) na fila, sem sinal") }
+            item {
+                Text(
+                    "${state.pendingCount} gol(s) na fila, sem sinal",
+                    color = FutAmber,
+                )
+            }
         }
 
         item {
             Chip(
                 onClick = { pickingTeam = TEAM_HOME },
-                label = { Text("$HOME_LABEL: ${vm.scoreFor(TEAM_HOME)}  ⚽ +1") },
-                colors = ChipDefaults.primaryChipColors(),
+                label = { Text("$HOME_LABEL  ${vm.scoreFor(TEAM_HOME)}   ⚽ +1") },
+                colors = ChipDefaults.chipColors(backgroundColor = FutTeamPreto, contentColor = Color.White),
             )
         }
         item {
-            Chip(
+            CompactChip(
                 onClick = { vm.undoGoal(TEAM_HOME) },
-                label = { Text("Desfazer último do $HOME_LABEL") },
+                label = { Text("↩ Desfazer $HOME_LABEL") },
                 colors = ChipDefaults.secondaryChipColors(),
             )
         }
@@ -94,14 +127,14 @@ fun LiveScreen(vm: LiveViewModel = viewModel()) {
         item {
             Chip(
                 onClick = { pickingTeam = TEAM_AWAY },
-                label = { Text("$AWAY_LABEL: ${vm.scoreFor(TEAM_AWAY)}  ⚽ +1") },
-                colors = ChipDefaults.primaryChipColors(),
+                label = { Text("$AWAY_LABEL  ${vm.scoreFor(TEAM_AWAY)}   ⚽ +1") },
+                colors = ChipDefaults.chipColors(backgroundColor = FutBlueAccent, contentColor = FutBackground),
             )
         }
         item {
-            Chip(
+            CompactChip(
                 onClick = { vm.undoGoal(TEAM_AWAY) },
-                label = { Text("Desfazer último do $AWAY_LABEL") },
+                label = { Text("↩ Desfazer $AWAY_LABEL") },
                 colors = ChipDefaults.secondaryChipColors(),
             )
         }
@@ -109,12 +142,36 @@ fun LiveScreen(vm: LiveViewModel = viewModel()) {
         item { ListHeader { Text("Tempo") } }
         val periodo = state.live?.periodo
         when (periodo) {
-            null, 0 -> item { Chip(onClick = { vm.periodEvent("start_t1") }, label = { Text("Iniciar 1ºT") }) }
-            1 -> {
-                item { Chip(onClick = { vm.periodEvent("end_t1") }, label = { Text("Encerrar 1ºT") }) }
-                item { Chip(onClick = { vm.periodEvent("start_t2") }, label = { Text("Iniciar 2ºT") }) }
+            null, 0 -> item {
+                Chip(
+                    onClick = { vm.periodEvent("start_t1") },
+                    label = { Text("▶ Iniciar 1ºT") },
+                    colors = ChipDefaults.primaryChipColors(),
+                )
             }
-            2 -> item { Chip(onClick = { vm.periodEvent("end_t2") }, label = { Text("Encerrar partida") }) }
+            1 -> {
+                item {
+                    Chip(
+                        onClick = { vm.periodEvent("end_t1") },
+                        label = { Text("⏸ Encerrar 1ºT") },
+                        colors = ChipDefaults.chipColors(backgroundColor = FutAmber, contentColor = FutBackground),
+                    )
+                }
+                item {
+                    Chip(
+                        onClick = { vm.periodEvent("start_t2") },
+                        label = { Text("▶ Iniciar 2ºT") },
+                        colors = ChipDefaults.primaryChipColors(),
+                    )
+                }
+            }
+            2 -> item {
+                Chip(
+                    onClick = { vm.periodEvent("end_t2") },
+                    label = { Text("🏁 Encerrar partida") },
+                    colors = ChipDefaults.chipColors(backgroundColor = FutRed, contentColor = Color.White),
+                )
+            }
         }
     }
 }
