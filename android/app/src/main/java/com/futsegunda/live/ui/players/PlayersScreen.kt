@@ -46,8 +46,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.futsegunda.live.domain.ReceberItems
+import com.futsegunda.live.network.ConfigDto
 import com.futsegunda.live.network.PlayerDto
 import com.futsegunda.live.ui.theme.AccentCard
+import com.futsegunda.live.ui.theme.FutAmber
+import com.futsegunda.live.ui.theme.FutBlueAccent
+import com.futsegunda.live.ui.theme.FutGreenStart
+import com.futsegunda.live.ui.theme.OverallRing
 import com.futsegunda.live.viewmodel.PLAYER_POSITIONS
 import com.futsegunda.live.viewmodel.PlayersViewModel
 
@@ -109,6 +115,7 @@ fun PlayersScreen(vm: PlayersViewModel = viewModel()) {
                         items(list, key = { it.id }) { p ->
                             PlayerRow(
                                 player = p,
+                                config = state.config,
                                 onRate = { ratingPlayer = p },
                                 onEdit = { vm.openEditForm(p) },
                                 onDelete = { vm.delete(p.id) },
@@ -140,41 +147,69 @@ fun PlayersScreen(vm: PlayersViewModel = viewModel()) {
     }
 }
 
+/** Espelha o `.player-item` do painel (renderPlayerList(), frontend/index.html:2220-2250). */
 @Composable
-private fun PlayerRow(player: PlayerDto, onRate: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun PlayerRow(player: PlayerDto, config: ConfigDto, onRate: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     AccentCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onEdit)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (!player.photo.isNullOrBlank()) {
+            val media = player.video ?: player.photo
+            if (!media.isNullOrBlank()) {
                 AsyncImage(
-                    model = player.photo,
+                    model = media,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(44.dp).clip(CircleShape),
+                    modifier = Modifier.size(38.dp).clip(CircleShape),
                 )
-            } else {
-                Box(
-                    modifier = Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) { Text(player.name.take(1).uppercase()) }
+                Spacer(Modifier.width(8.dp))
             }
-
-            Spacer(Modifier.width(12.dp))
+            OverallRing(player.overall ?: 0, size = 40.dp)
+            Spacer(Modifier.width(11.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(player.name, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    listOfNotNull(player.position, player.overall?.let { "OVR $it" }).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(player.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                val subtitle = listOfNotNull(
+                    player.apelido?.takeIf { it.isNotBlank() }?.let { "\"$it\"" },
+                    player.whatsapp?.takeIf { it.isNotBlank() }?.let { "📱 $it" },
+                ).joinToString(" · ")
+                if (subtitle.isNotBlank()) {
+                    Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
+                Row(
+                    modifier = Modifier.padding(top = 3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(player.position.orEmpty().uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("💪${player.attributes.physical}", style = MaterialTheme.typography.labelSmall, color = FutGreenStart)
+                    Text("🧠${player.attributes.tactical}", style = MaterialTheme.typography.labelSmall, color = FutBlueAccent)
+                    Text("⚡${player.attributes.technical}", style = MaterialTheme.typography.labelSmall, color = FutAmber)
+                }
+                Row(modifier = Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TypeBadge(if (player.isRegular) "Mensal" else "Avulso")
+                    if (player.isIsento) TypeBadge("Isento")
+                    val exempt = ReceberItems.isFeeExempt(player, config.goleiroIsento)
+                    Text(
+                        if (exempt) "Sem cobrança" else "R$ ${player.monthlyFee ?: 0}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             IconButton(onClick = onRate) { Icon(Icons.Filled.Star, contentDescription = "Avaliar") }
             IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "Editar") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "Remover") }
         }
+    }
+}
+
+@Composable
+private fun TypeBadge(text: String) {
+    Box(
+        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.small).padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.labelSmall)
     }
 }

@@ -8,9 +8,11 @@ import com.futsegunda.live.data.cache.AppDataCache
 import com.futsegunda.live.data.repository.PlayerResult
 import com.futsegunda.live.data.repository.PlayersRepository
 import com.futsegunda.live.domain.calcOverall
+import com.futsegunda.live.network.ConfigDto
 import com.futsegunda.live.network.PlayerAttributes
 import com.futsegunda.live.network.PlayerDraftDto
 import com.futsegunda.live.network.PlayerDto
+import com.futsegunda.live.util.MediaFileCopier
 import com.futsegunda.live.util.PhotoResizer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +36,7 @@ data class PlayerFormState(
     val photoUrl: String? = null,
     val video: String? = null,
     val uploadingPhoto: Boolean = false,
+    val uploadingVideo: Boolean = false,
 ) {
     val overall: Int get() = calcOverall(physical, tactical, technical)
     val isEditing: Boolean get() = id != null
@@ -42,6 +45,7 @@ data class PlayerFormState(
 data class PlayersUiState(
     val loading: Boolean = true,
     val players: List<PlayerDto> = emptyList(),
+    val config: ConfigDto = ConfigDto(),
     val search: String = "",
     val positionFilter: String? = null,
     val form: PlayerFormState? = null,
@@ -74,7 +78,11 @@ class PlayersViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun refresh(force: Boolean = false) {
         if (_state.value.players.isEmpty()) _state.value = _state.value.copy(loading = true)
         val snapshot = AppDataCache.ensureFresh(getApplication(), force)
-        _state.value = _state.value.copy(loading = false, players = snapshot?.players ?: _state.value.players)
+        _state.value = _state.value.copy(
+            loading = false,
+            players = snapshot?.players ?: _state.value.players,
+            config = snapshot?.config ?: _state.value.config,
+        )
     }
 
     fun setSearch(query: String) {
@@ -213,6 +221,40 @@ class PlayersViewModel(app: Application) : AndroidViewModel(app) {
         val url = _state.value.form?.photoUrl ?: return
         viewModelScope.launch { repo.deletePhoto(url) }
         updateForm { it.copy(photoUrl = null) }
+    }
+
+    /** Só disponível editando um jogador já existente, mesma regra da foto. */
+    fun pickVideo(uri: Uri) {
+        val form = _state.value.form ?: return
+        val playerId = form.id ?: run {
+            _state.value = _state.value.copy(error = "Salve o jogador antes de adicionar vídeo")
+            return
+        }
+        updateForm { it.copy(uploadingVideo = true) }
+        viewModelScope.launch {
+            val copied = MediaFileCopier.copyVideoToCache(getApplication(), uri)
+            if (copied == null) {
+                updateForm { it.copy(uploadingVideo = false) }
+                _state.value = _state.value.copy(error = "Não foi possível processar o vídeo")
+                return@launch
+            }
+            val oldUrl = _state.value.form?.video
+            val url = repo.uploadVideo(playerId, copied)
+            copied.delete()
+            if (url != null) {
+                if (!oldUrl.isNullOrBlank() && oldUrl != url) repo.deleteVideo(oldUrl)
+                updateForm { it.copy(video = url, uploadingVideo = false) }
+            } else {
+                updateForm { it.copy(uploadingVideo = false) }
+                _state.value = _state.value.copy(error = "Falha no upload do vídeo (máx. 8MB, mp4/webm/mov)")
+            }
+        }
+    }
+
+    fun removeVideo() {
+        val url = _state.value.form?.video ?: return
+        viewModelScope.launch { repo.deleteVideo(url) }
+        updateForm { it.copy(video = null) }
     }
 
     fun dismissToast() {

@@ -120,4 +120,39 @@ class PlayersRepository(private val context: Context) {
             // best-effort — igual ao painel web, não bloqueia o fluxo se falhar
         }
     }
+
+    /** Sobe o vídeo cru (ver MediaFileCopier — sem redimensionar) e devolve a URL salva. */
+    suspend fun uploadVideo(playerId: Int, videoFile: File): String? {
+        val token = token() ?: return null
+        return try {
+            val mime = when (videoFile.extension.lowercase()) {
+                "webm" -> "video/webm"
+                "mov" -> "video/quicktime"
+                else -> "video/mp4"
+            }
+            val filePart = MultipartBody.Part.createFormData(
+                "file", videoFile.name, videoFile.asRequestBody(mime.toMediaType()),
+            )
+            val idPart = playerId.toString().toRequestBody("text/plain".toMediaType())
+            val resp = ApiClient.service.uploadPlayerVideo(
+                apiKey = ServerConfig.API_KEY, authToken = token, file = filePart, playerId = idPart,
+            )
+            val body = JsonCodec.decode<UploadPhotoResponse>(resp.body())
+            if (resp.isSuccessful && body?.ok == true) body.url else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun deleteVideo(url: String) {
+        val token = token() ?: return
+        try {
+            ApiClient.service.deletePlayerVideo(
+                apiKey = ServerConfig.API_KEY, authToken = token,
+                body = JsonCodec.body(DeletePhotoRequest(url)),
+            )
+        } catch (e: Exception) {
+            // best-effort
+        }
+    }
 }

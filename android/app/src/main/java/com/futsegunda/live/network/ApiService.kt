@@ -119,6 +119,24 @@ interface ApiService {
         @Body body: RequestBody,
     ): Response<ResponseBody>
 
+    @Multipart
+    @POST("api.php")
+    suspend fun uploadPlayerVideo(
+        @Query("action") action: String = "upload_player_video",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Part file: MultipartBody.Part,
+        @Part("playerId") playerId: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun deletePlayerVideo(
+        @Query("action") action: String = "delete_player_video",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
     @POST("api.php")
     suspend fun feesSave(
         @Query("action") action: String = "fees_save",
