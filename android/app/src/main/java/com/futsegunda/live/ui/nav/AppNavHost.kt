@@ -27,7 +27,9 @@ fun AppNavHost(navController: NavHostController, startDestination: String, onLog
             })
         }
         composable(AppDestination.Dashboard.route) {
-            DashboardScreen()
+            DashboardScreen(onNavigate = { route ->
+                navController.navigate(route) { launchSingleTop = true }
+            })
         }
         composable(AppDestination.Players.route) {
             PlayersScreen()
