@@ -195,6 +195,22 @@ interface ApiService {
         @Body body: RequestBody,
     ): Response<ResponseBody>
 
+    @POST("api.php")
+    suspend fun sendConfirmados(
+        @Query("action") action: String = "send_confirmados",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun generateTokens(
+        @Query("action") action: String = "generate_tokens",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
     /** Inicia a partida (liveState inteiro) a partir dos times da Rodada — mesma action que o "Ao Vivo" já usa pro timer/placar. */
     @POST("api.php")
     suspend fun liveUpdate(

@@ -61,7 +61,7 @@ fun TeamDragBoard(
     Box(modifier = Modifier.fillMaxWidth()) {
         Column {
             DragZoneColumn(
-                zone = TeamZone.PRETO, label = "⬛🟡 Time Preto e Amarelo", players = home, editable = editable,
+                zone = TeamZone.PRETO, label = "⬛🟡 T. Preto e Amarelo", players = home, editable = editable,
                 highlighted = hoveredZone == TeamZone.PRETO, hiddenPlayerId = draggingPlayer?.id,
                 onZonePositioned = { zoneRects[TeamZone.PRETO] = it },
                 onDragStart = { player, pos -> draggingPlayer = player; dragPosition = pos; updateHoveredZone(pos) },
@@ -73,7 +73,7 @@ fun TeamDragBoard(
                 onDragCancel = { draggingPlayer = null; hoveredZone = null },
             )
             DragZoneColumn(
-                zone = TeamZone.AZUL, label = "🔵 Time Azul", players = away, editable = editable,
+                zone = TeamZone.AZUL, label = "🔵 T. Azul", players = away, editable = editable,
                 highlighted = hoveredZone == TeamZone.AZUL, hiddenPlayerId = draggingPlayer?.id,
                 onZonePositioned = { zoneRects[TeamZone.AZUL] = it },
                 onDragStart = { player, pos -> draggingPlayer = player; dragPosition = pos; updateHoveredZone(pos) },

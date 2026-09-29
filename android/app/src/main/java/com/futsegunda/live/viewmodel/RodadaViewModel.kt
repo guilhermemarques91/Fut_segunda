@@ -8,13 +8,17 @@ import com.futsegunda.live.data.repository.RodadaRepository
 import com.futsegunda.live.data.repository.RodadaResult
 import com.futsegunda.live.domain.LoucaRotation
 import com.futsegunda.live.domain.splitAllIntoTwoTeams
+import com.futsegunda.live.network.AppSnapshotDto
 import com.futsegunda.live.network.AttendanceSaveRequest
 import com.futsegunda.live.network.DinnerHistoryDto
 import com.futsegunda.live.network.DinnerSaveRequest
 import com.futsegunda.live.network.GoalCountDto
 import com.futsegunda.live.network.LiveStartRequest
 import com.futsegunda.live.network.PlayerDto
+import com.futsegunda.live.network.ResultDto
+import com.futsegunda.live.network.ServerConfig
 import com.futsegunda.live.network.TeamHistorySaveRequest
+import com.futsegunda.live.network.TokenPlayerDto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,14 +30,27 @@ import java.util.Locale
 import kotlin.math.ceil
 
 enum class TeamZone { PRETO, AZUL, BANCO }
+enum class RodadaStage { LANDING, PICK_DATE, MANAGE }
 
 private const val POLL_INTERVAL_MS = 5_000L
 private val DATE_FORMAT = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
+data class RodadaSummary(
+    val date: String,
+    val confirmedCount: Int,
+    val avulsoCount: Int,
+    val homeCount: Int,
+    val awayCount: Int,
+    val result: ResultDto?,
+    val locked: Boolean,
+)
+
 data class RodadaUiState(
     val loading: Boolean = true,
+    val stage: RodadaStage = RodadaStage.LANDING,
     val date: String = DATE_FORMAT.format(Date()),
     val allPlayers: List<PlayerDto> = emptyList(),
+    val summaries: List<RodadaSummary> = emptyList(),
     val confirmedIds: List<Int> = emptyList(),
     val locked: Boolean = false,
     val home: List<PlayerDto> = emptyList(),
@@ -50,6 +67,12 @@ data class RodadaUiState(
     val loucaCycleStart: String? = null,
     val loucaOverrides: Map<String, Boolean> = emptyMap(),
     val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
+    val homeScoreText: String = "",
+    val awayScoreText: String = "",
+    val motmId: Int? = null,
+    val avulsoOrder: List<Int> = emptyList(),
+    val sendingWhatsApp: Boolean = false,
+    val whatsAppLink: String? = null,
     val saving: Boolean = false,
     val startingMatch: Boolean = false,
     val error: String? = null,
@@ -70,12 +93,23 @@ data class RodadaUiState(
             val derived = LoucaRotation.washedMap(dinnerHistory, loucaCycleStart, excludeDate = date)
             return LoucaRotation.nextResponsavel(loucaRotation, loucaOverrides, derived)
         }
+
+    /** Avulsos confirmados, na ordem configurada (`avulsoOrder`) — os que ainda não estão na lista entram no fim. */
+    val orderedAvulsosConfirmed: List<PlayerDto>
+        get() {
+            val avulsosConfirmed = confirmedIds.mapNotNull { id -> allPlayers.find { it.id == id && !it.isRegular } }
+            val byId = avulsosConfirmed.associateBy { it.id }
+            val ordered = avulsoOrder.mapNotNull { byId[it] }
+            val missing = avulsosConfirmed.filter { it.id !in avulsoOrder }
+            return ordered + missing
+        }
 }
 
 /**
- * Presença, tira-gosto e times de uma rodada — espelha rodState do painel
- * web (frontend/index.html:3921), mas cada ação salva granular no servidor
- * em vez de "salvar tudo" no debounce.
+ * Presença, tira-gosto, times e resultado de uma rodada — espelha rodState
+ * do painel web (frontend/index.html:3921), na mesma estrutura de 2 etapas
+ * (landing com histórico → formulário de gestão), mas cada ação salva
+ * granular no servidor em vez de "salvar tudo" no debounce.
  */
 class RodadaViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = RodadaRepository(app)
@@ -98,6 +132,7 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
         val att = snapshot?.attendances?.find { it.date == date }
         val th = snapshot?.teamHistory?.find { it.date == date }
         val din = snapshot?.dinnerHistory?.find { it.date == date }
+        val res = snapshot?.results?.find { it.date == date }
         val players = snapshot?.players ?: _state.value.allPlayers
         val byId = players.associateBy { it.id }
 
@@ -106,6 +141,7 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(
             loading = false,
             allPlayers = players,
+            summaries = snapshot?.let { buildSummaries(it) } ?: _state.value.summaries,
             confirmedIds = att?.players ?: _state.value.confirmedIds,
             locked = snapshot?.lockedRodadas?.contains(date) ?: _state.value.locked,
             home = if (keepLocalTeams) _state.value.home else th?.home?.mapNotNull { byId[it] } ?: _state.value.home,
@@ -120,12 +156,67 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
             loucaCycleStart = snapshot?.loucaCycleStart ?: _state.value.loucaCycleStart,
             loucaOverrides = snapshot?.loucaOverrides ?: _state.value.loucaOverrides,
             dinnerHistory = snapshot?.dinnerHistory ?: _state.value.dinnerHistory,
+            homeScoreText = if (res != null) (res.homeScore?.toString() ?: "") else _state.value.homeScoreText,
+            awayScoreText = if (res != null) (res.awayScore?.toString() ?: "") else _state.value.awayScoreText,
+            motmId = res?.motm ?: _state.value.motmId,
+            avulsoOrder = snapshot?.avulsoOrder ?: _state.value.avulsoOrder,
         )
     }
 
-    fun setDate(date: String) {
-        _state.value = RodadaUiState(date = date, allPlayers = _state.value.allPlayers)
+    /** Mesma união de datas de renderRodadaHistory() (frontend/index.html:5855-5918). */
+    private fun buildSummaries(snapshot: AppSnapshotDto): List<RodadaSummary> {
+        val dates = (snapshot.attendances.map { it.date } + snapshot.results.map { it.date.orEmpty() }).filter { it.isNotBlank() }.toSet()
+        return dates.map { date ->
+            val att = snapshot.attendances.find { it.date == date }
+            val th = snapshot.teamHistory.find { it.date == date }
+            val res = snapshot.results.find { it.date == date }
+            val presentes = att?.players.orEmpty().mapNotNull { id -> snapshot.players.find { it.id == id } }
+            RodadaSummary(
+                date = date,
+                confirmedCount = presentes.size,
+                avulsoCount = presentes.count { !it.isRegular && !it.isIsento },
+                homeCount = th?.home?.size ?: 0,
+                awayCount = th?.away?.size ?: 0,
+                result = res,
+                locked = snapshot.lockedRodadas.contains(date),
+            )
+        }.sortedByDescending { it.date }
+    }
+
+    // ── Navegação landing ↔ gerenciar ──────────────────────
+    fun openLanding() {
+        _state.value = _state.value.copy(stage = RodadaStage.LANDING)
         viewModelScope.launch { refresh() }
+    }
+
+    fun openNewRodada() {
+        _state.value = RodadaUiState(stage = RodadaStage.PICK_DATE, date = DATE_FORMAT.format(Date()), allPlayers = _state.value.allPlayers, summaries = _state.value.summaries)
+        viewModelScope.launch { refresh() }
+    }
+
+    fun openExistingRodada(date: String) {
+        _state.value = RodadaUiState(stage = RodadaStage.MANAGE, date = date, allPlayers = _state.value.allPlayers, summaries = _state.value.summaries)
+        viewModelScope.launch { refresh() }
+    }
+
+    fun setNewDate(date: String) {
+        _state.value = _state.value.copy(date = date)
+    }
+
+    /** Espelha criarRodada() — cria a presença (mensalistas confirmados por padrão) se ainda não existir. */
+    fun createRodada() {
+        val s = _state.value
+        viewModelScope.launch {
+            val existing = s.confirmedIds.isNotEmpty()
+            if (!existing) {
+                val defaults = s.allPlayers.filter { it.isRegular && !it.isIsento }.map { it.id }
+                when (val r = repo.saveAttendance(AttendanceSaveRequest(date = s.date, players = defaults))) {
+                    is RodadaResult.Ok -> _state.value = _state.value.copy(confirmedIds = defaults)
+                    is RodadaResult.Error -> { _state.value = _state.value.copy(error = r.message); return@launch }
+                }
+            }
+            _state.value = _state.value.copy(stage = RodadaStage.MANAGE, toast = "🔄 Rodada criada — Em Andamento")
+        }
     }
 
     // ── Presença ──────────────────────────────────────────
@@ -136,11 +227,124 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
         savePresenca()
     }
 
+    fun selectAll() {
+        if (_state.value.locked) return
+        _state.value = _state.value.copy(confirmedIds = _state.value.allPlayers.map { it.id })
+        savePresenca()
+    }
+
+    fun clearAll() {
+        if (_state.value.locked) return
+        _state.value = _state.value.copy(confirmedIds = emptyList())
+        savePresenca()
+    }
+
     private fun savePresenca() {
         viewModelScope.launch {
             val s = _state.value
             repo.saveAttendance(AttendanceSaveRequest(date = s.date, players = s.confirmedIds))
         }
+    }
+
+    // ── Ordenar avulsos ───────────────────────────────────
+    fun moveAvulsoUp(playerId: Int) {
+        val order = _state.value.orderedAvulsosConfirmed.map { it.id }.toMutableList()
+        val i = order.indexOf(playerId)
+        if (i <= 0) return
+        order[i] = order[i - 1].also { order[i - 1] = order[i] }
+        persistAvulsoOrder(order)
+    }
+
+    fun moveAvulsoDown(playerId: Int) {
+        val order = _state.value.orderedAvulsosConfirmed.map { it.id }.toMutableList()
+        val i = order.indexOf(playerId)
+        if (i < 0 || i >= order.size - 1) return
+        order[i] = order[i + 1].also { order[i + 1] = order[i] }
+        persistAvulsoOrder(order)
+    }
+
+    private fun persistAvulsoOrder(order: List<Int>) {
+        _state.value = _state.value.copy(avulsoOrder = order)
+        viewModelScope.launch {
+            when (val r = repo.saveAvulsoOrder(order)) {
+                is RodadaResult.Ok -> _state.value = _state.value.copy(avulsoOrder = r.data)
+                is RodadaResult.Error -> _state.value = _state.value.copy(error = r.message)
+            }
+        }
+    }
+
+    // ── WhatsApp (Presença) ───────────────────────────────
+    /** "📋 WA" — convite genérico (mensalistas + suplentes), sem depender de status de confirmação. */
+    fun buildInviteWhatsAppLink(): String {
+        val s = _state.value
+        val d = runCatching { SimpleDateFormat("EEEE, dd 'de' MMMM", Locale("pt", "BR")).format(DATE_FORMAT.parse(s.date)!!) }.getOrDefault(s.date)
+        val regulars = s.allPlayers.filter { it.isRegular && !it.isIsento }.sortedBy { it.name }
+        val subs = s.allPlayers.filter { !it.isRegular && !it.isIsento }
+        val lines = mutableListOf("⚽ *PELADA DE SEGUNDA!*", "📅 $d", "", "━━━━━━━━━━━━━━━━━━━━", "📋 *MENSALISTAS (confirmados):*")
+        regulars.forEach { lines += "✅ ${it.name}" }
+        lines += ""; lines += "👥 *SUPLENTES:*"
+        subs.forEach { lines += "❓ ${it.name}" }
+        lines += ""; lines += "_Confirme sua presença!_"; lines += "━━━━━━━━━━━━━━━━━━━━"
+        return "https://wa.me/?text=" + java.net.URLEncoder.encode(lines.joinToString("\n"), "UTF-8")
+    }
+
+    /** "✅ Confirmados" — versão simplificada (o app não tem o sistema de status de confirmação por
+     * link do painel; aqui é só confirmado/não confirmado a partir da presença marcada). */
+    fun buildConfirmadosWhatsAppLink(): String {
+        val s = _state.value
+        val d = runCatching { SimpleDateFormat("EEEE, dd 'de' MMMM", Locale("pt", "BR")).format(DATE_FORMAT.parse(s.date)!!) }.getOrDefault(s.date)
+        val confirmed = s.confirmedIds.mapNotNull { id -> s.allPlayers.find { it.id == id } }.sortedBy { it.name }
+        val notConfirmed = s.allPlayers.filter { it.isRegular && !it.isIsento && it.id !in s.confirmedIds }.sortedBy { it.name }
+        val lines = mutableListOf("⚽ *PELADA DE SEGUNDA!*", "📅 $d", "", "━━━━━━━━━━━━━━━━━━━━", "📋 *CONFIRMADOS:*")
+        confirmed.forEach { lines += "✅ ${it.name}" }
+        if (notConfirmed.isNotEmpty()) { lines += ""; lines += "❌ *NÃO CONFIRMARAM:*"; notConfirmed.forEach { lines += "❌ ${it.name}" } }
+        lines += ""; lines += "━━━━━━━━━━━━━━━━━━━━"
+        return "https://wa.me/?text=" + java.net.URLEncoder.encode(lines.joinToString("\n"), "UTF-8")
+    }
+
+    /** "📣 Grupo" — o servidor monta a mensagem (wa_build_confirmados_msg) e manda direto via Evolution API. */
+    fun sendConfirmadosGrupo() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(sendingWhatsApp = true)
+            when (val r = repo.sendConfirmadosGrupo(_state.value.date)) {
+                is RodadaResult.Ok -> _state.value = _state.value.copy(sendingWhatsApp = false, toast = "📣 Lista enviada no grupo!")
+                is RodadaResult.Error -> _state.value = _state.value.copy(sendingWhatsApp = false, error = r.message)
+            }
+        }
+    }
+
+    /** "🔗 Links" — gera o token de confirmação e devolve o link do WhatsApp já pronto (a tela abre). */
+    fun generateConfirmationLinks() {
+        val s = _state.value
+        val withPhone = s.allPlayers.filter { !it.whatsapp.isNullOrBlank() }.map { TokenPlayerDto(it.id, it.name, it.whatsapp!!) }
+        if (withPhone.isEmpty()) {
+            _state.value = s.copy(error = "Nenhum jogador com WhatsApp cadastrado")
+            return
+        }
+        viewModelScope.launch {
+            _state.value = _state.value.copy(sendingWhatsApp = true)
+            when (val r = repo.generateTokens(s.date, withPhone)) {
+                is RodadaResult.Ok -> {
+                    val baseUrl = ServerConfig.BASE_URL.removeSuffix("/api/")
+                    val link = "$baseUrl/confirmar.php?t=${r.data}"
+                    val d = runCatching { SimpleDateFormat("EEEE, dd 'de' MMMM", Locale("pt", "BR")).format(DATE_FORMAT.parse(s.date)!!) }.getOrDefault(s.date)
+                    val regulars = s.allPlayers.filter { it.isRegular && !it.isIsento }.sortedBy { it.name }
+                    val lines = mutableListOf("⚽ *PELADA DE SEGUNDA!*", "📅 $d", "", "━━━━━━━━━━━━━━━━━━━━", "📋 *MENSALISTAS:*")
+                    regulars.forEach { lines += "⏳ ${it.name}" }
+                    lines += ""; lines += "🔗 *Confirme sua presença pelo link:*"; lines += link
+                    lines += ""; lines += "_Clique no link, informe seu número e confirme!_"; lines += "━━━━━━━━━━━━━━━━━━━━"
+                    val waLink = "https://wa.me/?text=" + java.net.URLEncoder.encode(lines.joinToString("\n"), "UTF-8")
+                    _state.value = _state.value.copy(sendingWhatsApp = false, whatsAppLink = waLink)
+                }
+                is RodadaResult.Error -> _state.value = _state.value.copy(sendingWhatsApp = false, error = r.message)
+            }
+        }
+    }
+
+    fun consumeWhatsAppLink(): String? {
+        val link = _state.value.whatsAppLink
+        _state.value = _state.value.copy(whatsAppLink = null)
+        return link
     }
 
     // ── Times ─────────────────────────────────────────────
@@ -229,6 +433,21 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ── Resultado ─────────────────────────────────────────
+    fun updateHomeScore(text: String) { _state.value = _state.value.copy(homeScoreText = text) }
+    fun updateAwayScore(text: String) { _state.value = _state.value.copy(awayScoreText = text) }
+    fun updateMotm(id: Int?) { _state.value = _state.value.copy(motmId = id); saveResult() }
+
+    fun saveResult() {
+        viewModelScope.launch {
+            val s = _state.value
+            when (val r = repo.saveResult(s.date, s.homeScoreText.toIntOrNull(), s.awayScoreText.toIntOrNull(), s.motmId)) {
+                is RodadaResult.Ok -> _state.value = _state.value.copy(toast = "Resultado salvo")
+                is RodadaResult.Error -> _state.value = _state.value.copy(error = r.message)
+            }
+        }
+    }
+
     // ── Tira-gosto ────────────────────────────────────────
     fun toggleDinnerParticipant(id: Int) {
         if (_state.value.locked) return
@@ -287,8 +506,9 @@ class RodadaViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             when (val r = repo.deleteRodada(_state.value.date, password)) {
                 is RodadaResult.Ok -> {
-                    _state.value = RodadaUiState(date = _state.value.date, allPlayers = _state.value.allPlayers, toast = "Rodada excluída")
                     onDone(true)
+                    _state.value = RodadaUiState(stage = RodadaStage.LANDING, allPlayers = _state.value.allPlayers, toast = "Rodada excluída")
+                    refresh()
                 }
                 is RodadaResult.Error -> {
                     _state.value = _state.value.copy(error = r.message)

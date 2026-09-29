@@ -568,3 +568,20 @@ data class DeleteUserRequest(val id: Int)
 
 @Serializable
 data class SimpleOkResponse(val ok: Boolean = false, val error: String? = null)
+
+// ── Rodada: WhatsApp (Fase 8) ────────────────────────────
+
+@Serializable
+data class SendConfirmadosRequest(val date: String)
+
+@Serializable
+data class SendConfirmadosResponse(val ok: Boolean = false, val code: Int? = null, val err: String? = null, val preview: String? = null)
+
+@Serializable
+data class TokenPlayerDto(val id: Int, val name: String, val phone: String)
+
+@Serializable
+data class GenerateTokensRequest(val date: String, val players: List<TokenPlayerDto>)
+
+@Serializable
+data class GenerateTokensResponse(val ok: Boolean = false, val error: String? = null, val token: String? = null, val inserted: Int? = null)
