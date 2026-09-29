@@ -3,6 +3,7 @@ package com.futsegunda.live.ui.rodada
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -245,14 +246,17 @@ private fun RodadaManage(state: RodadaUiState, vm: RodadaViewModel, onMatchStart
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
                 listOf(
                     RodadaSubTab.PRESENCA to "👥 Presença",
                     RodadaSubTab.TIRA_GOSTO to "🍽️ Tira Gosto",
                     RodadaSubTab.TIMES to "⚽ Times",
                     RodadaSubTab.RESULTADO to "🏆 Resultado",
                 ).forEach { (t, label) ->
-                    androidx.compose.material3.FilterChip(selected = tab == t, onClick = { tab = t }, label = { Text(label) })
+                    androidx.compose.material3.FilterChip(selected = tab == t, onClick = { tab = t }, label = { Text(label, maxLines = 1, softWrap = false) })
                 }
             }
         }
@@ -432,11 +436,14 @@ private fun TimesCard(state: RodadaUiState, vm: RodadaViewModel, onMatchStarted:
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Text("⚽ Times", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                GradientButton(onClick = { vm.generateTeams() }, enabled = !state.locked) { Text("⚡ Gerar Times") }
-                OutlinedButton(onClick = { vm.generateTeams() }, enabled = !state.locked) { Text("🔄 Refazer") }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
+                GradientButton(onClick = { vm.generateTeams() }, enabled = !state.locked) { Text("⚡ Gerar Times", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = { vm.generateTeams() }, enabled = !state.locked) { Text("🔄 Refazer", maxLines = 1, softWrap = false) }
                 OutlinedButton(onClick = { vm.toggleTeamsEditMode() }, enabled = !state.locked) {
-                    Text(if (state.teamsEditMode) "✅ Concluir" else "✏️ Editar")
+                    Text(if (state.teamsEditMode) "✅ Concluir" else "✏️ Editar", maxLines = 1, softWrap = false)
                 }
             }
             Spacer(Modifier.height(10.dp))

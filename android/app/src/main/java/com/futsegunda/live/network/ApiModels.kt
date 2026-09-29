@@ -207,7 +207,7 @@ data class AppSnapshotDto(
     val config: ConfigDto = ConfigDto(),
     val loucaRotation: List<Int> = emptyList(),
     val loucaCycleStart: String? = null,
-    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+    @Serializable(with = FlexibleStringBooleanMapSerializer::class) val loucaOverrides: Map<String, Boolean> = emptyMap(),
 )
 
 // ── Financeiro (Fase 3) ──────────────────────────────────
@@ -532,7 +532,7 @@ data class UploadLogoResponse(val ok: Boolean = false, val url: String? = null, 
 data class LoucaRotationSaveRequest(
     val loucaRotation: List<Int>,
     val loucaCycleStart: String? = null,
-    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+    @Serializable(with = FlexibleStringBooleanMapSerializer::class) val loucaOverrides: Map<String, Boolean> = emptyMap(),
 )
 
 @Serializable
@@ -541,7 +541,7 @@ data class LoucaRotationSaveResponse(
     val error: String? = null,
     val loucaRotation: List<Int> = emptyList(),
     val loucaCycleStart: String? = null,
-    val loucaOverrides: Map<String, Boolean> = emptyMap(),
+    @Serializable(with = FlexibleStringBooleanMapSerializer::class) val loucaOverrides: Map<String, Boolean> = emptyMap(),
 )
 
 // ── Usuários (já granular no backend — só faltava a tela) ──
