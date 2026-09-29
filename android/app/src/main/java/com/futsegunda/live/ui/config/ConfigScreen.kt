@@ -1,5 +1,7 @@
 package com.futsegunda.live.ui.config
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,10 +46,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.futsegunda.live.network.ServerConfig
 import com.futsegunda.live.network.UserDto
 import com.futsegunda.live.ui.theme.AccentCard
 import com.futsegunda.live.ui.theme.FutGreenStart
@@ -63,6 +67,8 @@ import com.futsegunda.live.viewmodel.ConfigViewModel
 @Composable
 fun ConfigScreen(vm: ConfigViewModel = viewModel()) {
     val state by vm.state.collectAsState()
+    var teamName by remember(state.config.teamName) { mutableStateOf(state.config.teamName) }
+    var tabTitle by remember(state.config.tabTitle) { mutableStateOf(state.config.tabTitle) }
 
     Scaffold { padding ->
         if (state.loading) {
@@ -72,10 +78,20 @@ fun ConfigScreen(vm: ConfigViewModel = viewModel()) {
                 modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item { IdentitySection(state = state, onPickLogo = vm::pickLogo, onRemoveLogo = vm::removeLogo, onSave = vm::saveIdentity) }
+                item {
+                    IdentitySection(
+                        state = state, teamName = teamName, tabTitle = tabTitle,
+                        onTeamNameChange = { teamName = it }, onTabTitleChange = { tabTitle = it },
+                        onPickLogo = vm::pickLogo, onRemoveLogo = vm::removeLogo,
+                        onSave = { vm.saveIdentity(teamName, tabTitle) },
+                    )
+                }
+                item { PreviewSection(logo = state.config.logo, brandName = teamName, tabTitle = tabTitle) }
+                item { TipsSection() }
                 item { LoucaSection(state = state, vm = vm) }
                 if (state.isAdmin) {
                     item { UsersSection(state = state, vm = vm) }
+                    item { AppReleasesSection() }
                 }
                 item { Spacer(Modifier.height(8.dp)) }
             }
@@ -95,12 +111,14 @@ fun ConfigScreen(vm: ConfigViewModel = viewModel()) {
 @Composable
 private fun IdentitySection(
     state: ConfigUiState,
+    teamName: String,
+    tabTitle: String,
+    onTeamNameChange: (String) -> Unit,
+    onTabTitleChange: (String) -> Unit,
     onPickLogo: (android.net.Uri) -> Unit,
     onRemoveLogo: () -> Unit,
-    onSave: (teamName: String, tabTitle: String) -> Unit,
+    onSave: () -> Unit,
 ) {
-    var teamName by remember(state.config.teamName) { mutableStateOf(state.config.teamName) }
-    var tabTitle by remember(state.config.tabTitle) { mutableStateOf(state.config.tabTitle) }
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onPickLogo(uri)
     }
@@ -134,12 +152,113 @@ private fun IdentitySection(
                 }
             }
 
-            OutlinedTextField(value = teamName, onValueChange = { teamName = it }, label = { Text("Nome da Pelada") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = tabTitle, onValueChange = { tabTitle = it }, label = { Text("Título da Aba do Navegador") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = teamName, onValueChange = onTeamNameChange, label = { Text("Nome da Pelada") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = tabTitle, onValueChange = onTabTitleChange, label = { Text("Título da Aba do Navegador") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-            GradientButton(onClick = { onSave(teamName, tabTitle) }, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.saving) "Salvando…" else "💾 Salvar")
+            GradientButton(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+                Text(if (state.saving) "Salvando…" else "💾 Salvar e Aplicar")
             }
+        }
+    }
+}
+
+/** Espelha o mockup de "Pré-visualização" (frontend/index.html:1129-1151) — navbar + aba do navegador, atualiza ao digitar. */
+@Composable
+private fun PreviewSection(logo: String?, brandName: String, tabTitle: String) {
+    AccentCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("👁️ Pré-visualização", style = MaterialTheme.typography.titleSmall)
+
+            Column {
+                Text("BARRA DE NAVEGAÇÃO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(7.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(androidx.compose.ui.graphics.Color(0xF0060D1C), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier.size(28.dp)
+                            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(FutGreenStart, com.futsegunda.live.ui.theme.FutGreenEnd)), RoundedCornerShape(7.dp))
+                            .clip(RoundedCornerShape(7.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (!logo.isNullOrBlank()) {
+                            AsyncImage(model = logo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        } else {
+                            Text("⚽", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Spacer(Modifier.padding(start = 5.dp))
+                    Text(
+                        brandName.ifBlank { "Fut Segunda" }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold,
+                        color = FutGreenStart, modifier = Modifier.padding(start = 5.dp),
+                    )
+                }
+            }
+
+            Column {
+                Text("ABA DO NAVEGADOR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(7.dp))
+                Row(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (!logo.isNullOrBlank()) {
+                        AsyncImage(model = logo, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(16.dp).clip(RoundedCornerShape(3.dp)))
+                    } else {
+                        Text("⚽", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(Modifier.padding(start = 7.dp))
+                    Text(
+                        tabTitle.ifBlank { "Fut Segunda — Manager" }, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 7.dp),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Espelha o card "💡 Dicas" (frontend/index.html:1154-1162). */
+@Composable
+private fun TipsSection() {
+    AccentCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("💡 Dicas", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            listOf(
+                "Use uma imagem quadrada para melhor resultado",
+                "PNG com fundo transparente fica ótimo no favicon",
+                "Tamanho recomendado: 256 × 256 px ou maior",
+                "A logo também aparece na barra de navegação",
+            ).forEach { tip ->
+                Text("•  $tip", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 3.dp))
+            }
+        }
+    }
+}
+
+/** Espelha o card admin "📱 Apps — Builds para Download" (frontend/index.html:1206-1217) — abre o painel web, sem publicar build pelo celular. */
+@Composable
+private fun AppReleasesSection() {
+    val context = LocalContext.current
+    val panelUrl = ServerConfig.BASE_URL.removeSuffix("api/")
+    AccentCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("📱 Apps — Builds para Download", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Publica o .apk aqui pra quem for marcar gol baixar direto no celular/relógio (sem precisar de cabo). O link de download funciona sem login — é só abrir no navegador do aparelho.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp),
+            )
+            GradientButton(
+                onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(panelUrl))) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("🌐 Abrir Painel Web") }
         }
     }
 }
