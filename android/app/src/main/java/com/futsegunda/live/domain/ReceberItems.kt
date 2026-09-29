@@ -8,6 +8,23 @@ import com.futsegunda.live.network.LancamentoDto
 import com.futsegunda.live.network.PlayerDto
 import com.futsegunda.live.network.RecurringExpenseDto
 
+/** Como quitar 1 item — mesma forma do `it.settle` do painel (buildReceberItems()/buildPagarItems()). */
+sealed class SettleAction {
+    data class FeeCharge(val playerId: Int, val month: String) : SettleAction()
+    data class Fee(val playerId: Int, val ptype: String) : SettleAction()
+    data class Dinner(val playerId: Int, val dinnerHistoryId: Int) : SettleAction()
+    data class Manual(val lancId: Int) : SettleAction()
+    data class Expense(val expId: Int) : SettleAction()
+    data class Recurring(val recId: Int) : SettleAction()
+}
+
+/** Entidade editável/removível por trás do item — mesma forma de `it.edit` do painel (editActionsHTML()). */
+sealed class EditRef {
+    data class Manual(val id: Int) : EditRef()
+    data class Expense(val id: Int) : EditRef()
+    data class Recurring(val id: Int) : EditRef()
+}
+
 /** 1 linha por cobrança (mensalidade/avulso/tira-gosto/lançamento manual) — mesma forma de `buildReceberItems()`. */
 data class ReceberItem(
     val key: String,
@@ -20,6 +37,9 @@ data class ReceberItem(
     val date: String,
     val amount: Double,
     val paidDate: String? = null,
+    val playerId: Int? = null,
+    val settle: SettleAction? = null,
+    val edit: EditRef? = null,
 )
 
 /** 1 linha por despesa/recorrente pendente — mesma forma de `buildPagarItems()`. */
@@ -34,6 +54,8 @@ data class PagarItem(
     val date: String,
     val amount: Double,
     val paidDate: String? = null,
+    val settle: SettleAction? = null,
+    val edit: EditRef? = null,
 )
 
 /**
@@ -82,6 +104,8 @@ object ReceberItems {
                             desc = "Mensalidade · ${monthLabelBR(ch.month)}",
                             date = ch.date ?: "${ch.month}-01",
                             amount = c.amount, paidDate = c.paidDate,
+                            playerId = p.id,
+                            settle = if (c.paid) null else SettleAction.FeeCharge(p.id, ch.month),
                         )
                     }
                 } else {
@@ -95,9 +119,12 @@ object ReceberItems {
                         val pend: Double
                         if (rem >= amount) { pend = 0.0; rem -= amount } else { pend = amount - rem; rem = 0.0 }
                         items += if (pend > 0.001) {
-                            ReceberItem("fee-${p.id}-$i", "pendente", "avulso", "💵", p.name, p.apelido.orEmpty(), "Jogo Avulso · $sub", date, pend)
+                            ReceberItem(
+                                "fee-${p.id}-$i", "pendente", "avulso", "💵", p.name, p.apelido.orEmpty(), "Jogo Avulso · $sub", date, pend,
+                                playerId = p.id, settle = SettleAction.Fee(p.id, "Jogo Avulso"),
+                            )
                         } else {
-                            ReceberItem("feepg-${p.id}-$i", "pago", "avulso", "💵", p.name, p.apelido.orEmpty(), "Jogo Avulso · $sub", date, amount)
+                            ReceberItem("feepg-${p.id}-$i", "pago", "avulso", "💵", p.name, p.apelido.orEmpty(), "Jogo Avulso · $sub", date, amount, playerId = p.id)
                         }
                     }
                 }
@@ -113,6 +140,8 @@ object ReceberItems {
                         name = p.name, apelido = p.apelido.orEmpty(),
                         desc = "Tira Gosto · ${fmtBR(ev.date)}",
                         date = ev.date, amount = ev.share,
+                        playerId = p.id,
+                        settle = if (pago || ev.id == null) null else SettleAction.Dinner(p.id, ev.id),
                     )
                 }
             }
@@ -129,6 +158,9 @@ object ReceberItems {
                 name = l.name, apelido = if (l.playerId == null) "convidado" else "",
                 desc = "${l.type} · ${fmtBR(l.date)}" + (l.notes?.let { " · $it" } ?: ""),
                 date = l.date, amount = l.amount, paidDate = l.paidDate,
+                playerId = l.playerId,
+                settle = if (l.paid || l.id == null) null else SettleAction.Manual(l.id),
+                edit = if (l.paid) null else l.id?.let { EditRef.Manual(it) },
             )
         }
         return items
@@ -143,6 +175,8 @@ object ReceberItems {
                 name = e.description, apelido = "",
                 desc = "${e.category.orEmpty()} · ${fmtBR(e.date)}" + (e.notes?.let { " · $it" } ?: ""),
                 date = e.date, amount = e.amount, paidDate = e.paidDate,
+                settle = if (e.paid || e.id == null) null else SettleAction.Expense(e.id),
+                edit = e.id?.let { EditRef.Expense(it) },
             )
         }
         recurringExpenses.filter { it.active && it.lastPaidMonth != curMonth }.forEach { r ->
@@ -152,6 +186,8 @@ object ReceberItems {
                 name = r.description, apelido = "recorrente",
                 desc = "${r.category.orEmpty()} · 🔁 Recorrente · ${monthLabelBR(curMonth)}",
                 date = "$curMonth-01", amount = r.amount,
+                settle = r.id?.let { SettleAction.Recurring(it) },
+                edit = r.id?.let { EditRef.Recurring(it) },
             )
         }
         return items

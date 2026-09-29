@@ -17,6 +17,15 @@ import androidx.compose.ui.unit.dp
  * Equivalente ao `.card` + `.card-title-bar` do painel web — um Card normal
  * com uma barrinha vertical em degradê na borda esquerda. Usado nos cards
  * de destaque (Dashboard, linha de jogador), não em todo Card da tela.
+ *
+ * IMPORTANTE: os `fillMaxHeight()` internos só se comportam bem quando este
+ * card é filho de um `LazyColumn`/`LazyRow` (altura solta/infinita, o
+ * fillMaxHeight vira no-op) — como filho direto de um `Column` de altura
+ * limitada (ex.: tela cheia), ele estica pro tamanho do Column inteiro. Ao
+ * usar fora de uma lista, envolva a chamada com `Modifier.height(IntrinsicSize.Min)`
+ * no `Row`/`Column` pai (só quando o conteúdo é simples — Text/Row/Column;
+ * evite em conteúdo com TextField/DropdownMenu, cuja medida intrínseca é
+ * inconsistente).
  */
 @Composable
 fun AccentCard(

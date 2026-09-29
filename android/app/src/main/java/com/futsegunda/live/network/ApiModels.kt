@@ -585,3 +585,22 @@ data class GenerateTokensRequest(val date: String, val players: List<TokenPlayer
 
 @Serializable
 data class GenerateTokensResponse(val ok: Boolean = false, val error: String? = null, val token: String? = null, val inserted: Int? = null)
+
+// ── Financeiro: quitar fee/dinner (Fase 10) ──────────────
+
+@Serializable
+data class FeeSettleRequest(val playerId: Int, val amount: Double, val ptype: String)
+
+@Serializable
+data class FeeSettleResponse(val ok: Boolean = false, val error: String? = null, val players: List<PlayerDto> = emptyList())
+
+@Serializable
+data class DinnerSettleRequest(val playerId: Int, val dinnerHistoryId: Int)
+
+@Serializable
+data class DinnerSettleResponse(
+    val ok: Boolean = false,
+    val error: String? = null,
+    val players: List<PlayerDto> = emptyList(),
+    val dinnerHistory: List<DinnerHistoryDto> = emptyList(),
+)

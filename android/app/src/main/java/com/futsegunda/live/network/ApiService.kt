@@ -246,6 +246,22 @@ interface ApiService {
     ): Response<ResponseBody>
 
     @POST("api.php")
+    suspend fun feeSettle(
+        @Query("action") action: String = "fee_settle",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
+    suspend fun dinnerSettle(
+        @Query("action") action: String = "dinner_settle",
+        @Header("X-Api-Key") apiKey: String,
+        @Header("X-Auth-Token") authToken: String,
+        @Body body: RequestBody,
+    ): Response<ResponseBody>
+
+    @POST("api.php")
     suspend fun expenseSave(
         @Query("action") action: String = "expense_save",
         @Header("X-Api-Key") apiKey: String,
