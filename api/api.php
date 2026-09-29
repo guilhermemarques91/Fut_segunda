@@ -1161,6 +1161,81 @@ if ($action === 'lancamento_bulk_quitar' && $_SERVER['REQUEST_METHOD'] === 'POST
     exit;
 }
 
+// ── FINANCEIRO: quitar cobrança de jogo avulso — admin ───
+// Contraparte de settleItem({type:'fee'}) — a alocação FIFO em si (qual
+// jogo está sendo pago) já foi calculada no cliente via ReceberItems
+// (mesma lógica de buildReceberItems() do painel); aqui só registra o
+// pagamento e credita o jogador.
+if ($action === 'fee_settle' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $playerId = (int) ($body['playerId'] ?? 0);
+    $amount = (float) ($body['amount'] ?? 0);
+    $ptype = $body['ptype'] ?? 'Jogo Avulso';
+    if (!$playerId || $amount <= 0) {
+        http_response_code(400); echo json_encode(['error' => 'playerId e amount obrigatórios']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $players = $d['players'] ?? [];
+    $idx = null;
+    foreach ($players as $i => $p) { if ((int) ($p['id'] ?? 0) === $playerId) { $idx = $i; break; } }
+    if ($idx === null) {
+        $pdo->rollBack(); http_response_code(404); echo json_encode(['error' => 'Jogador não encontrado']); exit;
+    }
+    $today = date('Y-m-d');
+    $players[$idx]['payments'] = $players[$idx]['payments'] ?? [];
+    $players[$idx]['payments'][] = ['type' => $ptype, 'amount' => $amount, 'date' => $today];
+    $players[$idx]['balance'] = ($players[$idx]['balance'] ?? 0) + $amount;
+    $d['players'] = $players;
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'players' => $players]);
+    exit;
+}
+
+// ── FINANCEIRO: quitar participação de um jogador no tira-gosto — admin ──
+// Contraparte de settleItem({type:'dinner'}).
+if ($action === 'dinner_settle' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($session['role'] !== 'admin') {
+        http_response_code(403); echo json_encode(['error' => 'Acesso negado']); exit;
+    }
+    $body = json_decode(file_get_contents('php://input'), true) ?? [];
+    $playerId = (int) ($body['playerId'] ?? 0);
+    $dinnerId = (int) ($body['dinnerHistoryId'] ?? 0);
+    if (!$playerId || !$dinnerId) {
+        http_response_code(400); echo json_encode(['error' => 'playerId e dinnerHistoryId obrigatórios']); exit;
+    }
+    $d = _liveEventLock($pdo);
+    $dinnerHistory = $d['dinnerHistory'] ?? [];
+    $didx = null;
+    foreach ($dinnerHistory as $i => $ev) { if ((int) ($ev['id'] ?? 0) === $dinnerId) { $didx = $i; break; } }
+    if ($didx === null) {
+        $pdo->rollBack(); http_response_code(404); echo json_encode(['error' => 'Tira-gosto não encontrado']); exit;
+    }
+    $ev = $dinnerHistory[$didx];
+    $share = (float) ($ev['share'] ?? 0);
+    $paidBy = $ev['paidBy'] ?? [];
+    if (!in_array($playerId, $paidBy, true)) $paidBy[] = $playerId;
+    $dinnerHistory[$didx]['paidBy'] = $paidBy;
+    $d['dinnerHistory'] = $dinnerHistory;
+
+    $players = $d['players'] ?? [];
+    $pidx = null;
+    foreach ($players as $i => $p) { if ((int) ($p['id'] ?? 0) === $playerId) { $pidx = $i; break; } }
+    if ($pidx !== null) {
+        $today = date('Y-m-d');
+        $players[$pidx]['payments'] = $players[$pidx]['payments'] ?? [];
+        $players[$pidx]['payments'][] = ['type' => 'Tira Gosto', 'amount' => $share, 'date' => $today];
+        $players[$pidx]['balance'] = ($players[$pidx]['balance'] ?? 0) + $share;
+        $players[$pidx]['dinnerDebt'] = max(0, ($players[$pidx]['dinnerDebt'] ?? 0) - $share);
+        $d['players'] = $players;
+    }
+    _liveEventSave($pdo, $d);
+    echo json_encode(['ok' => true, 'players' => $players, 'dinnerHistory' => $dinnerHistory]);
+    exit;
+}
+
 // ── FINANCEIRO: despesas avulsas — admin ─────────────────
 if ($action === 'expense_save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($session['role'] !== 'admin') {
