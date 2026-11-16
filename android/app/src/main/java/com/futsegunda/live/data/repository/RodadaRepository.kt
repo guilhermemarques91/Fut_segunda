@@ -132,7 +132,7 @@ class RodadaRepository(private val context: Context) {
     /** Espelha startPartida() do painel web — só quem já está logado (X-Auth-Token não é exigido pelo live_update, mas a API key sim). */
     suspend fun startLiveMatch(req: LiveStartRequest): RodadaResult<Unit> {
         return try {
-            val resp = ApiClient.service.liveUpdate(apiKey = ServerConfig.API_KEY, body = JsonCodec.body(req))
+            val resp = ApiClient.service.liveUpdate(apiKey = ServerConfig.API_KEY, body = JsonCodec.bodyFull(req))
             if (resp.isSuccessful) RodadaResult.Ok(Unit) else RodadaResult.Error("Falha ao iniciar a partida")
         } catch (e: Exception) {
             RodadaResult.Error("Sem conexão com o servidor")

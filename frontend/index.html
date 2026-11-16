@@ -342,6 +342,55 @@
     .pub-live-score{font-size:clamp(3.4rem,8.5vw,6rem);font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
     .pub-live-timer{font-size:2.2rem;font-weight:800;letter-spacing:.06em;font-variant-numeric:tabular-nums;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;transition:color .3s;color:#475569}
     .pub-live-timer.running{color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,0.4)}
+    /* ─ AO VIVO v2 · "Duelo Vertical": cada time é um bloco inteiro de toque (abre o popup de gol) ─ */
+    .lv{display:flex;flex-direction:column;gap:10px;width:100%;max-width:1100px;margin:0 auto;min-height:min(calc(100dvh - 170px),760px)}
+    .lv-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.72rem;color:#475569;padding:0 4px}
+    .lv-head-r{display:flex;align-items:center;gap:8px}
+    .lv-mini{background:transparent;border:1px solid rgba(255,255,255,0.09);color:#64748b;border-radius:8px;padding:3px 9px;font-size:.68rem;font-family:inherit;cursor:pointer;transition:color .15s,background .15s}
+    .lv-mini:hover{color:#e2e8f0;background:rgba(255,255,255,0.06)}
+    .lv-main{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+    .lv-team{flex:1;min-height:190px;position:relative;overflow:hidden;border-radius:22px;border:1px solid;padding:14px 16px;text-align:left;font-family:inherit;color:inherit;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto 1fr auto;align-items:start;-webkit-tap-highlight-color:transparent;transition:transform .08s,filter .15s}
+    .lv-team:active{transform:scale(.985);filter:brightness(1.18)}
+    .lv-team.h{background:linear-gradient(135deg,#352a08,#15110a);border-color:rgba(251,191,36,.34)}
+    .lv-team.a{background:linear-gradient(135deg,#10295a,#0a1325);border-color:rgba(96,165,250,.34)}
+    .lv-tname{grid-column:1;grid-row:1;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+    .lv-team.h .lv-tname,.lv-team.h .lv-num{color:#fbbf24}
+    .lv-team.a .lv-tname,.lv-team.a .lv-num{color:#60a5fa}
+    .lv-last{grid-column:2;grid-row:1;text-align:right;font-size:.72rem;color:#94a3b8;font-weight:600;line-height:1.35;max-width:55vw}
+    .lv-last b{display:block;color:#e2e8f0;font-size:.8rem}
+    .lv-num{grid-column:1/-1;grid-row:2;align-self:center;justify-self:center;text-align:center;font-size:clamp(5.5rem,32vw,8rem);font-weight:900;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+    .lv-hint{grid-column:1/-1;grid-row:3;display:flex;align-items:center;justify-content:center;gap:8px;font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;opacity:.85}
+    .lv-team.h .lv-hint{color:#fbbf24}.lv-team.a .lv-hint{color:#60a5fa}
+    .lv-hint svg{width:16px;height:16px}
+    .lv-mid{flex:0 0 auto;display:grid;grid-template-columns:56px 1fr 56px;align-items:center;gap:8px}
+    .lv-round{display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:18px;background:#1b2740;border:1px solid rgba(255,255,255,.16);color:#e8edf6;cursor:pointer;font-family:inherit;transition:transform .08s}
+    .lv-round:active{transform:scale(.92)}
+    .lv-round:disabled{opacity:.35;cursor:not-allowed}
+    .lv-round svg{width:22px;height:22px}
+    .lv-clock{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+    .lv-plabel{font-size:.62rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#64748b}
+    .lv-tm{font-size:2.3rem;font-weight:800;letter-spacing:.04em;line-height:1;font-variant-numeric:tabular-nums;color:#64748b;transition:color .25s}
+    .lv-tm.run{color:#4ade80;text-shadow:0 0 18px rgba(74,222,128,.35)}
+    .lv-tm.int{color:#f59e0b}.lv-tm.end{color:#475569}
+    .lv-act{width:100%;height:60px;border-radius:16px;border:none;display:flex;align-items:center;justify-content:center;gap:10px;font-size:1rem;font-weight:800;font-family:inherit;cursor:pointer;flex:0 0 auto;transition:transform .08s}
+    .lv-act:active{transform:scale(.98)}
+    .lv-act svg{width:22px;height:22px}
+    .lv-act.pre,.lv-act.int,.lv-act.end{background:linear-gradient(135deg,#22c55e,#15803d);color:#fff}
+    .lv-act.t1{background:#f59e0b;color:#1c1000}
+    .lv-act.t2{background:#ef4444;color:#fff}
+    .lv-note{font-size:.68rem;color:#475569;text-align:center}
+    /* tablet / navegador: barra de controle no topo, dois blocos lado a lado com placar maior */
+    @media(min-width:760px){
+      .lv-main{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto minmax(300px,1fr);gap:10px}
+      .lv-mid{grid-column:1/-1;grid-row:1;display:flex;justify-content:center;gap:28px}
+      .lv-clock{gap:4px;min-width:200px}
+      .lv-tm{font-size:3.25rem}
+      .lv-round{width:96px}
+      .lv-team{grid-row:2;padding:16px 20px;min-height:0}
+      .lv-team.h{grid-column:1}.lv-team.a{grid-column:2}
+      .lv-num{font-size:clamp(8rem,17vw,12.5rem)}
+      .lv-act{height:54px}
+    }
     /* Popup de gol (marcador + assistência) — ocupa boa parte da tela p/ uso em tablets */
     #goal-modal{align-items:center;justify-content:center;padding:8px}
     #goal-modal .modal-content{width:min(96vw,900px);max-width:none;max-height:calc(100dvh - 16px);margin:auto;padding:14px 16px;border-radius:20px;overflow-y:auto;display:flex;flex-direction:column}
@@ -4853,10 +4902,7 @@ function encerrarPeriodo() {
     liveTimer.t1ms = liveTimer.elapsed;
     liveTimer.elapsed = 0; liveTimer.startedAt = null;
     liveTimer.intervaloStart = Date.now();
-    liveTimer._intervaloIv = setInterval(() => {
-      const el = document.getElementById('live-intervalo-display');
-      if (el && liveTimer.intervaloStart) el.textContent = _fmtMs(Date.now() - liveTimer.intervaloStart);
-    }, 500);
+    liveTimer._intervaloIv = setInterval(refreshLiveTimer, 500); // durante o intervalo o display mostra o tempo de intervalo
   } else {
     liveTimer.ended = true;
   }
@@ -4885,60 +4931,119 @@ function resetLiveTimer() {
   _syncLiveTimer();
 }
 
-function refreshLiveTimer() {
-  const cur = _liveElapsed();
-  const disp = document.getElementById('live-timer-display');
-  if (disp) { disp.textContent = _fmtMs(cur); disp.className = 'live-timer-display ' + (liveTimer.running ? 'running' : 'paused'); }
+// ── Layout "Duelo Vertical" (Ao Vivo) — compartilhado entre a aba logada e a tela pública de login ──
+const _LV_ICONS = {
+  undo:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  play:  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1.2"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2"/></svg>',
+  stop:  '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>',
+  tap:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>'
+};
+function _lvEsc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _lvTmCls(stage, running) { return stage === 'int' ? 'int' : stage === 'end' ? 'end' : (running ? 'run' : 'idle'); }
+const _LV_STAGE_LABEL = { pre:'Antes do jogo', t1:'1º Tempo', int:'Intervalo', t2:'2º Tempo', end:'Encerrado' };
+
+// Último gol do time (para o canto do bloco). nameOf(id) → nome do jogador.
+function _lvLastGoal(goalLog, team, nameOf) {
+  for (let i = (goalLog||[]).length - 1; i >= 0; i--) {
+    const e = goalLog[i];
+    if (e.team !== team) continue;
+    const who = _lvEsc(nameOf(e.scorerId) || '?') + (e.ownGoal ? ' (contra)' : '');
+    const ast = e.assistId ? ' · assist. ' + _lvEsc(nameOf(e.assistId) || '?') : '';
+    return `<b>${who}</b>${ast}`;
+  }
+  return '';
 }
 
-function renderLiveTimerPanel() {
-  const panel = document.getElementById('live-timer-panel');
-  if (!panel) return;
+// v: { id, dateLabel, liveTxt, ended, h:{score,last}, a:{score,last}, stage, timerId, timerText, timerCls,
+//      canPause, paused, canUndo, act:{icon,label,fn}, fns:{goalH,goalA,undo,pause,reset,finish}, note }
+function _lvHtml(v) {
+  const team = (t, name, d, fn) => `
+    <button type="button" class="lv-team ${t}" onclick="${fn}" aria-label="Marcar gol do ${name}">
+      <span class="lv-tname">${name}</span>
+      <span class="lv-last">${d.last || 'Sem gols'}</span>
+      <span class="lv-num">${d.score}</span>
+      <span class="lv-hint">${_LV_ICONS.tap}Toque para marcar gol</span>
+    </button>`;
+  return `
+  <div class="lv" id="${v.id}">
+    <div class="lv-head">
+      <span>${v.dateLabel}</span>
+      <span class="lv-head-r">
+        <button type="button" class="lv-mini" onclick="${v.fns.reset}">↺ Zerar</button>
+        <button type="button" class="lv-mini" onclick="${v.fns.finish}">Encerrar partida</button>
+        <span style="font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span>${v.liveTxt}</span>
+      </span>
+    </div>
+    <div class="lv-main">
+      ${team('h', 'T. Preto e Amarelo', v.h, v.fns.goalH)}
+      <div class="lv-mid">
+        <button type="button" class="lv-round" onclick="${v.fns.pause}" ${v.canPause ? '' : 'disabled'} aria-label="${v.paused ? 'Retomar' : 'Pausar'} cronômetro">${v.paused ? _LV_ICONS.play : _LV_ICONS.pause}</button>
+        <div class="lv-clock"><span class="lv-plabel">${_LV_STAGE_LABEL[v.stage]}</span><span id="${v.timerId}" class="lv-tm ${v.timerCls}">${v.timerText}</span></div>
+        <button type="button" class="lv-round" onclick="${v.fns.undo}" ${v.canUndo ? '' : 'disabled'} aria-label="Reverter último lançamento">${_LV_ICONS.undo}</button>
+      </div>
+      ${team('a', 'T. Azul', v.a, v.fns.goalA)}
+    </div>
+    <button type="button" class="lv-act ${v.stage}" onclick="${v.act.fn}">${_LV_ICONS[v.act.icon]}${v.act.label}</button>
+    ${v.note ? `<div class="lv-note">${v.note}</div>` : ''}
+  </div>`;
+}
+
+const _LV_ACT = { pre:['play','Iniciar 1º Tempo'], t1:['stop','Encerrar 1º Tempo'], int:['play','Iniciar 2º Tempo'], t2:['stop','Encerrar Jogo'], end:['check','Salvar Partida'] };
+
+// Fase da partida na aba logada, derivada do liveTimer
+function _liveStage() {
   const t = liveTimer;
-  const t1done = t.t1ms !== null;
-  const inIntervalo = t1done && t.periodo === 1;
-  const in2T = t.periodo === 2;
+  if (t.ended) return 'end';
+  if (t.t1ms !== null && t.periodo === 1) return 'int';
+  if (t.periodo === 2) return 't2';
+  if (!t.running && t.elapsed === 0) return 'pre';
+  return 't1';
+}
 
-  let html = '';
-  if (t1done) {
-    html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">1º Tempo: <strong style="color:#64748b">${_fmtMs(t.t1ms)} ✓</strong></div>`;
-  }
-  if (inIntervalo) {
-    const intervElapsed = t.intervaloStart ? Date.now() - t.intervaloStart : 0;
-    html += `<div style="font-size:.58rem;font-weight:700;color:#f59e0b;letter-spacing:.05em;margin-bottom:4px">⏸ Intervalo</div>
-      <div id="live-intervalo-display" style="font-size:2.4rem;font-weight:900;font-variant-numeric:tabular-nums;color:#f59e0b;line-height:1">${_fmtMs(intervElapsed)}</div>
-      <div style="font-size:.6rem;color:#78716c;margin-top:3px;margin-bottom:8px">Contando automaticamente</div>`;
-  }
-  if (in2T && t.intervaloMs !== null) {
-    html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">Intervalo: <strong style="color:#64748b">${_fmtMs(t.intervaloMs)} ✓</strong></div>`;
-  }
-  if (!inIntervalo) {
-    const periodoLabel = t.periodo === 1 ? '1º Tempo' : '2º Tempo';
-    const periodoColor = t.periodo === 1 ? '#4ade80' : '#60a5fa';
-    if (t.ended) {
-      html += `<div style="font-size:.58rem;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:4px">2º Tempo (encerrado)</div>
-        <div id="live-timer-display" class="live-timer-display paused">${_fmtMs(t.elapsed)}</div>`;
-    } else {
-      html += `<div style="font-size:.58rem;font-weight:700;color:${periodoColor};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
-        <div onclick="toggleLiveTimer()" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
-          <div id="live-timer-display" class="live-timer-display ${t.running?'running':'paused'}">${_fmtMs(_liveElapsed())}</div>
-          <div id="live-timer-hint" style="font-size:.62rem;color:#475569;margin-top:3px">${t.running?'● Toque para pausar':'○ Toque para iniciar/pausar'}</div>
-        </div>`;
-    }
-  }
+function refreshLiveTimer() {
+  const disp = document.getElementById('live-timer-display');
+  if (!disp) return;
+  const st = _liveStage();
+  const ms = st === 'int' ? (liveTimer.intervaloStart ? Date.now() - liveTimer.intervaloStart : 0) : _liveElapsed();
+  disp.textContent = _fmtMs(ms);
+  disp.className = 'lv-tm ' + _lvTmCls(st, liveTimer.running);
+}
 
-  let btnHtml = '';
-  if (!t1done && !t.running && t.elapsed === 0) {
-    btnHtml = `<button onclick="toggleLiveTimer()" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;cursor:pointer;font-size:.9rem;font-family:inherit;font-weight:700">▶ Iniciar 1º Tempo</button>`;
-  } else if (!t1done && (t.running || t.elapsed > 0)) {
-    btnHtml = `<button onclick="encerrarPeriodo()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 1º Tempo</button>`;
-  } else if (inIntervalo) {
-    btnHtml = `<button onclick="iniciarSegundoTempo()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:700">▶ Iniciar 2º Tempo</button>`;
-  } else if (in2T && (t.running || t.elapsed > 0) && !t.ended) {
-    btnHtml = `<button onclick="encerrarPeriodo()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 2º Tempo e Jogo</button>`;
-  }
+// HTML do layout para a partida ativa (aba logada) — recalcula tudo a partir do estado
+function _liveActiveHtml() {
+  const date = document.getElementById('rod-date')?.value || '';
+  const dateLabel = date ? new Date(date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
+  const { home, away, homeReserve, awayReserve } = rodState.rodTeams;
+  const homeFull = homeReserve ? [...(home||[]), homeReserve] : (home||[]);
+  const awayFull = awayReserve ? [...(away||[]), awayReserve] : (away||[]);
+  const cnt = pid => (rodState.goals.find(g=>g.playerId===pid)?.count)||0;
+  const hScore = homeFull.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'home');
+  const aScore = awayFull.reduce((s,p)=>s+cnt(p.id),0) + _ownGoalCountForTeam(rodState.goalLog,'away');
+  const nameOf = id => findPlayerById(id)?.name;
+  const st = _liveStage();
+  const ms = st === 'int' ? (liveTimer.intervaloStart ? Date.now() - liveTimer.intervaloStart : 0) : _liveElapsed();
+  const actFn = { pre:'toggleLiveTimer()', t1:'encerrarPeriodo()', int:'iniciarSegundoTempo()', t2:'encerrarPeriodo()', end:'encerrarPartida()' }[st];
+  return _lvHtml({
+    id: 'live-v2', dateLabel, liveTxt: 'Ao Vivo', stage: st,
+    h: { score: hScore, last: _lvLastGoal(rodState.goalLog, 'home', nameOf) },
+    a: { score: aScore, last: _lvLastGoal(rodState.goalLog, 'away', nameOf) },
+    timerId: 'live-timer-display', timerText: _fmtMs(ms), timerCls: _lvTmCls(st, liveTimer.running),
+    canPause: st === 't1' || st === 't2', paused: !liveTimer.running,
+    canUndo: (rodState.goalLog||[]).length > 0,
+    act: { icon: _LV_ACT[st][0], label: _LV_ACT[st][1], fn: actFn },
+    fns: { goalH:"openGoalModal('live','home')", goalA:"openGoalModal('live','away')", undo:'undoLiveLastGoal()', pause:'toggleLiveTimer()', reset:'resetLiveTimer()', finish:'encerrarPartida()' }
+  });
+}
 
-  panel.innerHTML = html + btnHtml + `<button onclick="resetLiveTimer()" style="margin-top:6px;width:100%;padding:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#334155;cursor:pointer;font-size:.72rem;font-family:inherit">↺ Zerar tudo</button>`;
+// Re-renderiza o layout depois de qualquer mudança no cronômetro (botões, fase, rótulos)
+function renderLiveTimerPanel() {
+  const root = document.getElementById('live-v2');
+  if (!root) return;
+  const host = document.getElementById('live-match-content');
+  if (!host || !rodState.matchActive) return;
+  host.innerHTML = _liveActiveHtml();
   refreshLiveTimer();
 }
 
@@ -5045,39 +5150,9 @@ function renderLiveMatch() {
     return;
   }
 
-  // Partida ativa
-  el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
-      <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
-    </div>
-
-    <div class="card" style="margin-bottom:14px;padding:34px 22px;text-align:center;width:100%">
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:18px;margin-bottom:24px">
-        <div style="text-align:center">
-          <div style="font-size:.7rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 T. Preto</div>
-          <div id="live-home-score" class="live-score-num">${hScore}</div>
-          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
-            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalTab('home')">−</button>
-            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('live','home')">+</button>
-          </div>
-        </div>
-        <div style="font-size:2rem;font-weight:200;color:#334155;padding-top:22px">×</div>
-        <div style="text-align:center">
-          <div style="font-size:.7rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 T. Azul</div>
-          <div id="live-away-score" class="live-score-num">${aScore}</div>
-          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
-            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalTab('away')">−</button>
-            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('live','away')">+</button>
-          </div>
-        </div>
-      </div>
-      <div id="live-timer-panel"></div>
-    </div>
-
-    <button onclick="encerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700">🔴 Encerrar e Salvar Partida</button>
-  `;
-  renderLiveTimerPanel();
+  // Partida ativa — layout "Duelo Vertical" (bloco do time inteiro = botão de gol)
+  el.innerHTML = _liveActiveHtml();
+  refreshLiveTimer();
   startLiveMatchPoll(); // mantém o app em sincronia com o liveState (tela de login)
 }
 
@@ -5250,6 +5325,27 @@ function undoLiveGoalTab(team) {
   _syncLiveGoals();
 }
 
+// Reverte o ÚLTIMO lançamento da partida (de qualquer time), confirmando antes com quem seria removido.
+function undoLiveLastGoal() {
+  if (rodState.locked) return;
+  const goalLog = [...(rodState.goalLog||[])];
+  if (!goalLog.length) { showToast('Nenhum gol para desfazer', false); return; }
+  const ev = goalLog[goalLog.length - 1];
+  const scorer = findPlayerById(ev.scorerId);
+  const assist = ev.assistId ? findPlayerById(ev.assistId) : null;
+  const teamTxt = ev.team === 'away' ? 'T. Azul' : 'T. Preto';
+  if (!confirm(`Desfazer o gol${ev.ownGoal?' (gol contra)':''} de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''} do ${teamTxt}?`)) return;
+  goalLog.pop();
+  rodState.goalLog = goalLog;
+  if (!ev.ownGoal) {
+    const g = rodState.goals.find(g=>g.playerId===ev.scorerId);
+    if (g) { g.count = Math.max(0, g.count-1); if (g.count===0) rodState.goals = rodState.goals.filter(x=>x.playerId!==ev.scorerId); }
+  }
+  renderLiveMatch();
+  autoSaveGoals(); renderRodadaGoals();
+  _syncLiveGoals();
+}
+
 function saveLiveResult() {
   autoSaveGoals();
   const btn = document.querySelector('#live-match-content .btn-primary');
@@ -5352,9 +5448,22 @@ function _pubElapsed() {
   return (s.timerElapsed||0) + (s.timerRunning && s.timerStartedAt ? Math.max(0, Date.now()-s.timerStartedAt) : 0);
 }
 
+function _pubStage(s) {
+  if (s.t2ended) return 'end';
+  if (s.t1ms != null && s.periodo === 1) return 'int';
+  if (s.periodo === 2) return 't2';
+  if (!s.timerRunning && !s.timerElapsed) return 'pre';
+  return 't1';
+}
+
 function _pubRefreshTimerDisp() {
   const d = document.getElementById('pub-live-timer-disp');
-  if (d && pubLiveSrv) { d.textContent = _fmtMs(_pubElapsed()); d.className='pub-live-timer'+(pubLiveSrv.timerRunning?' running':''); }
+  const s = pubLiveSrv;
+  if (!d || !s) return;
+  const st = _pubStage(s);
+  const ms = st === 'int' ? (s.intervaloStart ? Date.now() - s.intervaloStart : 0) : st === 'end' ? (s.timerElapsed||0) : _pubElapsed();
+  d.textContent = _fmtMs(ms);
+  d.className = 'lv-tm ' + _lvTmCls(st, !!s.timerRunning);
 }
 
 function _syncLiveTimer() {
@@ -5409,10 +5518,7 @@ function _adoptLiveTimer(s) {
   clearInterval(liveTimer._intervaloIv); liveTimer._intervaloIv = null;
   if (liveTimer.running) liveTimer._iv = setInterval(refreshLiveTimer, 500);
   if (liveTimer.t1ms !== null && liveTimer.periodo === 1 && liveTimer.intervaloStart) {
-    liveTimer._intervaloIv = setInterval(() => {
-      const el = document.getElementById('live-intervalo-display');
-      if (el && liveTimer.intervaloStart) el.textContent = _fmtMs(Date.now() - liveTimer.intervaloStart);
-    }, 500);
+    liveTimer._intervaloIv = setInterval(refreshLiveTimer, 500);
   }
   return true;
 }
@@ -5451,60 +5557,19 @@ async function _pollLiveMatch() {
   } catch {}
 }
 
-function renderPubLiveTimer() {
-  const panel = document.getElementById('pub-live-timer-panel');
-  if (!panel || !pubLiveSrv) return;
-  const s = pubLiveSrv;
-  const t1done = s.t1ms !== null;
-  const inIntervalo = t1done && s.periodo === 1;
-  const in2T = s.periodo === 2;
-
-  let html = '';
-  if (t1done) html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">1º Tempo: <strong style="color:#64748b">${_fmtMs(s.t1ms)} ✓</strong></div>`;
-  if (inIntervalo) {
-    const intervElapsed = s.intervaloStart ? Date.now() - s.intervaloStart : 0;
-    html += `<div style="font-size:.58rem;font-weight:700;color:#f59e0b;letter-spacing:.05em;margin-bottom:4px">⏸ Intervalo</div>
-      <div id="pub-intervalo-display" style="font-size:2rem;font-weight:900;font-variant-numeric:tabular-nums;color:#f59e0b;line-height:1">${_fmtMs(intervElapsed)}</div>
-      <div style="font-size:.6rem;color:#78716c;margin-top:3px;margin-bottom:8px">Intervalo em andamento</div>`;
-  }
-  if (in2T && s.intervaloMs != null) {
-    html += `<div style="font-size:.63rem;color:#475569;margin-bottom:3px">Intervalo: <strong style="color:#64748b">${_fmtMs(s.intervaloMs)} ✓</strong></div>`;
-  }
-  if (!inIntervalo) {
-    if (in2T && s.t2ended) {
-      html += `<div style="font-size:.58rem;font-weight:700;color:#64748b;letter-spacing:.05em;margin-bottom:4px">🏁 Partida encerrada</div>
-        <div class="pub-live-timer">${_fmtMs(s.timerElapsed||0)}</div>
-        <div style="font-size:.6rem;color:#78716c;margin-top:4px">Placar final · o administrador salva o resultado no app</div>`;
-    } else {
-      const periodoLabel = s.periodo === 1 ? '1º Tempo' : '2º Tempo';
-      const periodoColor = s.periodo === 1 ? '#4ade80' : '#60a5fa';
-      html += `<div style="font-size:.58rem;font-weight:700;color:${periodoColor};letter-spacing:.05em;margin-bottom:4px">${periodoLabel}</div>
-        <div onclick="pubLiveToggleTimer()" style="cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent">
-          <div id="pub-live-timer-disp" class="pub-live-timer${s.timerRunning?' running':''}">${_fmtMs(_pubElapsed())}</div>
-          <div style="font-size:.62rem;color:#475569;margin-top:3px">${s.timerRunning?'● Toque para pausar':'○ Toque para iniciar'}</div>
-        </div>`;
-    }
-  }
-  let btnHtml = '';
-  if (!t1done && !s.timerRunning && !s.timerElapsed) {
-    btnHtml = `<button onclick="pubLiveToggleTimer()" style="margin-top:12px;width:100%;padding:10px;border-radius:10px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;cursor:pointer;font-size:.9rem;font-family:inherit;font-weight:700">▶ Iniciar 1º Tempo</button>`;
-  } else if (!t1done && (s.timerRunning || s.timerElapsed > 0)) {
-    btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 1º Tempo</button>`;
-  } else if (inIntervalo) {
-    btnHtml = `<button onclick="pubLiveIniciar2T()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:700">▶ Iniciar 2º Tempo</button>`;
-  } else if (in2T && !s.t2ended && (s.timerRunning || s.timerElapsed > 0)) {
-    btnHtml = `<button onclick="pubLiveEncerrar()" class="btn-secondary" style="margin-top:10px;width:100%;padding:8px;font-size:.8rem">⏹ Encerrar 2º Tempo</button>`;
-  }
-  panel.innerHTML = html + btnHtml + `<button onclick="pubLiveReset()" style="margin-top:6px;width:100%;padding:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.07);color:#334155;cursor:pointer;font-size:.72rem;font-family:inherit">↺ Zerar tudo</button>`;
+// Mantém o display do cronômetro vivo (rodando ou em intervalo) depois de cada render
+function _pubSetupTimerIntervals() {
   clearInterval(_pubLiveIv); _pubLiveIv = null;
-  if (s.timerRunning) _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
   clearInterval(window._pubIntervalIv); window._pubIntervalIv = null;
-  if (inIntervalo && s.intervaloStart) {
-    window._pubIntervalIv = setInterval(() => {
-      const d = document.getElementById('pub-intervalo-display');
-      if (d) d.textContent = _fmtMs(Date.now() - s.intervaloStart);
-    }, 500);
-  }
+  const s = pubLiveSrv;
+  if (!s) return;
+  if (s.timerRunning || _pubStage(s) === 'int') _pubLiveIv = setInterval(_pubRefreshTimerDisp, 500);
+}
+
+// Qualquer mudança de cronômetro re-renderiza o layout inteiro (botões e rótulos mudam por fase)
+function renderPubLiveTimer() {
+  if (!pubLiveSrv?.active) return;
+  renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
 }
 
 async function pubLiveToggleTimer() {
@@ -5589,6 +5654,26 @@ async function undoLiveGoalPub(team) {
   renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
 }
 
+// Reverte o ÚLTIMO lançamento da partida (de qualquer time), confirmando antes com quem seria removido.
+async function undoLiveLastGoalPub() {
+  if (!pubLiveSrv) return;
+  const goalLog = [...(pubLiveSrv.goalLog||[])];
+  if (!goalLog.length) { showToast('Nenhum gol para desfazer', false); return; }
+  const ev = goalLog[goalLog.length - 1];
+  const scorer = _pubPlayerMap[ev.scorerId];
+  const assist = ev.assistId ? _pubPlayerMap[ev.assistId] : null;
+  const teamTxt = ev.team === 'away' ? 'T. Azul' : 'T. Preto';
+  if (!confirm(`Desfazer o gol${ev.ownGoal?' (gol contra)':''} de ${scorer?.name||'?'}${assist?` (assistência: ${assist.name})`:''} do ${teamTxt}?`)) return;
+  goalLog.pop();
+  const goals = JSON.parse(JSON.stringify(pubLiveSrv.goals||[]));
+  if (!ev.ownGoal) {
+    const g = goals.find(g=>g.playerId===ev.scorerId);
+    if (g) g.count = Math.max(0, g.count-1);
+  }
+  await _pushLiveState({goals: goals.filter(g=>g.count>0), goalLog});
+  renderPublicLivePanel({ liveState: pubLiveSrv, players: Object.values(_pubPlayerMap) });
+}
+
 function renderPublicLivePanel(d) {
   const wrapEl = document.getElementById('public-live');
   if (!wrapEl) return;
@@ -5604,36 +5689,22 @@ function renderPublicLivePanel(d) {
   const hScore = hIds.reduce((a,id)=>a+cnt(id),0) + _ownGoalCountForTeam(s.goalLog,'home');
   const aScore = aIds.reduce((a,id)=>a+cnt(id),0) + _ownGoalCountForTeam(s.goalLog,'away');
   const dateLabel = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'}) : '';
-  document.getElementById('pub-live-content').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <span style="font-size:.72rem;color:#475569">${dateLabel}</span>
-      <span style="font-size:.7rem;font-weight:700;color:#4ade80;display:flex;align-items:center;gap:5px"><span class="live-pulse"></span> Ao Vivo</span>
-    </div>
-    <div class="card" style="margin-bottom:12px;padding:34px 22px;text-align:center;width:100%">
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:18px;margin-bottom:24px">
-        <div style="text-align:center">
-          <div style="font-size:.68rem;font-weight:700;color:#eab308;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">⬛🟡 T. Preto</div>
-          <div id="pub-live-home-score" class="pub-live-score">${hScore}</div>
-          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
-            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalPub('home')">−</button>
-            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('pub','home')">+</button>
-          </div>
-        </div>
-        <div style="font-size:1.8rem;font-weight:200;color:#334155;padding-top:20px">×</div>
-        <div style="text-align:center">
-          <div style="font-size:.68rem;font-weight:700;color:#60a5fa;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">🔵 T. Azul</div>
-          <div id="pub-live-away-score" class="pub-live-score">${aScore}</div>
-          <div style="display:flex;gap:12px;justify-content:center;margin-top:14px">
-            <button class="goal-btn-lg goal-btn-minus" onclick="undoLiveGoalPub('away')">−</button>
-            <button class="goal-btn-lg goal-btn-plus"  onclick="openGoalModal('pub','away')">+</button>
-          </div>
-        </div>
-      </div>
-      <div id="pub-live-timer-panel"></div>
-    </div>
-    <button onclick="pubEncerrarPartida()" class="btn-danger" style="width:100%;padding:12px;font-size:.9rem;font-weight:700;margin-top:14px">🔴 Encerrar e Salvar Partida</button>
-    <div style="font-size:.68rem;color:#475569;text-align:center;margin-top:6px">Requer login de administrador para computar o resultado</div>`;
-  renderPubLiveTimer();
+  const nameOf = id => _pubPlayerMap[id]?.name;
+  const st = _pubStage(s);
+  const ms = st === 'int' ? (s.intervaloStart ? Date.now() - s.intervaloStart : 0) : st === 'end' ? (s.timerElapsed||0) : _pubElapsed();
+  const actFn = { pre:'pubLiveToggleTimer()', t1:'pubLiveEncerrar()', int:'pubLiveIniciar2T()', t2:'pubLiveEncerrar()', end:'pubEncerrarPartida()' }[st];
+  document.getElementById('pub-live-content').innerHTML = _lvHtml({
+    id: 'pub-live-v2', dateLabel, liveTxt: 'Ao Vivo', stage: st,
+    h: { score: hScore, last: _lvLastGoal(s.goalLog, 'home', nameOf) },
+    a: { score: aScore, last: _lvLastGoal(s.goalLog, 'away', nameOf) },
+    timerId: 'pub-live-timer-disp', timerText: _fmtMs(ms), timerCls: _lvTmCls(st, !!s.timerRunning),
+    canPause: st === 't1' || st === 't2', paused: !s.timerRunning,
+    canUndo: (s.goalLog||[]).length > 0,
+    act: { icon: _LV_ACT[st][0], label: _LV_ACT[st][1], fn: actFn },
+    fns: { goalH:"openGoalModal('pub','home')", goalA:"openGoalModal('pub','away')", undo:'undoLiveLastGoalPub()', pause:'pubLiveToggleTimer()', reset:'pubLiveReset()', finish:'pubEncerrarPartida()' },
+    note: 'Salvar e encerrar a partida requer login de administrador'
+  });
+  _pubSetupTimerIntervals();
 }
 
 // ── Encerrar partida a partir da tela de login (público) ──

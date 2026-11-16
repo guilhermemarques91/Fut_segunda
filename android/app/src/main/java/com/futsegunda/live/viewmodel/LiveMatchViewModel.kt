@@ -78,6 +78,12 @@ class LiveMatchViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Reverte o último lançamento da partida (de qualquer time): o servidor remove o último gol daquele time. */
+    fun undoLastGoal() {
+        val team = _state.value.live?.goalLog?.lastOrNull()?.team ?: return
+        undoGoal(team)
+    }
+
     fun periodEvent(event: String) {
         viewModelScope.launch {
             val result = repo.periodEvent(event)

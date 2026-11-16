@@ -41,6 +41,12 @@ data class LiveStateDto(
     val awayPlayers: List<Int> = emptyList(),
     val goalLog: List<GoalLogEntry> = emptyList(),
     val periodo: Int? = null,
+    val t1ms: Long? = null,
+    val timerRunning: Boolean = false,
+    val timerElapsed: Long = 0,
+    val timerStartedAt: Long? = null,
+    val intervaloStart: Long? = null,
+    val t2ended: Boolean = false,
 )
 
 @Serializable
@@ -68,7 +74,7 @@ data class GoalUndoRequest(
 @Serializable
 data class PeriodEventRequest(
     val clientEventId: String,
-    val event: String, // start_t1 | end_t1 | start_t2 | end_t2 | reset
+    val event: String, // start_t1 | end_t1 | start_t2 | end_t2 | reset | pause | resume
     val at: Long? = null,
 )
 

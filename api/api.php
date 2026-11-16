@@ -286,7 +286,7 @@ if ($action === 'live_period' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $body = json_decode(file_get_contents('php://input'), true) ?? [];
     $clientEventId = trim($body['clientEventId'] ?? '');
     $event = $body['event'] ?? '';
-    $validEvents = ['start_t1', 'end_t1', 'start_t2', 'end_t2', 'reset'];
+    $validEvents = ['start_t1', 'end_t1', 'start_t2', 'end_t2', 'reset', 'pause', 'resume'];
     if (!$clientEventId || !in_array($event, $validEvents, true)) {
         http_response_code(400);
         echo json_encode(['error' => 'clientEventId e event válido são obrigatórios']);
@@ -333,6 +333,21 @@ if ($action === 'live_period' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $live['timerStartedAt'] = null;
             $live['timerElapsed'] = $elapsedNow;
             $live['t2ended'] = true;
+            break;
+        case 'pause':
+            // Só pausa se estiver rodando; congela o elapsed do tempo corrente.
+            if (!empty($live['timerRunning'])) {
+                $live['timerRunning'] = false;
+                $live['timerStartedAt'] = null;
+                $live['timerElapsed'] = $elapsedNow;
+            }
+            break;
+        case 'resume':
+            // Só retoma tempo em andamento (não durante intervalo nem após o fim).
+            if (empty($live['timerRunning']) && empty($live['t2ended']) && empty($live['intervaloStart']) && !empty($live['periodo'])) {
+                $live['timerRunning'] = true;
+                $live['timerStartedAt'] = $at;
+            }
             break;
         case 'reset':
             $live['periodo'] = null;
