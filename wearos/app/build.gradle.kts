@@ -14,8 +14,8 @@ android {
         applicationId = "com.futsegunda.wear"
         minSdk = 30 // Wear OS 3 (Galaxy Watch4 = API 30+)
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     buildTypes {
